@@ -41,5 +41,17 @@ A sweep of the computer that finds the Skills and MCP Servers every supported Ag
 _Avoid_: Index, crawl
 
 **Namespace**:
-A named grouping of Skills in the Library.
-_Avoid_: Category, folder, tag
+The grouping a Library Skill belongs to, derived from its Source as `owner/repo`, or `local` when the Source is unknown.
+_Avoid_: Category, folder, tag, Collection
+
+**Source**:
+Where a Skill came from: a GitHub repo, a skills.sh listing (which resolves to a repo), or local when Dark Matter can't tell.
+_Avoid_: Origin, upstream, registry
+
+**Library Lock**:
+The single manifest that records every Library Skill's Source, pinned commit and content hash.
+_Avoid_: Index, database, metadata file
+
+**Name Conflict**:
+Two Library Skills with the same name that are both wanted in the same Agent skill folder, where only one can be Linked.
+_Avoid_: Collision, duplicate
