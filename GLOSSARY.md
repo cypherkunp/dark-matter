@@ -29,12 +29,28 @@ The single canonical store of Skills that Dark Matter owns, at `~/.dark-matter`.
 _Avoid_: Vault, cache, registry
 
 **Adopt**:
-To move an existing Skill from an Agent's folder into the Library, leaving a Link in its place.
+To move a Skill found by a Scan (in a global Agent folder, or untracked in a Project) into the Library, recording where it came from.
 _Avoid_: Import (reserved for pulling from a remote source), migrate
 
+**Project Skill**:
+A Library Skill that a Project has added for its chosen Agents, delivered as either a Link or a Copy. It's the only way a Skill reaches an Agent.
+_Avoid_: Enabled skill, installed skill
+
 **Link**:
-A symlink from an Agent's or Project's skill folder to a Skill in the Library.
+A Project Skill delivered as a symlink from the Project's skill folder to the Library. It's personal and never committed.
 _Avoid_: Shortcut, alias, mount
+
+**Copy**:
+A Project Skill delivered as real files in the Project, committed and recorded in the Project's `skills-lock.json`, so teammates get it without Dark Matter.
+_Avoid_: Vendor, snapshot, clone
+
+**Global Skill**:
+A Skill sitting in an Agent's global folder, so every Project sees it. Dark Matter never creates one, and offers to Adopt any it finds.
+_Avoid_: User skill, personal skill
+
+**Vendored Skill**:
+A Skill that is committed in a Project but that Dark Matter didn't create as a Copy. Dark Matter shows it but leaves it alone.
+_Avoid_: Tracked skill, checked-in skill
 
 **Scan**:
 A sweep of the computer that finds the Skills and MCP Servers every supported Agent can currently see.
