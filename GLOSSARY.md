@@ -44,6 +44,14 @@ _Avoid_: Shortcut, alias, mount
 A Project Skill delivered as real files in the Project, committed and recorded in the Project's `skills-lock.json`, so teammates get it without Dark Matter.
 _Avoid_: Vendor, snapshot, clone
 
+**On / Off**:
+The two states of a Project Skill. On means it's delivered to the Project's Agents. Off means it stays in the Project's Skill set but isn't delivered.
+_Avoid_: Enabled/disabled, active/inactive
+
+**Agent-managed Skill**:
+A Skill an Agent installs and controls itself (a plugin Skill, a built-in or a bundled Skill), which Dark Matter can't move and can only turn off through the Agent's own settings.
+_Avoid_: System skill, plugin skill, built-in
+
 **Global Skill**:
 A Skill sitting in an Agent's global folder, so every Project sees it. Dark Matter never creates one, and offers to Adopt any it finds.
 _Avoid_: User skill, personal skill
