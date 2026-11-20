@@ -32,6 +32,10 @@ _Avoid_: Vault, cache, registry
 To move a Skill found by a Scan (in a global Agent folder, or untracked in a Project) into the Library, recording where it came from.
 _Avoid_: Import (reserved for pulling from a remote source), migrate
 
+**Import**:
+To fetch chosen Skills from a GitHub repo (directly or through a skills.sh listing) into the Library, pinned to an exact commit and following a ref for updates.
+_Avoid_: Install, clone, add (reserved for adding a Skill to a Project)
+
 **Project Skill**:
 A Library Skill that a Project has added for its chosen Agents, delivered as either a Link or a Copy. It's the only way a Skill reaches an Agent.
 _Avoid_: Enabled skill, installed skill
@@ -79,6 +83,18 @@ _Avoid_: Category, folder, tag, Collection
 **Source**:
 Where a Skill came from: a GitHub repo, a skills.sh listing (which resolves to a repo), a Local Source, or local when Dark Matter can't tell.
 _Avoid_: Origin, upstream, registry
+
+**Modified**:
+A Library Skill from a Source whose contents you have changed since it was last Imported or updated.
+_Avoid_: Dirty, forked, customised
+
+**Orphaned**:
+A Library Skill whose Source can no longer be reached (repo deleted, renamed or made private, or the Skill's path removed). It is kept as is until you Detach or re-point it.
+_Avoid_: Broken, missing, dead
+
+**Detach**:
+To cut a Library Skill off from its Source so it becomes a `local` Skill that never receives updates.
+_Avoid_: Fork, unlink, eject
 
 **Local Source**:
 A folder outside every Agent folder where a Skill is authored (for example your own skills repo). The Library refers to it in place rather than moving it.
