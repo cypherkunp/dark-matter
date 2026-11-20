@@ -76,6 +76,14 @@ _Avoid_: Cron, background sync
 A folder that some Agent's history shows was worked in, which Dark Matter offers to manage. It becomes a Project only once you confirm it.
 _Avoid_: Detected project, recent workspace
 
+**Inbox**:
+The screen that collects every Scan finding still waiting on your decision: Global Skills and untracked Project Skills to Adopt, Agent-managed Skills you might turn off, and Suggested Projects.
+_Avoid_: Notifications, queue, review list
+
+**Favourite**:
+A star you put on a Skill or on a Source. The Favourites view shows starred Skills plus every Library Skill from a starred Source.
+_Avoid_: Bookmark, pin, Collection
+
 **Namespace**:
 The grouping a Library Skill belongs to, derived from its Source as `owner/repo`, or `local` when the Source is unknown.
 _Avoid_: Category, folder, tag, Collection
