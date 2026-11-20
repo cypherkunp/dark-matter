@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dark Matter IA prototype</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<style>
+  :root { --bg:#fff; --fg:#09090b; --muted:#71717a; --border:#e4e4e7; --soft:#f4f4f5; }
+  body { margin:0; color: var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; font-size: 13px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .note { background:#fef9c3; border:1px dashed #ca8a04; color:#713f12; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+// ---------- fake data ----------
+const AGENTS = ["Claude Code", "Cursor", "OpenCode", "Codex"];
+const LIB = [
+  { ns: "mattpocock/skills", name: "grilling", desc: "Grill the user relentlessly about a plan.", files: ["SKILL.md"], fav: true },
+  { ns: "mattpocock/skills", name: "domain-modeling", desc: "Build and sharpen a project's domain model.", files: ["SKILL.md", "ADR-FORMAT.md", "GLOSSARY-FORMAT.md"], fav: true },
+  { ns: "mattpocock/skills", name: "tdd", desc: "Test-driven development.", files: ["SKILL.md"], fav: true },
+  { ns: "shadcn-ui/ui", name: "shadcn", desc: "Manage shadcn components and projects.", files: ["SKILL.md", "rules/forms.md", "rules/styling.md"] },
+  { ns: "shadcn-ui/ui", name: "migrate-radix-to-base", desc: "Migrate Radix primitives to Base UI.", files: ["SKILL.md"] },
+  { ns: "GoogleChrome/modern-web-guidance", name: "modern-web-guidance", desc: "Modern web best practices search.", files: ["SKILL.md", "scripts/search.mjs"] },
+  { ns: "GoogleChrome/modern-web-guidance", name: "chrome-extensions", desc: "Build Chrome extensions with MV3.", files: ["SKILL.md"] },
+  { ns: "anthropics/skills", name: "pdf", desc: "Read, merge and fill PDFs.", files: ["SKILL.md", "forms.md", "scripts/fill.py"] },
+  { ns: "local", name: "release-notes", desc: "Draft release notes from git log.", files: ["SKILL.md"], localSource: "~/code/my-skills/release-notes" },
+  { ns: "local", name: "tdd-a1b2c3d", desc: "Variant of tdd adopted from ~/.cursor/skills.", files: ["SKILL.md"], conflict: "tdd" },
+];
+const PROJECTS = [
+  { name: "dark-matter", path: "~/Sandbox/CYPHERKUNP/dark-matter", agents: ["Claude Code", "Cursor", "Codex"],
+    skills: [
+      { name: "shadcn", ns: "shadcn-ui/ui", mode: "Copy", on: true },
+      { name: "modern-web-guidance", ns: "GoogleChrome/modern-web-guidance", mode: "Copy", on: true, status: "outdated" },
+      { name: "chrome-extensions", ns: "GoogleChrome/modern-web-guidance", mode: "Copy", on: true },
+      { name: "grilling", ns: "mattpocock/skills", mode: "Link", on: true },
+      { name: "domain-modeling", ns: "mattpocock/skills", mode: "Link", on: true },
+      { name: "tdd", ns: "mattpocock/skills", mode: "Link", on: false },
+      { name: "impeccable", ns: "pbakaus/impeccable", mode: "Copy", on: true, status: "modified" },
+    ],
+    vendored: ["house-style"], untracked: ["scratch-notes"] },
+  { name: "t3code-fork", path: "~/code/t3code-fork", agents: ["Claude Code", "OpenCode"],
+    skills: [ { name: "tdd", ns: "mattpocock/skills", mode: "Link", on: true }, { name: "tdd", ns: "local", mode: "Link", on: false, status: "Name Conflict" } ], vendored: [], untracked: [] },
+  { name: "blog", path: "~/code/blog", agents: ["Cursor"], skills: [], vendored: [], untracked: [], missing: true },
+];
+const SUGGESTED = [
+  { path: "~/code/side-quest", from: "Claude Code history" },
+  { path: "~/work/api-gateway", from: "Cursor workspaceStorage" },
+  { path: "~/work/infra", from: "Codex sessions" },
+];
+const INBOX = {
+  global: [
+    { name: "pdf", at: "~/.claude/skills/pdf", src: "anthropics/skills", also: ["~/.agents/skills/pdf (same real path)"] },
+    { name: "docx", at: "~/.agents/skills/docx", src: "anthropics/skills", note: "removes entry from ~/.agents/.skill-lock.json" },
+    { name: "release-notes", at: "~/.claude/skills/release-notes → ~/code/my-skills/release-notes", src: "Local Source" },
+    { name: "tdd", at: "~/.cursor/skills/tdd", src: "local", variant: true },
+    { name: "frontend-design", at: "~/.claude/skills/frontend-design + ~/.codex/skills/frontend-design", src: "local", identical: true },
+  ],
+  untracked: [ { project: "dark-matter", name: "scratch-notes", at: ".agents/skills/scratch-notes" } ],
+  managed: [
+    { agent: "Claude Code", name: "plugin: superpowers/brainstorm", on: true },
+    { agent: "Codex", name: ".system/skill-creator", on: true },
+    { agent: "Cursor", name: "built-in: create-rule", on: true, readonly: true },
+  ],
+};
+const SEARCH = [
+  { name: "frontend-design", src: "anthropics/skills", installs: "48.2k", inLib: false },
+  { name: "shadcn", src: "shadcn-ui/ui", installs: "31.0k", inLib: true },
+  { name: "react-best-practices", src: "vercel-labs/agent-skills", installs: "22.7k", inLib: false },
+  { name: "web-design-guidelines", src: "vercel-labs/agent-skills", installs: "19.1k", inLib: false },
+];
+const FAV_SOURCES = ["mattpocock/skills", "anthropics/skills"];
+
+// ---------- tiny shadcn-ish primitives ----------
+const cx = (...a) => a.filter(Boolean).join(" ");
+const Btn = ({ v = "outline", className, ...p }) => (
+  <button {...p} className={cx("inline-flex items-center gap-1 rounded-md px-2.5 h-7 text-[12px] font-medium whitespace-nowrap",
+    v === "primary" && "bg-zinc-900 text-white hover:bg-zinc-800",
+    v === "outline" && "border border-zinc-200 bg-white hover:bg-zinc-100",
+    v === "ghost" && "hover:bg-zinc-100",
+    v === "danger" && "border border-red-200 text-red-700 hover:bg-red-50", className)} />
+);
+const Badge = ({ c = "zinc", children }) => {
+  const m = { zinc: "bg-zinc-100 text-zinc-700", amber: "bg-amber-100 text-amber-800", red: "bg-red-100 text-red-700", blue: "bg-blue-100 text-blue-700", green: "bg-emerald-100 text-emerald-700", violet: "bg-violet-100 text-violet-700" };
+  return <span className={cx("inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium", m[c])}>{children}</span>;
+};
+const Switch = ({ on, onChange, disabled }) => (
+  <button disabled={disabled} onClick={() => onChange && onChange(!on)}
+    className={cx("relative h-4 w-7 rounded-full transition", on ? "bg-zinc-900" : "bg-zinc-300", disabled && "opacity-40")}>
+    <span className={cx("absolute top-0.5 h-3 w-3 rounded-full bg-white transition", on ? "left-3.5" : "left-0.5")} />
+  </button>
+);
+const Tabs = ({ tabs, value, onChange }) => (
+  <div className="inline-flex rounded-md bg-zinc-100 p-0.5">
+    {tabs.map(t => <button key={t} onClick={() => onChange(t)} className={cx("px-2.5 h-6 rounded text-[12px]", value === t ? "bg-white shadow-sm font-medium" : "text-zinc-600")}>{t}</button>)}
+  </div>
+);
+const Note = ({ children }) => <div className="note rounded-md px-3 py-2 text-[12px] my-2">❓ {children}</div>;
+const Header = ({ title, sub, right }) => (
+  <div className="flex items-start justify-between border-b border-zinc-200 px-5 py-3">
+    <div><div className="text-[15px] font-semibold">{title}</div>{sub && <div className="text-zinc-500 mono text-[11px] mt-0.5">{sub}</div>}</div>
+    <div className="flex gap-1.5">{right}</div>
+  </div>
+);
+const Dialog = ({ title, children, onClose, footer }) => (
+  <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="bg-white rounded-lg shadow-xl w-[560px] max-h-[80vh] overflow-auto" onClick={e => e.stopPropagation()}>
+      <div className="px-4 py-3 border-b font-semibold">{title}</div>
+      <div className="p-4">{children}</div>
+      <div className="px-4 py-3 border-t flex justify-end gap-2">{footer}</div>
+    </div>
+  </div>
+);
+
+// ---------- sidebar ----------
+function Sidebar({ route, go }) {
+  const Item = ({ to, icon, label, badge, indent }) => {
+    const active = JSON.stringify(route) === JSON.stringify(to);
+    return (
+      <button onClick={() => go(to)} className={cx("w-full flex items-center gap-2 rounded-md h-7 px-2 text-left", indent && "pl-6", active ? "bg-zinc-200/70 font-medium" : "hover:bg-zinc-200/40")}>
+        <span className="w-4 text-center text-zinc-500">{icon}</span><span className="flex-1 truncate">{label}</span>
+        {badge != null && <span className="rounded-full bg-zinc-900 text-white text-[10px] px-1.5">{badge}</span>}
+      </button>
+    );
+  };
+  const Sec = ({ children }) => <div className="mt-4 mb-1 px-2 text-[11px] font-medium text-zinc-400 uppercase tracking-wide">{children}</div>;
+  const nss = [...new Set(LIB.map(s => s.ns))];
+  return (
+    <div className="w-44 shrink-0 bg-zinc-50 border-r border-zinc-200 flex flex-col h-full">
+      <div className="h-10 flex items-center px-4 gap-2 border-b border-zinc-200"><span className="text-[11px] text-zinc-400">● ● ●</span><span className="font-semibold ml-2">Dark Matter</span></div>
+      <div className="px-2 pt-2"><button onClick={() => go({ s: "palette" })} className="w-full h-7 rounded-md border border-zinc-200 bg-white text-left px-2 text-zinc-400">Search… <span className="float-right">⌘K</span></button></div>
+      <div className="flex-1 overflow-auto px-2 pb-3">
+        <Item to={{ s: "inbox" }} icon="⇣" label="Inbox" badge={INBOX.global.length + INBOX.untracked.length} />
+        <Sec>Library</Sec>
+        <Item to={{ s: "library" }} icon="◫" label="All Skills" badge={LIB.length} />
+        <Item to={{ s: "library", fav: true }} icon="★" label="Favourites" />
+        {nss.map(ns => <Item key={ns} indent to={{ s: "library", ns }} icon="" label={ns} />)}
+        <Sec>Projects</Sec>
+        {PROJECTS.map((p, i) => <Item key={p.name} to={{ s: "project", i }} icon={p.missing ? "⚠" : "▣"} label={p.name} />)}
+        <Item to={{ s: "suggested" }} icon="+" label="Suggested" badge={SUGGESTED.length} />
+        <Sec>Get Skills</Sec>
+        <Item to={{ s: "discover" }} icon="⌕" label="skills.sh" />
+        <Item to={{ s: "github" }} icon="⎇" label="GitHub import" />
+        <Sec>Computer</Sec>
+        <Item to={{ s: "agents" }} icon="◎" label="Agents" />
+        <Item to={{ s: "mcp" }} icon="⇄" label="MCP Servers" />
+      </div>
+      <div className="border-t border-zinc-200 p-2 text-[11px] text-zinc-500 flex justify-between items-center">
+        <span>Last Scan 09:00 · next 09:00</span><Btn v="ghost" onClick={() => go({ s: "settings" })}>⚙</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ---------- screens ----------
+function ProjectScreen({ p, go }) {
+  const [skills, setSkills] = useState(p.skills);
+  const [add, setAdd] = useState(false);
+  const [tab, setTab] = useState("Skills");
+  const [copyOff, setCopyOff] = useState(null);
+  const toggle = (i, v) => { if (skills[i].mode === "Copy" && !v) return setCopyOff(i); setSkills(skills.map((s, j) => j === i ? { ...s, on: v } : s)); };
+  if (p.missing) return (<div><Header title={p.name} sub={p.path} /><div className="p-5"><div className="rounded-md border border-amber-300 bg-amber-50 p-3">This Project's folder is gone. Did it move? <Btn className="ml-2">Locate…</Btn> <Btn v="ghost">Remove Project</Btn></div></div></div>);
+  return (
+    <div>
+      <Header title={p.name} sub={p.path} right={<><Btn>Open in Finder</Btn><Btn v="primary" onClick={() => setAdd(true)}>+ Add Skills</Btn></>} />
+      <div className="px-5 py-3 border-b border-zinc-200 flex items-center gap-3">
+        <span className="text-zinc-500">Agents</span>
+        {AGENTS.map(a => <label key={a} className="flex items-center gap-1"><input type="checkbox" defaultChecked={p.agents.includes(a)} />{a}</label>)}
+        <span className="text-zinc-400 text-[11px]">→ writes {p.agents.includes("Claude Code") ? ".agents/skills + .claude/skills" : ".agents/skills"}</span>
+      </div>
+      <div className="px-5 pt-3"><Tabs tabs={["Skills", "MCP Servers"]} value={tab} onChange={setTab} /></div>
+      {tab === "MCP Servers" ? <div className="p-5"><Note>MCP Server model is decided in its own ticket (#16). Placeholder tab: same shape as Skills (server, delivery, On/Off).</Note></div> :
+      <div className="p-5 pt-3">
+        {p.untracked.length > 0 && <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-2.5 flex items-center justify-between"><span>{p.untracked.length} untracked Skill in this Project ({p.untracked.join(", ")}). Adopt it into the Library and keep a Link here?</span><Btn onClick={() => go({ s: "inbox" })}>Review in Inbox</Btn></div>}
+        <table className="w-full">
+          <thead><tr className="text-left text-zinc-500 border-b"><th className="py-1.5 font-normal">Skill</th><th className="font-normal">Namespace</th><th className="font-normal">Delivery</th><th className="font-normal">Status</th><th className="font-normal text-right">On</th></tr></thead>
+          <tbody>
+            {skills.map((s, i) => (
+              <tr key={i} className="border-b border-zinc-100 hover:bg-zinc-50">
+                <td className="py-1.5"><button className="font-medium hover:underline" onClick={() => go({ s: "skill", name: s.name, ns: s.ns })}>{s.name}</button></td>
+                <td className="mono text-[10px] text-zinc-500 max-w-[110px] truncate">{s.ns}</td>
+                <td><select defaultValue={s.mode} className="border rounded px-1 h-6 bg-white"><option>Link</option><option>Copy</option></select> {s.mode === "Copy" && <span className="text-[11px] text-zinc-400">committed</span>}</td>
+                <td>{s.status === "outdated" && <span className="flex items-center gap-1"><Badge c="amber">outdated</Badge><Btn v="ghost">Update</Btn></span>}
+                    {s.status === "modified" && <span className="flex items-center gap-1"><Badge c="violet">modified in repo</Badge><Btn v="ghost">Diff</Btn><Btn v="ghost">Pull into Library</Btn></span>}
+                    {s.status === "Name Conflict" && <span className="flex items-center gap-1"><Badge c="red">Name Conflict</Badge><Btn v="ghost">Resolve</Btn></span>}</td>
+                <td className="text-right"><Switch on={s.on} onChange={v => toggle(i, v)} disabled={s.status === "Name Conflict"} /></td>
+                
+              </tr>))}
+            {skills.length === 0 && <tr><td colSpan="6" className="py-8 text-center text-zinc-400">No Skills yet. Agents in this Project see nothing. <Btn onClick={() => setAdd(true)}>+ Add Skills</Btn></td></tr>}
+          </tbody>
+        </table>
+        {p.vendored.length > 0 && <div className="mt-5"><div className="text-zinc-500 mb-1">Vendored Skills <span className="text-[11px]">(committed by someone else; Dark Matter leaves them alone)</span></div>
+          {p.vendored.map(v => <div key={v} className="flex items-center gap-2 py-1 text-zinc-600">🔒 {v} <span className="mono text-[11px] text-zinc-400">.agents/skills/{v}</span></div>)}</div>}
+        <div className="mt-5"><div className="text-zinc-500 mb-1">Agent-managed Skills these Agents also see</div>
+          <div className="text-zinc-600">3 (plugins, built-ins) · <button className="underline" onClick={() => go({ s: "agents" })}>manage in Agents</button></div></div>
+        
+      </div>}
+      {add && <Dialog title={`Add Skills to ${p.name}`} onClose={() => setAdd(false)} footer={<><Btn onClick={() => setAdd(false)}>Cancel</Btn><Btn v="primary" onClick={() => setAdd(false)}>Add 2 as Link</Btn></>}>
+        <input className="w-full border rounded-md h-8 px-2 mb-2" placeholder="Search Library, skills.sh, or paste a GitHub URL…" />
+        <div className="text-[11px] text-zinc-400 mb-1">Library</div>
+        {LIB.slice(0, 6).map(s => <label key={s.ns + s.name} className="flex items-center gap-2 py-1"><input type="checkbox" defaultChecked={s.name === "pdf" || s.name === "tdd"} /><span className="font-medium">{s.name}</span><span className="mono text-[11px] text-zinc-400">{s.ns}</span></label>)}
+        <div className="text-[11px] text-zinc-400 mt-2 mb-1">From skills.sh (installs into Library first)</div>
+        <label className="flex items-center gap-2 py-1"><input type="checkbox" /><span className="font-medium">frontend-design</span><span className="mono text-[11px] text-zinc-400">anthropics/skills</span></label>
+        <div className="mt-3 flex items-center gap-2"><span className="text-zinc-500">Deliver as</span><Tabs tabs={["Link", "Copy"]} value="Link" onChange={() => {}} /><span className="text-[11px] text-zinc-400">Link = personal symlink · Copy = committed for teammates</span></div>
+      </Dialog>}
+      {copyOff != null && <Dialog title="Turn off a Copy?" onClose={() => setCopyOff(null)} footer={<><Btn onClick={() => setCopyOff(null)}>Cancel</Btn><Btn v="danger" onClick={() => { setSkills(skills.map((s, j) => j === copyOff ? { ...s, on: false } : s)); setCopyOff(null); }}>Delete files & turn off</Btn></>}>
+        <b>{skills[copyOff].name}</b> is a Copy. Turning it off deletes <span className="mono">.agents/skills/{skills[copyOff].name}</span> and its <span className="mono">skills-lock.json</span> entry. Teammates lose it when you commit.
+      </Dialog>}
+    </div>
+  );
+}
+
+function LibraryScreen({ route, go }) {
+  let list = LIB;
+  if (route.ns) list = LIB.filter(s => s.ns === route.ns);
+  if (route.fav) list = LIB.filter(s => s.fav || FAV_SOURCES.includes(s.ns));
+  const groups = [...new Set(list.map(s => s.ns))];
+  return (
+    <div>
+      <Header title={route.fav ? "Favourites" : route.ns || "Library"} sub={route.ns ? `~/.dark-matter/skills/${route.ns}/` : "~/.dark-matter/skills/"}
+        right={<>{route.ns && route.ns !== "local" && <><Btn>{FAV_SOURCES.includes(route.ns) ? "★ Favourite Source" : "☆ Favourite Source"}</Btn><Btn>Check for updates</Btn><Btn>Rename Namespace</Btn></>}<Btn v="primary" onClick={() => go({ s: "github" })}>+ Import</Btn></>} />
+      <div className="p-5">
+        {route.fav && <Note>Favourites: star a Skill, a Source, or both? Prototype shows both (★ Skills + Skills from ★ Sources). Feature 7 is still fog on the map.</Note>}
+        {groups.map(ns => (
+          <div key={ns} className="mb-4">
+            {!route.ns && <button onClick={() => go({ s: "library", ns })} className="text-zinc-500 mono text-[11px] mb-1 hover:underline">{ns} {FAV_SOURCES.includes(ns) && "★"}</button>}
+            <div className="rounded-md border border-zinc-200 divide-y">
+              {list.filter(s => s.ns === ns).map(s => (
+                <button key={s.name} onClick={() => go({ s: "skill", name: s.name, ns: s.ns })} className="w-full text-left flex items-center gap-3 px-3 py-2 hover:bg-zinc-50">
+                  <span className="w-4">{s.fav ? "★" : ""}</span>
+                  <span className="font-medium w-48">{s.name}</span>
+                  <span className="text-zinc-500 flex-1 truncate">{s.desc}</span>
+                  {s.localSource && <Badge c="blue">Local Source</Badge>}
+                  {s.conflict && <Badge c="red">same name as {s.conflict}</Badge>}
+                  <span className="text-[11px] text-zinc-400">{PROJECTS.filter(p => p.skills.some(x => x.name === s.name && x.ns === s.ns)).length} Projects</span>
+                </button>))}
+            </div>
+          </div>))}
+      </div>
+    </div>
+  );
+}
+
+function SkillScreen({ route, go }) {
+  const s = LIB.find(x => x.name === route.name && x.ns === route.ns) || { ...route, desc: "", files: ["SKILL.md"] };
+  const [tab, setTab] = useState("Preview");
+  const [file, setFile] = useState("SKILL.md");
+  const [dirty, setDirty] = useState(false);
+  const used = PROJECTS.flatMap(p => p.skills.filter(x => x.name === s.name && x.ns === s.ns).map(x => ({ p, x })));
+  return (
+    <div>
+      <Header title={<span>{s.fav ? "★ " : "☆ "}{s.name}</span>} sub={`${s.ns} · ${s.localSource ? "Local Source " + s.localSource : "commit 64a6d70 · hash d9f3ce…"}`}
+        right={<><Btn onClick={() => go({ s: "library", ns: s.ns })}>← {s.ns}</Btn>{!s.localSource && s.ns !== "local" && <Btn>Check upstream</Btn>}<Btn>Reveal</Btn><Btn v="primary">+ Add to Projects</Btn></>} />
+      <div className="px-5 pt-3"><Tabs tabs={["Preview", "Files", "Projects", "Provenance"]} value={tab} onChange={setTab} /></div>
+      <div className="p-5 pt-3">
+        {tab === "Preview" && <div className="max-w-2xl"><div className="rounded border bg-zinc-50 mono text-[11px] p-2 mb-3">name: {s.name}<br/>description: {s.desc}</div><h2 className="text-lg font-semibold mb-2">{s.name}</h2><p className="text-zinc-600">{s.desc} Rendered read-only with react-markdown. Frontmatter shown as a block above, validated (name matches folder, description present).</p></div>}
+        {tab === "Files" && <div className="flex border rounded-md h-80">
+          <div className="w-48 border-r bg-zinc-50 p-1">{s.files.map(f => <button key={f} onClick={() => setFile(f)} className={cx("block w-full text-left px-2 h-6 rounded mono text-[11px]", f === file && "bg-zinc-200")}>{f}</button>)}</div>
+          <div className="flex-1 flex flex-col"><div className="h-8 border-b flex items-center justify-between px-2"><span className="mono text-[11px]">{file}{dirty && " ●"}</span><span className="flex gap-1"><Btn v="ghost">Split preview</Btn><Btn v={dirty ? "primary" : "outline"} onClick={() => setDirty(false)}>Save ⌘S</Btn></span></div>
+            <textarea onChange={() => setDirty(true)} className="flex-1 mono text-[12px] p-2 outline-none resize-none" defaultValue={`---\nname: ${s.name}\ndescription: ${s.desc}\n---\n\n# ${s.name}\n\n(CodeMirror 6 editor)`} /></div>
+        </div>}
+        {tab === "Files" && !s.localSource && s.ns !== "local" && <Note>Editing a Skill that came from {s.ns}: the next upstream update will conflict. Warn here, or fork into local/? (viewer/editor fog on the map)</Note>}
+        {tab === "Projects" && <div>
+          {used.length === 0 && <div className="text-zinc-400">Not in any Project. No Agent sees it.</div>}
+          {used.map(({ p, x }, i) => <div key={i} className="flex items-center gap-3 py-1.5 border-b"><button className="font-medium w-40 text-left hover:underline" onClick={() => go({ s: "project", i: PROJECTS.indexOf(p) })}>{p.name}</button><Badge>{x.mode}</Badge>{x.status && <Badge c="amber">{x.status}</Badge>}<span className="flex-1" /><Switch on={x.on} /></div>)}
+          <Btn className="mt-3" v="primary">+ Add to Projects…</Btn></div>}
+        {tab === "Provenance" && <pre className="mono text-[11px] bg-zinc-50 border rounded p-3">{`library-lock.json → "${s.ns}/${s.name}"
+source:      ${s.ns}
+sourceType:  ${s.localSource ? "local" : "github"}
+ref:         main
+commit:      64a6d708f5a4…
+skillPath:   skills/${s.name}/SKILL.md
+computedHash d9f3ceba8b5c…
+adoptedFrom: ~/.claude/skills/${s.name}   [Undo Adopt]`}</pre>}
+      </div>
+    </div>
+  );
+}
+
+function InboxScreen({ go }) {
+  const [sel, setSel] = useState(INBOX.global.map(() => true));
+  const [step, setStep] = useState("review");
+  const n = sel.filter(Boolean).length;
+  return (
+    <div>
+      <Header title="Inbox" sub="Scan results · last Scan today 09:00 · read-only until you Adopt" right={<Btn>Scan now</Btn>} />
+      <div className="p-5">
+        {step === "review" && <>
+          <div className="font-medium mb-1">Global Skills <span className="text-zinc-400 font-normal">every Project sees these today</span></div>
+          <div className="rounded-md border divide-y mb-2">
+            {INBOX.global.map((g, i) => (
+              <label key={i} className="flex items-start gap-2 px-3 py-2">
+                <input type="checkbox" className="mt-0.5" checked={sel[i]} onChange={() => setSel(sel.map((v, j) => j === i ? !v : v))} />
+                <div className="flex-1"><div className="flex items-center gap-2"><span className="font-medium">{g.name}</span><span className="mono text-[11px] text-zinc-400">→ {g.src === "Local Source" ? "local/" + g.name + " (symlink to source)" : g.variant ? "local/tdd-a1b2c3d" : g.src + "/" + g.name}</span>
+                  {g.variant && <Badge c="red">differs from Library tdd · Diff</Badge>}{g.identical && <Badge c="green">2 identical copies → 1</Badge>}{g.src === "Local Source" && <Badge c="blue">Local Source</Badge>}</div>
+                  <div className="mono text-[11px] text-zinc-500">{g.at}</div>{g.also && <div className="mono text-[11px] text-zinc-400">{g.also}</div>}{g.note && <div className="text-[11px] text-zinc-400">{g.note}</div>}</div>
+              </label>))}
+          </div>
+          <div className="flex items-center gap-2 mb-6"><Btn v="primary" onClick={() => setStep("confirm")}>Adopt {n}…</Btn><Btn>Dry run</Btn><Btn v="ghost">Ignore selected</Btn></div>
+
+          <div className="font-medium mb-1">Untracked Skills in Projects</div>
+          <div className="rounded-md border divide-y mb-6">{INBOX.untracked.map((u, i) => <div key={i} className="flex items-center gap-2 px-3 py-2"><span className="font-medium">{u.name}</span><span className="text-zinc-500">in {u.project}</span><span className="mono text-[11px] text-zinc-400">{u.at}</span><span className="flex-1" /><Btn>Adopt & keep Link</Btn></div>)}</div>
+
+          <div className="font-medium mb-1">Agent-managed Skills <span className="text-zinc-400 font-normal">can't be moved; turn off everywhere instead</span></div>
+          <div className="rounded-md border divide-y mb-3">{INBOX.managed.map((m, i) => <div key={i} className="flex items-center gap-2 px-3 py-2"><Badge>{m.agent}</Badge><span>{m.name}</span><span className="flex-1" />{m.readonly ? <span className="text-[11px] text-zinc-400">Cursor has no off switch</span> : <Btn>Turn off everywhere</Btn>}</div>)}</div>
+          <div className="font-medium mb-1 mt-6">Suggested Projects</div>
+          <div className="text-zinc-600">{SUGGESTED.length} folders from Agent history. <button className="underline" onClick={() => go({ s: "suggested" })}>Review</button></div>
+          <Note>Does the Inbox hold Suggested Projects and Agent-managed Skills too, or only things to Adopt? Here it holds all "found by Scan, needs a decision" items.</Note>
+        </>}
+        {step === "confirm" && <div className="max-w-xl">
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 mb-3"><b>These {n} Skills stop being visible to every Agent everywhere.</b> They move into the Library. Undo moves them back.</div>
+          <pre className="mono text-[11px] bg-zinc-50 border rounded p-3 mb-3">{`move  ~/.claude/skills/pdf        → ~/.dark-matter/skills/anthropics/skills/pdf
+rm    ~/.agents/skills/pdf (symlink)
+edit  ~/.agents/.skill-lock.json  (-docx, backup kept)
+link  ~/.dark-matter/skills/local/release-notes → ~/code/my-skills/release-notes
+…`}</pre>
+          <div className="flex gap-2"><Btn onClick={() => setStep("review")}>Back</Btn><Btn v="primary" onClick={() => setStep("projects")}>Adopt {n}</Btn></div></div>}
+        {step === "projects" && <div>
+          <div className="font-medium mb-2">Adopted {n}. Add them to Projects? <span className="text-zinc-400 font-normal">nothing is restored automatically</span></div>
+          <table className="border rounded-md"><thead><tr><th></th>{PROJECTS.slice(0, 2).map(p => <th key={p.name} className="px-3 py-1.5 font-medium">{p.name}</th>)}</tr></thead>
+            <tbody>{INBOX.global.filter((_, i) => sel[i]).map(g => <tr key={g.name} className="border-t"><td className="px-3 py-1.5 font-medium">{g.name}</td>{PROJECTS.slice(0, 2).map(p => <td key={p.name} className="text-center"><input type="checkbox" /></td>)}</tr>)}</tbody></table>
+          <div className="flex gap-2 mt-3"><Btn>Skip</Btn><Btn v="primary" onClick={() => setStep("review")}>Add as Link</Btn></div></div>}
+      </div>
+    </div>
+  );
+}
+
+function SuggestedScreen() {
+  return (<div><Header title="Suggested Projects" sub="from Agent history · nothing is managed until you confirm" right={<Btn>Add folder…</Btn>} />
+    <div className="p-5"><div className="rounded-md border divide-y">{SUGGESTED.map(s => <div key={s.path} className="flex items-center gap-2 px-3 py-2"><span className="mono">{s.path}</span><span className="text-[11px] text-zinc-400">{s.from}</span><span className="flex-1" /><Btn v="ghost">Dismiss</Btn><Btn v="primary">Manage</Btn></div>)}</div></div></div>);
+}
+
+function DiscoverScreen() {
+  const [q, setQ] = useState("design");
+  return (<div><Header title="skills.sh" sub="search the public directory · installs land in the Library" />
+    <div className="p-5"><input value={q} onChange={e => setQ(e.target.value)} className="w-full border rounded-md h-8 px-2 mb-3" />
+      <div className="rounded-md border divide-y">{SEARCH.map(r => <div key={r.name} className="flex items-center gap-3 px-3 py-2"><span className="font-medium w-48">{r.name}</span><span className="mono text-[11px] text-zinc-500 flex-1">{r.src} {FAV_SOURCES.includes(r.src) && "★"}</span><span className="text-[11px] text-zinc-400">{r.installs} installs</span>
+        {r.inLib ? <Badge c="green">in Library</Badge> : <><Btn>Preview</Btn><Btn v="primary">Get</Btn></>}</div>)}</div>
+      <Note>After "Get": stay here, or jump to the Skill page with "+ Add to Projects"? Rate limit 30 req/min, so search is debounced.</Note></div></div>);
+}
+
+function GithubScreen() {
+  const [stage, setStage] = useState(0);
+  return (<div><Header title="GitHub import" sub="paste a repo, pick Skills, install into the Library under owner/repo" />
+    <div className="p-5 max-w-2xl">
+      <div className="flex gap-2 mb-3"><input defaultValue="https://github.com/vercel-labs/agent-skills" className="flex-1 border rounded-md h-8 px-2 mono text-[12px]" /><Btn v="primary" onClick={() => setStage(1)}>Find Skills</Btn></div>
+      {stage >= 1 && <><div className="text-zinc-500 mb-1">vercel-labs/agent-skills @ main · 4 Skills found</div>
+        <div className="rounded-md border divide-y mb-3">{["react-best-practices", "web-design-guidelines", "next-upgrade", "vercel-deploy"].map((n, i) => <label key={n} className="flex items-center gap-2 px-3 py-2"><input type="checkbox" defaultChecked={i < 2} /><span className="font-medium">{n}</span><span className="mono text-[11px] text-zinc-400 flex-1">skills/{n}/SKILL.md</span><Btn v="ghost">Preview</Btn></label>)}</div>
+        <div className="flex items-center gap-2"><label className="flex items-center gap-1"><input type="checkbox" /> ☆ Favourite this Source</label><span className="flex-1" /><Btn v="primary">Install 2 to Library</Btn></div>
+        <Note>Pinning (branch vs commit) and update tracking are being decided in "GitHub import: tracing repos, pinning and updates" (#11).</Note></>}
+    </div></div>);
+}
+
+function AgentsScreen() {
+  return (<div><Header title="Agents" sub="what each Agent sees outside Projects" />
+    <div className="p-5 grid grid-cols-2 gap-3">{AGENTS.map(a => (
+      <div key={a} className="rounded-md border p-3"><div className="flex items-center justify-between"><span className="font-medium">{a}</span><Badge c="green">detected</Badge></div>
+        <div className="mono text-[11px] text-zinc-500 mt-1">{{ "Claude Code": "~/.claude/skills", Cursor: "~/.cursor/skills", OpenCode: "~/.config/opencode/skills", Codex: "~/.codex/skills" }[a]}</div>
+        <div className="mt-2 text-zinc-600">Global Skills: <b>{a === "Claude Code" ? 2 : 0}</b> {a === "Claude Code" && <span className="text-amber-700">→ Adopt in Inbox</span>}</div>
+        <div className="text-zinc-600">Agent-managed Skills: <b>{INBOX.managed.filter(m => m.agent === a).length}</b></div>
+        <div className="text-zinc-600">MCP config: <span className="mono text-[11px]">{{ "Claude Code": "~/.claude.json", Cursor: "~/.cursor/mcp.json", OpenCode: "opencode.jsonc", Codex: "~/.codex/config.toml" }[a]}</span></div>
+      </div>))}
+      <div className="col-span-2"><Note>Is "Agents" a top-level screen, or does it fold into Settings + Inbox? It's the only place that shows global state, which ADR-0002 says should be empty.</Note></div></div></div>);
+}
+
+function Palette({ go }) {
+  return (<div className="p-10"><div className="max-w-lg mx-auto rounded-lg border shadow-lg">
+    <input autoFocus className="w-full h-10 px-3 border-b outline-none" placeholder="Jump to Skill, Project, Namespace, or run an action…" />
+    {[["Go to Project dark-matter", { s: "project", i: 0 }], ["Open Skill grilling", { s: "skill", name: "grilling", ns: "mattpocock/skills" }], ["Scan now", { s: "inbox" }], ["Search skills.sh for …", { s: "discover" }], ["Import from GitHub URL", { s: "github" }]].map(([l, to]) =>
+      <button key={l} onClick={() => go(to)} className="block w-full text-left px-3 h-8 hover:bg-zinc-100">{l}</button>)}
+  </div></div>);
+}
+
+function App() {
+  const [route, go] = useState({ s: "library" });
+  let body;
+  switch (route.s) {
+    case "project": body = <ProjectScreen key={route.i} p={PROJECTS[route.i]} go={go} />; break;
+    case "library": body = <LibraryScreen route={route} go={go} />; break;
+    case "skill": body = <SkillScreen key={route.ns + route.name} route={route} go={go} />; break;
+    case "inbox": body = <InboxScreen go={go} />; break;
+    case "suggested": body = <SuggestedScreen />; break;
+    case "discover": body = <DiscoverScreen />; break;
+    case "github": body = <GithubScreen />; break;
+    case "agents": body = <AgentsScreen />; break;
+    case "mcp": body = <div><Header title="MCP Servers" /><div className="p-5"><Note>Shape depends on "MCP Server model" (#16). Likely mirrors Library: a central list of servers, delivered per Project.</Note></div></div>; break;
+    case "palette": body = <Palette go={go} />; break;
+    default: body = <div><Header title="Settings" /><div className="p-5 text-zinc-600">Scheduled Scan time (09:00) · Library location · Agents to manage</div></div>;
+  }
+  return <div className="h-[780px] flex bg-white text-zinc-900 rounded-lg overflow-hidden border border-zinc-300"><Sidebar route={route} go={go} /><div className="flex-1 overflow-auto">{body}</div></div>;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
