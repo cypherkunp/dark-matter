@@ -25,11 +25,11 @@ _Avoid_: Workspace, repo
 ### Dark Matter's own concepts
 
 **Library**:
-The single canonical store of Skills that Dark Matter owns, at `~/.dark-matter`.
+The single canonical store of Skills and MCP Server definitions that Dark Matter owns, at `~/.dark-matter`.
 _Avoid_: Vault, cache, registry
 
 **Adopt**:
-To move a Skill found by a Scan (in a global Agent folder, or untracked in a Project) into the Library, recording where it came from.
+To move a Skill or MCP Server found by a Scan (in a global Agent folder or config, or untracked in a Project) into the Library, recording where it came from so the move can be undone.
 _Avoid_: Import (reserved for pulling from a remote source), migrate
 
 **Import**:
@@ -40,6 +40,22 @@ _Avoid_: Install, clone, add (reserved for adding a Skill to a Project)
 A Library Skill that a Project has added for its chosen Agents, delivered as either a Link or a Copy. It's the only way a Skill reaches an Agent.
 _Avoid_: Enabled skill, installed skill
 
+**Project MCP Server**:
+A Library MCP Server that a Project has added for its chosen Agents, delivered as either Personal or Shared. It's the only way an MCP Server reaches an Agent.
+_Avoid_: Enabled server, installed server
+
+**Personal**:
+A Project MCP Server written only where you see it (Claude Code's local scope, or a Project config file excluded from git), with its Secrets filled in. It's never committed.
+_Avoid_: Local, private, Link
+
+**Shared**:
+A Project MCP Server written into the Project's committed config files, so teammates get it without Dark Matter. Its Secrets appear only as environment-variable references.
+_Avoid_: Team, public, Copy
+
+**Secret**:
+A sensitive value an MCP Server needs (a token or key), kept in the OS keychain. Library definitions refer to it by name and never hold the value.
+_Avoid_: Credential, env var, password
+
 **Link**:
 A Project Skill delivered as a symlink from the Project's skill folder to the Library. It's personal and never committed.
 _Avoid_: Shortcut, alias, mount
@@ -49,20 +65,32 @@ A Project Skill delivered as real files in the Project, committed and recorded i
 _Avoid_: Vendor, snapshot, clone
 
 **On / Off**:
-The two states of a Project Skill. On means it's delivered to the Project's Agents. Off means it stays in the Project's Skill set but isn't delivered.
+The two states of a Project Skill or Project MCP Server. On means it's delivered to the Project's Agents. Off means the Project still remembers it but it isn't delivered.
 _Avoid_: Enabled/disabled, active/inactive
 
 **Agent-managed Skill**:
 A Skill an Agent installs and controls itself (a plugin Skill, a built-in or a bundled Skill), which Dark Matter can't move and can only turn off through the Agent's own settings.
 _Avoid_: System skill, plugin skill, built-in
 
+**Agent-managed MCP Server**:
+An MCP Server an Agent provides and controls itself (a plugin server, a connector, a built-in, or one set by the Agent's team or cloud admin), which Dark Matter can't move and can only turn off through the Agent's own settings.
+_Avoid_: System server, connector, plugin server
+
 **Global Skill**:
 A Skill sitting in an Agent's global folder, so every Project sees it. Dark Matter never creates one, and offers to Adopt any it finds.
 _Avoid_: User skill, personal skill
 
+**Global MCP Server**:
+An MCP Server declared in an Agent's global config, so every Project sees it. Dark Matter never creates one, and offers to Adopt any it finds.
+_Avoid_: User server, personal server
+
 **Vendored Skill**:
 A Skill that is committed in a Project but that Dark Matter didn't create as a Copy. Dark Matter shows it but leaves it alone.
 _Avoid_: Tracked skill, checked-in skill
+
+**Vendored MCP Server**:
+An MCP Server committed in a Project's config files that Dark Matter didn't write as Shared. Dark Matter shows it but leaves it alone.
+_Avoid_: Tracked server, checked-in server
 
 **Scan**:
 A read-only sweep of the computer that finds the Skills and MCP Servers every supported Agent can currently see. It never changes anything; Adopt does.
@@ -113,5 +141,5 @@ The single manifest that records every Library Skill's Source, pinned commit and
 _Avoid_: Index, database, metadata file
 
 **Name Conflict**:
-Two Library Skills with the same name that are both wanted in the same Agent skill folder, where only one can be Linked.
+Two Library Skills with the same name that are both wanted in the same Agent skill folder, where only one can be Linked; or an MCP Server whose name is already taken in an Agent's config file it's being delivered to.
 _Avoid_: Collision, duplicate
