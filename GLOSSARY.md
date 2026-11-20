@@ -143,3 +143,7 @@ _Avoid_: Index, database, metadata file
 **Name Conflict**:
 Two Library Skills with the same name that are both wanted in the same Agent skill folder, where only one can be Linked; or an MCP Server whose name is already taken in an Agent's config file it's being delivered to.
 _Avoid_: Collision, duplicate
+
+**Activity Log**:
+The record of every change Dark Matter makes, every Scan and update check, and every failure, showing which client asked for it (the app, the CLI, an Agent over MCP, or the Scheduled Scan). It's kept for a configurable period, 30 days by default, and is history only: nothing is undone from it.
+_Avoid_: History, audit log, events
