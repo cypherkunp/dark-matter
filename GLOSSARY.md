@@ -61,16 +61,28 @@ A Skill that is committed in a Project but that Dark Matter didn't create as a C
 _Avoid_: Tracked skill, checked-in skill
 
 **Scan**:
-A sweep of the computer that finds the Skills and MCP Servers every supported Agent can currently see.
-_Avoid_: Index, crawl
+A read-only sweep of the computer that finds the Skills and MCP Servers every supported Agent can currently see. It never changes anything; Adopt does.
+_Avoid_: Index, crawl, sync
+
+**Scheduled Scan**:
+A Scan that runs automatically each day at a configurable time and tells you about new Global Skills.
+_Avoid_: Cron, background sync
+
+**Suggested Project**:
+A folder that some Agent's history shows was worked in, which Dark Matter offers to manage. It becomes a Project only once you confirm it.
+_Avoid_: Detected project, recent workspace
 
 **Namespace**:
 The grouping a Library Skill belongs to, derived from its Source as `owner/repo`, or `local` when the Source is unknown.
 _Avoid_: Category, folder, tag, Collection
 
 **Source**:
-Where a Skill came from: a GitHub repo, a skills.sh listing (which resolves to a repo), or local when Dark Matter can't tell.
+Where a Skill came from: a GitHub repo, a skills.sh listing (which resolves to a repo), a Local Source, or local when Dark Matter can't tell.
 _Avoid_: Origin, upstream, registry
+
+**Local Source**:
+A folder outside every Agent folder where a Skill is authored (for example your own skills repo). The Library refers to it in place rather than moving it.
+_Avoid_: Dev skill, linked source
 
 **Library Lock**:
 The single manifest that records every Library Skill's Source, pinned commit and content hash.
