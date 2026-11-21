@@ -13,11 +13,15 @@ const rowClass =
   "no-drag flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-sidebar-foreground hover:bg-sidebar-accent/60";
 const activeRowClass = "bg-sidebar-accent font-medium hover:bg-sidebar-accent";
 
-/** A link to a sidebar path: the Library is built, other paths open the placeholder screen. */
+/** Sidebar paths with a screen of their own; the rest open the placeholder screen. */
+const builtPaths = new Set(["/library", "/computer/activity"] as const);
+type BuiltPath = typeof builtPaths extends Set<infer P> ? P : never;
+const isBuilt = (path: string): path is BuiltPath => builtPaths.has(path as BuiltPath);
+
 function NavLink({ path, className, children }: { path: string; className: string; children: React.ReactNode }) {
   const props = { className, activeProps: { className: activeRowClass }, activeOptions: { exact: true } };
-  return path === "/library" ? (
-    <Link to="/library" {...props}>
+  return isBuilt(path) ? (
+    <Link to={path} {...props}>
       {children}
     </Link>
   ) : (
@@ -35,6 +39,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
   const trpc = useTRPC();
   const info = useQuery(trpc.core.info.queryOptions());
   const library = useQuery(trpc.library.list.queryOptions());
+  const problems = useQuery(trpc.ownedFiles.problems.queryOptions());
   const [filter, setFilter] = useState("");
 
   const skillCount = library.data?.skills.length;
@@ -107,7 +112,18 @@ export function Sidebar({ connected }: { connected: boolean }) {
         {/* Grey until the first Scan: green means up to date (visual reference). */}
         <StatusDot tone="off" />
         <span data-testid="core-status">{connected ? "Not scanned yet" : "Connecting to core…"}</span>
-        <Settings aria-label="Settings" className="ml-auto size-4" />
+        <Link
+          to="/settings"
+          aria-label="Settings"
+          className="no-drag relative ml-auto rounded-md p-1 hover:bg-sidebar-accent/60 hover:text-foreground"
+          activeProps={{ className: "bg-sidebar-accent text-foreground" }}
+        >
+          <Settings className="size-4" />
+          {/* An owned file is holding an invalid hand edit: Settings explains it. */}
+          {(problems.data?.length ?? 0) > 0 && (
+            <StatusDot tone="warning" className="absolute top-0.5 right-0.5 size-1.5" />
+          )}
+        </Link>
       </footer>
     </aside>
   );
