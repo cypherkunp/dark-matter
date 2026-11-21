@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { fakeGitHub, skillMd } from "./fake-github";
@@ -132,6 +132,29 @@ describe("Favourites", () => {
 
     await trpc.favourites.setSource.mutate({ source: "acme/skills", starred: false });
     expect(await newSkills()).toEqual([]);
+  });
+
+  test("what a starred Source had is owned state: deleting state/ loses neither the baseline nor its news (ADR-0005)", async () => {
+    const { home, libraryHome } = await tempHome();
+    const env = { HOME: home, DARK_MATTER_HOME: libraryHome };
+    const github = await fakeGitHub();
+    const repo = await github.repo("acme/skills", acmeSkills);
+    const first = await bootCore(env, { github: { api: github.api } });
+    const before = connect(first).trpc;
+    await before.favourites.setSource.mutate({ source: "acme/skills", starred: true });
+    await before.importer.checkUpdates.mutate({});
+    await first.stop();
+    await rm(join(libraryHome, "state"), { recursive: true, force: true });
+
+    const second = connect(await bootCore(env, { github: { api: github.api } }));
+    await repo.commit({ "skills/docx/SKILL.md": skillMd("docx", "Word files") });
+    await second.trpc.importer.checkUpdates.mutate({});
+    const paths = async (trpc: typeof second.trpc) =>
+      (await trpc.inbox.list.query()).newSkills.flatMap((group) => group.findings.map((finding) => finding.path));
+    expect(await paths(second.trpc)).toEqual(["skills/docx"]);
+    expect(JSON.parse(await readFile(join(libraryHome, "starred-sources.json"), "utf8"))).toMatchObject({
+      sources: { "acme/skills": { found: { "skills/docx": expect.any(String) } } },
+    });
   });
 
   test("the Scheduled Scan notifies about new Skills in a starred Source", async () => {

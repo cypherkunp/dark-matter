@@ -11,6 +11,7 @@ import {
   type RequestRecord,
   RequestsFile,
   SettingsFile,
+  StarredSourcesFile,
   UnknownFinding,
 } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
@@ -108,6 +109,11 @@ export const createServices = async ({
     LibraryLockFile,
   );
   const requestsFile = await OwnedFile.open("requests.json", join(libraryHome, "requests.json"), RequestsFile);
+  const starredSources = await OwnedFile.open(
+    "starred-sources.json",
+    join(libraryHome, "starred-sources.json"),
+    StarredSourcesFile,
+  );
   const requests = new Requests({
     file: requestsFile,
     projects,
@@ -127,7 +133,7 @@ export const createServices = async ({
   const library = new Library(libraryHome, home, libraryLock);
   /** Every Library-mutating operation runs on this one queue (review #8). */
   const writes = new WriteQueue();
-  const ownedFiles = [settings, projects, libraryLock, requestsFile];
+  const ownedFiles = [settings, projects, libraryLock, requestsFile, starredSources];
   const ownedFileChanged = () =>
     bus.publish({
       type: "invalidate",
@@ -311,7 +317,7 @@ export const createServices = async ({
     library,
     activity,
     checks: sourceChecks,
-    cache,
+    starred: starredSources,
     clock,
     librarySkills: async () => library.list(await projectSkills.usage()),
     onChange: () => bus.publish({ type: "invalidate", domains: ["favourites", "settings", "inbox"] }),

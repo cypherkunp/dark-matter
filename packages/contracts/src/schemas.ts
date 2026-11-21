@@ -325,7 +325,13 @@ export const SkillDeletePlan = z.object({
 export type SkillDeletePlan = z.infer<typeof SkillDeletePlan>;
 
 /** The owned files the core watches and validates. */
-export const OwnedFileName = z.enum(["settings.json", "projects.json", "library-lock.json", "requests.json"]);
+export const OwnedFileName = z.enum([
+  "settings.json",
+  "projects.json",
+  "library-lock.json",
+  "requests.json",
+  "starred-sources.json",
+]);
 export type OwnedFileName = z.infer<typeof OwnedFileName>;
 
 /** A hand edit the core is holding because it doesn't validate. */
@@ -1553,3 +1559,23 @@ export const UndoAdoptPlan = z.object({
   projects: z.array(SkillDeleteImpact),
 });
 export type UndoAdoptPlan = z.infer<typeof UndoAdoptPlan>;
+
+/** What a starred Source had at its last check (#35): Skill folders seen, and those that appeared since the first check. */
+export const StarredSourceRecord = z.strictObject({
+  /** Skill folders seen at the last check. */
+  known: z.array(z.string()),
+  /** Folders that appeared after the first check, with when they were first seen. */
+  found: z.record(z.string(), z.iso.datetime()),
+  checkedAt: z.iso.datetime(),
+});
+export type StarredSourceRecord = z.infer<typeof StarredSourceRecord>;
+
+/**
+ * `~/.dark-matter/starred-sources.json`, owned state (ADR-0005, review #9):
+ * each starred Source's baseline, keyed by lowercased `owner/repo`. It's here,
+ * not in the cache, so deleting `state/` loses no news.
+ */
+export const StarredSourcesFile = z.strictObject({
+  sources: z.record(z.string(), StarredSourceRecord).default({}),
+});
+export type StarredSourcesFile = z.infer<typeof StarredSourcesFile>;
