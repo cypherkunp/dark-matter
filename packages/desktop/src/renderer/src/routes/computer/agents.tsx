@@ -44,6 +44,16 @@ function Card({ agent }: { agent: AgentCard }) {
             </Link>
           )}
         </dd>
+        <dt className="text-muted-foreground">MCP config</dt>
+        <dd data-testid="agent-mcp-config" className="truncate font-mono">
+          {agent.mcpConfig ?? "No MCP Servers"}
+          {agent.globalMcpServerCount !== null && agent.globalMcpServerCount > 0 && (
+            <Link to="/inbox" className="ml-2 inline-flex items-center gap-0.5 font-sans tabular-nums hover:underline">
+              {agent.globalMcpServerCount} global
+              <ChevronRight className="size-3" />
+            </Link>
+          )}
+        </dd>
       </dl>
     </div>
   );

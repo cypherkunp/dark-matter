@@ -21,6 +21,7 @@ const builtPaths = new Set([
   "/library",
   "/computer/agents",
   "/computer/activity",
+  "/computer/mcp-servers",
   "/projects/suggested",
 ] as const);
 type BuiltPath = typeof builtPaths extends Set<infer P> ? P : never;

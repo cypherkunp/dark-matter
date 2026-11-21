@@ -46,6 +46,8 @@ export const LibrarySkill = z.object({
   localSource: z.string().nullable(),
   /** Where Adopt moved it from, home-relative; null if it wasn't Adopted. */
   adoptedFrom: z.string().nullable(),
+  /** Changed since it was last Imported: its files no longer match the Library Lock's computedHash. */
+  modified: z.boolean(),
   /** How many Projects use it (On or Off). */
   projects: z.int().nonnegative(),
   /** It's in a Name Conflict in at least one Project. */
@@ -173,8 +175,49 @@ export const SkillDetail = z.object({
   body: z.string(),
   warnings: z.array(FrontmatterWarning),
   entry: LibraryLockEntry,
+  /** See LibrarySkill.modified. */
+  modified: z.boolean(),
 });
 export type SkillDetail = z.infer<typeof SkillDetail>;
+
+/** A file in a Skill folder, `/`-separated and relative to it. */
+export const SkillFilePath = z.object({ key: z.string().min(1), path: z.string().min(1) });
+export type SkillFilePath = z.infer<typeof SkillFilePath>;
+
+/** One entry of a Skill's file tree (#34). Binary files are listed but not editable. */
+export const SkillFileEntry = z.object({ path: z.string(), size: z.int().nonnegative(), binary: z.boolean() });
+export type SkillFileEntry = z.infer<typeof SkillFileEntry>;
+
+export const SkillFiles = z.object({ files: z.array(SkillFileEntry) });
+export type SkillFiles = z.infer<typeof SkillFiles>;
+
+/** A file's text for the editor; `content` is null for a binary file. */
+export const SkillFileContent = z.object({ path: z.string(), content: z.string().nullable(), binary: z.boolean() });
+export type SkillFileContent = z.infer<typeof SkillFileContent>;
+
+export const SaveSkillFileInput = SkillFilePath.extend({ content: z.string() });
+export type SaveSkillFileInput = z.infer<typeof SaveSkillFileInput>;
+
+/** After a save: SKILL.md's frontmatter warnings (never blocking) and whether the Skill is now Modified. */
+export const SavedSkillFile = z.object({ warnings: z.array(FrontmatterWarning), modified: z.boolean() });
+export type SavedSkillFile = z.infer<typeof SavedSkillFile>;
+
+/** A Project a Library Skill's deletion would affect: its Links break, its Copies stay behind. */
+export const SkillDeleteImpact = z.object({
+  path: z.string(),
+  projectName: z.string(),
+  mode: z.string(),
+  on: z.boolean(),
+});
+export type SkillDeleteImpact = z.infer<typeof SkillDeleteImpact>;
+
+/** What deleting a Library Skill would do: move it to `trash/` for `retentionDays`, and the Projects affected. */
+export const SkillDeletePlan = z.object({
+  key: z.string(),
+  retentionDays: z.int().positive(),
+  projects: z.array(SkillDeleteImpact),
+});
+export type SkillDeletePlan = z.infer<typeof SkillDeletePlan>;
 
 /** The owned files the core watches and validates. */
 export const OwnedFileName = z.enum(["settings.json", "projects.json", "library-lock.json"]);
@@ -302,6 +345,10 @@ export const AgentScan = z.object({
   globalSkillCount: z.int().nonnegative(),
   /** Agent-managed Skills it loads. */
   managedSkillCount: z.int().nonnegative().default(0),
+  /** Its global MCP config file, home-relative; null for an Agent with no MCP surface (`.agents`). */
+  mcpConfig: z.string().nullable().default(null),
+  /** Global MCP Servers declared in that file. */
+  globalMcpServerCount: z.int().nonnegative().default(0),
 });
 export type AgentScan = z.infer<typeof AgentScan>;
 
@@ -384,6 +431,88 @@ export const ManagedSkill = z.object({
 });
 export type ManagedSkill = z.infer<typeof ManagedSkill>;
 
+/**
+ * An Agent-neutral MCP Server definition (#37). String values may hold
+ * references: `${env:VAR}` (an environment variable) and `${secret:NAME}` (a
+ * Secret in the OS keychain). Adapters translate both into each Agent's syntax.
+ */
+export const McpDefinition = z.strictObject({
+  transport: z.enum(["stdio", "http", "sse"]),
+  command: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  cwd: z.string().optional(),
+  url: z.string().optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+});
+export type McpDefinition = z.infer<typeof McpDefinition>;
+
+/** A Library MCP Server name: its file is `~/.dark-matter/mcp/<name>.json`. */
+export const McpServerName = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, "Use letters, digits, '.', '_' or '-' (up to 64)");
+
+/** Where Adopt took an MCP Server from, so Undo Adopt can put the entry back. */
+export const McpAdoptedFrom = z.strictObject({
+  agent: AgentId,
+  /** The Agent config file, home-relative. */
+  file: z.string(),
+  /** The key path of the entry in that file, e.g. `["mcpServers", "github"]`. */
+  at: z.array(z.string()).min(1),
+  /** The entry as the Agent wrote it, with each inline Secret replaced by `${secret:NAME}`. */
+  entry: z.unknown(),
+});
+export type McpAdoptedFrom = z.infer<typeof McpAdoptedFrom>;
+
+/** `~/.dark-matter/mcp/<name>.json`: one Library MCP Server, owned intent (ADR-0005). Holds Secret names only. */
+export const McpServerFile = McpDefinition.extend({
+  adoptedFrom: z.array(McpAdoptedFrom).optional(),
+});
+export type McpServerFile = z.infer<typeof McpServerFile>;
+
+/** A Library MCP Server, as the MCP Servers screen lists it. */
+export const LibraryMcpServer = z.object({
+  name: z.string(),
+  /** Null when the file doesn't validate (`problem` says why). */
+  definition: McpDefinition.nullable(),
+  /** Secret names it refers to. */
+  secrets: z.array(z.string()),
+  adoptedFrom: z.array(McpAdoptedFrom.pick({ agent: true, file: true })),
+  /** The file, home-relative. */
+  file: z.string(),
+  problem: z.string().nullable(),
+});
+export type LibraryMcpServer = z.infer<typeof LibraryMcpServer>;
+
+export const LibraryMcpList = z.object({ servers: z.array(LibraryMcpServer) });
+export type LibraryMcpList = z.infer<typeof LibraryMcpList>;
+
+/** An MCP Server in an Agent's global config, found by a Scan. */
+export const GlobalMcpServer = z.object({
+  /** Stable across Scans: `global-mcp:<agent>:<name>`. */
+  id: z.string(),
+  agent: AgentId,
+  name: z.string(),
+  /** The config file, home-relative. */
+  file: z.string(),
+  /**
+   * Its Agent-neutral definition. Inline secrets are already shown as
+   * `${secret:<name>.<key>}`: their values never leave the core.
+   */
+  definition: McpDefinition,
+  /** The env and header keys whose inline values Adopt moves into the keychain. */
+  inlineSecrets: z.array(z.string()),
+});
+export type GlobalMcpServer = z.infer<typeof GlobalMcpServer>;
+
+/** Global MCP Servers in one Agent config file, for the Inbox. */
+export const InboxMcpGroup = z.object({
+  agent: AgentId,
+  file: z.string(),
+  findings: z.array(GlobalMcpServer),
+});
+export type InboxMcpGroup = z.infer<typeof InboxMcpGroup>;
+
 /** Everything one Scan found. Cached in `state/`; rebuilt by scanning again. */
 export const ScanResult = z.object({
   scannedAt: z.iso.datetime(),
@@ -394,6 +523,7 @@ export const ScanResult = z.object({
   /** What the Scan read in each confirmed Project's skill folders. */
   projects: z.array(ProjectScan).default([]),
   managedSkills: z.array(ManagedSkill).default([]),
+  globalMcpServers: z.array(GlobalMcpServer).default([]),
 });
 export type ScanResult = z.infer<typeof ScanResult>;
 
@@ -430,6 +560,8 @@ export const Inbox = z.object({
   ignoredCount: z.int().nonnegative(),
   /** Suggested Projects waiting to be confirmed or dismissed (listed on the Suggested screen). */
   suggestedProjects: z.int().nonnegative(),
+  /** Global MCP Servers, by Agent config file. */
+  mcpServers: z.array(InboxMcpGroup).default([]),
 });
 export type Inbox = z.infer<typeof Inbox>;
 
@@ -445,6 +577,10 @@ export const AgentCard = z.object({
   globalSkillCount: z.int().nonnegative().nullable(),
   /** Null until the first Scan. */
   managedSkillCount: z.int().nonnegative().nullable(),
+  /** Its global MCP config file, home-relative; null when the Agent has no MCP surface. */
+  mcpConfig: z.string().nullable().default(null),
+  /** Null until the first Scan, or when the Agent has no MCP surface. */
+  globalMcpServerCount: z.int().nonnegative().nullable().default(null),
 });
 export type AgentCard = z.infer<typeof AgentCard>;
 
@@ -464,6 +600,10 @@ export const PlanStep = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("removeCopy"), path: z.string(), sameAs: z.string() }),
   /** Rewrite an owned or foreign file, e.g. `library-lock.json` or the `skills` CLI's global lock. */
   z.object({ kind: z.literal("editFile"), path: z.string(), change: z.string(), backup: z.string().optional() }),
+  /** Store a Secret's value in the OS keychain under `name` (the value never appears in a plan). */
+  z.object({ kind: z.literal("storeSecret"), name: z.string() }),
+  /** Delete a Secret from the OS keychain once nothing refers to it. */
+  z.object({ kind: z.literal("deleteSecret"), name: z.string() }),
 ]);
 export type PlanStep = z.infer<typeof PlanStep>;
 
@@ -578,6 +718,7 @@ export const Domain = z.enum([
   "agents",
   "scheduler",
   "project",
+  "mcp",
   "skill",
 ]);
 export type Domain = z.infer<typeof Domain>;
@@ -665,6 +806,40 @@ export const CoreExitCode = {
   failed: 1,
 } as const;
 
+/** What Adopt does with one MCP Server: as with Skills, minus Local Sources. */
+export const McpAdoptOutcome = AdoptOutcome.exclude(["localSource"]);
+export type McpAdoptOutcome = z.infer<typeof McpAdoptOutcome>;
+
+export const McpAdoptPlanServer = z.object({
+  finding: z.string(),
+  agent: AgentId,
+  /** Its name in the Agent's config. */
+  name: z.string(),
+  /** The Library MCP Server it ends up as. */
+  libraryName: z.string(),
+  outcome: McpAdoptOutcome,
+  /** Secret names it stores in the keychain. */
+  secrets: z.array(z.string()),
+  /** For a variant: the Library MCP Server of the same name it differs from, and how. */
+  diff: SkillDiff.nullable(),
+});
+export type McpAdoptPlanServer = z.infer<typeof McpAdoptPlanServer>;
+
+export const McpAdoptPlan = PlanBase.extend({
+  findings: z.array(z.string()),
+  servers: z.array(McpAdoptPlanServer),
+});
+export type McpAdoptPlan = z.infer<typeof McpAdoptPlan>;
+
+export const McpAdoptInput = z.object({
+  findings: z.array(z.string().min(1)).min(1),
+  /** Names you chose for variants, by finding id. Others get a suggested `<name>-<agent>`. */
+  names: z.record(z.string(), McpServerName).optional(),
+});
+export type McpAdoptInput = z.infer<typeof McpAdoptInput>;
+
+export const ApplyMcpAdoptInput = McpAdoptInput.extend({ planId: z.string() });
+export type ApplyMcpAdoptInput = z.infer<typeof ApplyMcpAdoptInput>;
 /**
  * A Project Skill as the Project page and the Skill page show it.
  * `status`: "on" (delivered), "off", or "nameConflict" (another Project Skill

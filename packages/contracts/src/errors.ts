@@ -151,6 +151,17 @@ export class NamespaceNotFound extends TaggedError<"NamespaceNotFound"> {
   }
 }
 
+/** A path that isn't a file inside the Skill's folder (missing, a folder, or outside it). */
+export class SkillFileNotFound extends TaggedError<"SkillFileNotFound"> {
+  readonly _tag = "SkillFileNotFound";
+  constructor(
+    readonly key: string,
+    readonly path: string,
+  ) {
+    super(`${key} has no file ${path}`);
+  }
+}
+
 /** The Project hasn't added this Library Skill. */
 export class ProjectSkillNotFound extends TaggedError<"ProjectSkillNotFound"> {
   readonly _tag = "ProjectSkillNotFound";
@@ -159,5 +170,21 @@ export class ProjectSkillNotFound extends TaggedError<"ProjectSkillNotFound"> {
     readonly key: string,
   ) {
     super(`${path} has no Project Skill ${key}`);
+  }
+}
+
+/** A Library MCP Server name that has no file under `mcp/`. */
+export class McpServerNotFound extends TaggedError<"McpServerNotFound"> {
+  readonly _tag = "McpServerNotFound";
+  constructor(readonly server: string) {
+    super(`No Library MCP Server ${server}`);
+  }
+}
+
+/** The OS keychain couldn't be reached (no `security` or `secret-tool`, or it refused). */
+export class KeychainUnavailable extends TaggedError<"KeychainUnavailable"> {
+  readonly _tag = "KeychainUnavailable";
+  constructor(readonly problem: string) {
+    super(`The keychain isn't available: ${problem}`);
   }
 }

@@ -13,6 +13,7 @@ import { type Clock, systemClock } from "./clock";
 import { EventBus } from "./events";
 import { acquireCoreLock } from "./lock";
 import { NotificationBus, type Notifier } from "./notifier";
+import { defaultSecretStore, type SecretStore } from "./secrets";
 import { createServices, type Services } from "./services";
 
 export interface StartCoreOptions {
@@ -21,6 +22,8 @@ export interface StartCoreOptions {
   clock?: Clock;
   /** Defaults to asking the app over the `events` subscription; tests pass a fake. */
   notifier?: Notifier;
+  /** Defaults to the OS keychain (`DARK_MATTER_SECRETS=memory` for an in-memory one); tests pass a fake. */
+  secrets?: SecretStore;
 }
 
 export interface RunningCore {
@@ -39,7 +42,12 @@ const sameToken = (expected: Buffer, given: string) => {
 };
 
 /** Boots the headless core (ADR-0003): serves tRPC on loopback and publishes `core.json`. */
-export const startCore = async ({ env, clock = systemClock, notifier }: StartCoreOptions): Promise<RunningCore> => {
+export const startCore = async ({
+  env,
+  clock = systemClock,
+  notifier,
+  secrets,
+}: StartCoreOptions): Promise<RunningCore> => {
   const libraryHome = resolveLibraryHome(env);
   const home = env.HOME || homedir();
   const paths = corePaths(libraryHome);
@@ -55,6 +63,7 @@ export const startCore = async ({ env, clock = systemClock, notifier }: StartCor
       bus,
       clock,
       notifier: notifier ?? notifications,
+      secrets: secrets ?? defaultSecretStore(env),
       info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
     });
     try {
