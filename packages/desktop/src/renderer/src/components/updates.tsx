@@ -8,12 +8,12 @@ import { Input } from "@/components/ui/input";
 import { useTRPC } from "@/lib/trpc";
 import { ModifiedBadge } from "./modified-badge";
 
-/** Orphaned (#33): the upstream is gone; the Library copy is kept as is. */
+/** Orphaned (#33): its Source is gone; the Library copy is kept as is. */
 export function OrphanedBadge({ reason }: { reason?: string }) {
   return (
     <span
       data-testid="orphaned-badge"
-      title={reason ?? "Its upstream can't be found any more: kept as is until you Detach or re-point it"}
+      title={reason ?? "Its Source can't be found any more: kept as is until you Detach or re-point it"}
       className="rounded-full bg-warning-surface px-2 py-0.5 font-medium text-[11px] text-status-warning"
     >
       Orphaned
@@ -39,7 +39,7 @@ export function CheckUpstreamButton({ skill }: { skill: SkillDetail }) {
       {check.isSuccess && (
         <span data-testid="check-upstream-result" className="text-muted-foreground text-xs">
           {orphaned ? (
-            "Upstream gone"
+            "Source gone"
           ) : found ? (
             <Link to="/library/updates" className="text-foreground underline">
               Update available
