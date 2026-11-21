@@ -76,3 +76,94 @@ export const ImportResult = z.object({
   skills: z.array(z.object({ key: z.string(), path: z.string(), outcome: ImportOutcome })),
 });
 export type ImportResult = z.infer<typeof ImportResult>;
+
+/**
+ * Updates (#33, decided in #11 points 5–8 and 10). Checks are per Source:
+ * one call for the tracked ref's head, then one Trees call if it moved.
+ */
+
+/** One Library Skill with a newer upstream folder, waiting for you to apply it. */
+export const SkillUpdate = z.object({
+  key: z.string(),
+  source: z.string(),
+  ref: z.string(),
+  /** The commit the Library has. */
+  commit: z.string().nullable(),
+  /** The tracked ref's head, where the update comes from. */
+  head: z.string(),
+  /** The Skill folder's tree SHA at `head`. */
+  folderSha: z.string(),
+  /** Changed locally since it was Imported: applying needs Take upstream, Keep mine or Detach. */
+  modified: z.boolean(),
+  checkedAt: z.string(),
+});
+export type SkillUpdate = z.infer<typeof SkillUpdate>;
+
+/** The last check of one Source (cached in SQLite only). */
+export const SourceCheckStatus = z.object({
+  source: z.string(),
+  ref: z.string(),
+  /** Last head seen; null when the check failed. */
+  head: z.string().nullable(),
+  checkedAt: z.string(),
+  /** Why the last check failed (offline, rate limited, gone). */
+  error: z.string().nullable(),
+});
+export type SourceCheckStatus = z.infer<typeof SourceCheckStatus>;
+
+/** GitHub as the last check saw it (cached in SQLite only). */
+export const GitHubCheckStatus = z.object({
+  auth: GitHubAuthMethod,
+  rateLimit: z.object({ remaining: z.int(), limit: z.int().nullable(), resetAt: z.string().nullable() }).nullable(),
+  checkedAt: z.string(),
+});
+export type GitHubCheckStatus = z.infer<typeof GitHubCheckStatus>;
+
+export const OrphanedSkill = z.object({ key: z.string(), source: z.string(), reason: z.string() });
+export type OrphanedSkill = z.infer<typeof OrphanedSkill>;
+
+/** The Updates list. */
+export const UpdatesView = z.object({
+  updates: z.array(SkillUpdate),
+  orphaned: z.array(OrphanedSkill),
+  sources: z.array(SourceCheckStatus),
+  github: GitHubCheckStatus.nullable(),
+});
+export type UpdatesView = z.infer<typeof UpdatesView>;
+
+/** Check for updates: every Imported Skill's Source, or only the Sources of `keys` (Check upstream). */
+export const CheckUpdatesInput = z.object({ keys: z.array(z.string().min(1)).optional() });
+export type CheckUpdatesInput = z.infer<typeof CheckUpdatesInput>;
+
+/** What to do with an update that meets a Modified Skill. */
+export const UpdateChoice = z.enum(["takeUpstream", "keepMine", "detach"]);
+export type UpdateChoice = z.infer<typeof UpdateChoice>;
+
+export const ApplyUpdatesInput = z.object({
+  updates: z.array(z.object({ key: z.string().min(1), choice: UpdateChoice.optional() })).min(1),
+});
+export type ApplyUpdatesInput = z.infer<typeof ApplyUpdatesInput>;
+
+export const AppliedUpdates = z.object({
+  skills: z.array(
+    z.object({
+      key: z.string(),
+      outcome: z.enum(["updated", "kept", "detached"]),
+      /** The Library key afterwards (`local/<name>` once Detached). */
+      newKey: z.string(),
+    }),
+  ),
+});
+export type AppliedUpdates = z.infer<typeof AppliedUpdates>;
+
+export const UpdateDiff = z.object({ key: z.string(), patch: z.string() });
+export type UpdateDiff = z.infer<typeof UpdateDiff>;
+
+/** Re-point a Skill (Orphaned, or pinned to a tag) at a repo, tree URL or tag. */
+export const RepointInput = z.object({ key: z.string().min(1), input: z.string().trim().min(1) });
+export type RepointInput = z.infer<typeof RepointInput>;
+
+export const SkillKeyInput = z.object({ key: z.string().min(1) });
+
+export const DetachResult = z.object({ key: z.string(), newKey: z.string() });
+export type DetachResult = z.infer<typeof DetachResult>;

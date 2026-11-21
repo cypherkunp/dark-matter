@@ -40,8 +40,10 @@ import type { SecretStore } from "./secrets";
 import { SkillEditor } from "./skill-editor";
 import { skillServices } from "./skill-page";
 import { SkillsSh, type SkillsShOptions } from "./skills-sh";
+import { SourceChecks } from "./source-check";
 import { Trash } from "./trash";
 import { untrackedSkills } from "./untracked";
+import { Updates } from "./updates";
 
 export interface ServicesOptions {
   libraryHome: string;
@@ -222,6 +224,22 @@ export const createServices = async ({
       bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project", "collections"] }),
   });
   dailyJobs.push(trash.job());
+  /** Updates for Imported Skills (#33); `sourceChecks` is the per-Source check #35 reuses for starred Sources. */
+  const sourceChecks = new SourceChecks(cache, clock);
+  const updates = new Updates({
+    home,
+    library,
+    importer,
+    activity,
+    checks: sourceChecks,
+    cache,
+    clock,
+    trash,
+    hooks: keyRenameHooks,
+    onChange: () =>
+      bus.publish({ type: "invalidate", domains: ["importer", "library", "skill", "project", "collections"] }),
+  });
+  dailyJobs.push(updates.job());
   const projectProcedures = projectServices({ env, projects, settings, activity, scans, bus, deliver: deliverProject });
   const drift = new Drift({
     home,
@@ -436,7 +454,15 @@ export const createServices = async ({
       ...projectMcp.services(),
     },
     collections: collections.services(),
-    importer: importerServices(importer),
+    importer: {
+      ...importerServices(importer),
+      checkUpdates: (input, client) => updates.check(input, client),
+      updates: () => updates.view(),
+      updateDiff: (key) => updates.diff(key),
+      applyUpdates: (input, client) => updates.apply(input, client),
+      detach: (key, client) => updates.detach(key, client),
+      repoint: (input, client) => updates.repoint(input, client),
+    },
     skillsSh: {
       search: ({ query }) => skillsShSearch.search(query),
       get: ({ id }, client) => skillsShSearch.get(id, client),

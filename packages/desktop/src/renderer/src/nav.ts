@@ -1,4 +1,16 @@
-import { Activity, Bot, Download, Inbox, Layers, Library, type LucideIcon, Search, Server, Star } from "lucide-react";
+import {
+  Activity,
+  Bot,
+  Download,
+  Inbox,
+  Layers,
+  Library,
+  type LucideIcon,
+  RefreshCw,
+  Search,
+  Server,
+  Star,
+} from "lucide-react";
 
 /** One row of the sidebar tree. `path` is the route it opens. */
 export interface NavItem {
@@ -24,6 +36,7 @@ export const navSections: NavSection[] = [
       { label: "All Skills", path: "/library", icon: Library },
       { label: "Favourites", path: "/library/favourites", icon: Star },
       { label: "Collections", path: "/library/collections", icon: Layers },
+      { label: "Updates", path: "/library/updates", icon: RefreshCw },
     ],
     // Then one row per Namespace (the sidebar adds them from the Library).
   },

@@ -25,6 +25,7 @@ import { Route as ComputerMcpServersRouteImport } from './routes/computer/mcp-se
 import { Route as GetGithubRouteImport } from './routes/get/github'
 import { Route as GetSkillsShRouteImport } from './routes/get/skills-sh'
 import { Route as LibraryCollectionsRouteImport } from './routes/library_.collections'
+import { Route as LibraryUpdatesRouteImport } from './routes/library_.updates'
 import { Route as ProjectsSuggestedRouteImport } from './routes/projects/suggested'
 
 const IndexRoute = IndexRouteImport.update({
@@ -107,6 +108,11 @@ const LibraryCollectionsRoute = LibraryCollectionsRouteImport.update({
   path: '/library/collections',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LibraryUpdatesRoute = LibraryUpdatesRouteImport.update({
+  id: '/library_/updates',
+  path: '/library/updates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectsSuggestedRoute = ProjectsSuggestedRouteImport.update({
   id: '/projects/suggested',
   path: '/projects/suggested',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/get/github': typeof GetGithubRoute
   '/get/skills-sh': typeof GetSkillsShRoute
   '/library/collections': typeof LibraryCollectionsRoute
+  '/library/updates': typeof LibraryUpdatesRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRoutesByTo {
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/get/github': typeof GetGithubRoute
   '/get/skills-sh': typeof GetSkillsShRoute
   '/library/collections': typeof LibraryCollectionsRoute
+  '/library/updates': typeof LibraryUpdatesRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRoutesById {
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   '/get/github': typeof GetGithubRoute
   '/get/skills-sh': typeof GetSkillsShRoute
   '/library_/collections': typeof LibraryCollectionsRoute
+  '/library_/updates': typeof LibraryUpdatesRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRouteTypes {
@@ -190,6 +199,7 @@ export interface FileRouteTypes {
     | '/get/github'
     | '/get/skills-sh'
     | '/library/collections'
+    | '/library/updates'
     | '/projects/suggested'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/get/github'
     | '/get/skills-sh'
     | '/library/collections'
+    | '/library/updates'
     | '/projects/suggested'
   id:
     | '__root__'
@@ -228,6 +239,7 @@ export interface FileRouteTypes {
     | '/get/github'
     | '/get/skills-sh'
     | '/library_/collections'
+    | '/library_/updates'
     | '/projects/suggested'
   fileRoutesById: FileRoutesById
 }
@@ -248,6 +260,7 @@ export interface RootRouteChildren {
   GetGithubRoute: typeof GetGithubRoute
   GetSkillsShRoute: typeof GetSkillsShRoute
   LibraryCollectionsRoute: typeof LibraryCollectionsRoute
+  LibraryUpdatesRoute: typeof LibraryUpdatesRoute
   ProjectsSuggestedRoute: typeof ProjectsSuggestedRoute
 }
 
@@ -365,6 +378,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryCollectionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/library_/updates': {
+      id: '/library_/updates'
+      path: '/library/updates'
+      fullPath: '/library/updates'
+      preLoaderRoute: typeof LibraryUpdatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects/suggested': {
       id: '/projects/suggested'
       path: '/projects/suggested'
@@ -392,6 +412,7 @@ const rootRouteChildren: RootRouteChildren = {
   GetGithubRoute: GetGithubRoute,
   GetSkillsShRoute: GetSkillsShRoute,
   LibraryCollectionsRoute: LibraryCollectionsRoute,
+  LibraryUpdatesRoute: LibraryUpdatesRoute,
   ProjectsSuggestedRoute: ProjectsSuggestedRoute,
 }
 export const routeTree = rootRouteImport

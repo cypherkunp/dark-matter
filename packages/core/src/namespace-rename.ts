@@ -132,7 +132,7 @@ export class NamespaceRename {
 }
 
 /** Removes the old Namespace's now-empty folders (`owner/repo`, then `owner`), stopping at `root`. */
-const removeEmptyFolders = async (skillFolder: string, root: string) => {
+export const removeEmptyFolders = async (skillFolder: string, root: string) => {
   for (let folder = dirname(skillFolder); folder.startsWith(`${root}/`); folder = dirname(folder)) {
     const entries = await readdir(folder).catch(() => null);
     if (entries === null || entries.length > 0) return;

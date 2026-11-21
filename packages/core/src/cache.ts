@@ -7,7 +7,7 @@ import { log } from "./log";
  * Bump when the schema changes. The cache is never migrated (ADR-0005): a
  * different `user_version` drops the db and the core rebuilds it from files.
  */
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 const SCHEMA = `
   CREATE TABLE activity_files (
@@ -25,6 +25,23 @@ const SCHEMA = `
   CREATE TABLE scan (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     result TEXT NOT NULL
+  );
+  CREATE TABLE source_checks (
+    source TEXT NOT NULL,
+    ref TEXT NOT NULL,
+    status TEXT NOT NULL,
+    folders TEXT,
+    PRIMARY KEY (source, ref)
+  );
+  CREATE TABLE skill_updates (
+    key TEXT PRIMARY KEY,
+    source TEXT NOT NULL,
+    ref TEXT NOT NULL,
+    "update" TEXT NOT NULL
+  );
+  CREATE TABLE github_status (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    status TEXT NOT NULL
   );
 `;
 
