@@ -69,7 +69,8 @@ export const linkMode: DeliveryModeAdapter = {
     for (const folder of folders) {
       const path = join(target.project, folder, target.name);
       if (await this.isDelivered(path, target)) continue;
-      if (!freed.has(path) && (await lstatOrNull(path))) throw new NameConflict([target.key], join(folder, target.name));
+      if (!freed.has(path) && (await lstatOrNull(path)))
+        throw new NameConflict([target.key], join(folder, target.name));
       steps.push({ kind: "createLink", path, target: target.source });
     }
     for (const folder of unwanted) {
