@@ -28,6 +28,11 @@ const actionLabels: Record<string, string> = {
   "skill.saveFile": "Saved a Skill file",
   "skill.delete": "Moved a Skill to the trash",
   "trash.purge": "Emptied expired trash",
+  "collections.create": "Created a Collection",
+  "collections.rename": "Renamed a Collection",
+  "collections.setItems": "Edited a Collection",
+  "collections.delete": "Deleted a Collection",
+  "collections.apply": "Added a Collection to Projects",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;
@@ -138,6 +143,8 @@ export const subjectLink = (subject: ActivitySubject) => {
       return { to: "/inbox" } as const;
     case "settings":
       return { to: "/settings" } as const;
+    case "collection":
+      return { to: "/collection", search: { name: subject.id } } as const;
     default:
       return null;
   }

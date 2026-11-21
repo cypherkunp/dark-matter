@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
+import { Route as CollectionRouteImport } from './routes/collection'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as NamespaceRouteImport } from './routes/namespace'
@@ -20,6 +21,7 @@ import { Route as SkillRouteImport } from './routes/skill'
 import { Route as ComputerActivityRouteImport } from './routes/computer/activity'
 import { Route as ComputerAgentsRouteImport } from './routes/computer/agents'
 import { Route as ComputerMcpServersRouteImport } from './routes/computer/mcp-servers'
+import { Route as LibraryCollectionsRouteImport } from './routes/library_.collections'
 import { Route as ProjectsSuggestedRouteImport } from './routes/projects/suggested'
 
 const IndexRoute = IndexRouteImport.update({
@@ -30,6 +32,11 @@ const IndexRoute = IndexRouteImport.update({
 const SplatRoute = SplatRouteImport.update({
   id: '/$',
   path: '/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectionRoute = CollectionRouteImport.update({
+  id: '/collection',
+  path: '/collection',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -77,6 +84,11 @@ const ComputerMcpServersRoute = ComputerMcpServersRouteImport.update({
   path: '/computer/mcp-servers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LibraryCollectionsRoute = LibraryCollectionsRouteImport.update({
+  id: '/library_/collections',
+  path: '/library/collections',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectsSuggestedRoute = ProjectsSuggestedRouteImport.update({
   id: '/projects/suggested',
   path: '/projects/suggested',
@@ -86,6 +98,7 @@ const ProjectsSuggestedRoute = ProjectsSuggestedRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/collection': typeof CollectionRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/namespace': typeof NamespaceRoute
@@ -95,11 +108,13 @@ export interface FileRoutesByFullPath {
   '/computer/activity': typeof ComputerActivityRoute
   '/computer/agents': typeof ComputerAgentsRoute
   '/computer/mcp-servers': typeof ComputerMcpServersRoute
+  '/library/collections': typeof LibraryCollectionsRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/collection': typeof CollectionRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/namespace': typeof NamespaceRoute
@@ -109,12 +124,14 @@ export interface FileRoutesByTo {
   '/computer/activity': typeof ComputerActivityRoute
   '/computer/agents': typeof ComputerAgentsRoute
   '/computer/mcp-servers': typeof ComputerMcpServersRoute
+  '/library/collections': typeof LibraryCollectionsRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/collection': typeof CollectionRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/namespace': typeof NamespaceRoute
@@ -124,6 +141,7 @@ export interface FileRoutesById {
   '/computer/activity': typeof ComputerActivityRoute
   '/computer/agents': typeof ComputerAgentsRoute
   '/computer/mcp-servers': typeof ComputerMcpServersRoute
+  '/library_/collections': typeof LibraryCollectionsRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRouteTypes {
@@ -131,6 +149,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$'
+    | '/collection'
     | '/inbox'
     | '/library'
     | '/namespace'
@@ -140,11 +159,13 @@ export interface FileRouteTypes {
     | '/computer/activity'
     | '/computer/agents'
     | '/computer/mcp-servers'
+    | '/library/collections'
     | '/projects/suggested'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$'
+    | '/collection'
     | '/inbox'
     | '/library'
     | '/namespace'
@@ -154,11 +175,13 @@ export interface FileRouteTypes {
     | '/computer/activity'
     | '/computer/agents'
     | '/computer/mcp-servers'
+    | '/library/collections'
     | '/projects/suggested'
   id:
     | '__root__'
     | '/'
     | '/$'
+    | '/collection'
     | '/inbox'
     | '/library'
     | '/namespace'
@@ -168,12 +191,14 @@ export interface FileRouteTypes {
     | '/computer/activity'
     | '/computer/agents'
     | '/computer/mcp-servers'
+    | '/library_/collections'
     | '/projects/suggested'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
+  CollectionRoute: typeof CollectionRoute
   InboxRoute: typeof InboxRoute
   LibraryRoute: typeof LibraryRoute
   NamespaceRoute: typeof NamespaceRoute
@@ -183,6 +208,7 @@ export interface RootRouteChildren {
   ComputerActivityRoute: typeof ComputerActivityRoute
   ComputerAgentsRoute: typeof ComputerAgentsRoute
   ComputerMcpServersRoute: typeof ComputerMcpServersRoute
+  LibraryCollectionsRoute: typeof LibraryCollectionsRoute
   ProjectsSuggestedRoute: typeof ProjectsSuggestedRoute
 }
 
@@ -200,6 +226,13 @@ declare module '@tanstack/react-router' {
       path: '/$'
       fullPath: '/$'
       preLoaderRoute: typeof SplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/collection': {
+      id: '/collection'
+      path: '/collection'
+      fullPath: '/collection'
+      preLoaderRoute: typeof CollectionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -265,6 +298,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ComputerMcpServersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/library_/collections': {
+      id: '/library_/collections'
+      path: '/library/collections'
+      fullPath: '/library/collections'
+      preLoaderRoute: typeof LibraryCollectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects/suggested': {
       id: '/projects/suggested'
       path: '/projects/suggested'
@@ -278,6 +318,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
+  CollectionRoute: CollectionRoute,
   InboxRoute: InboxRoute,
   LibraryRoute: LibraryRoute,
   NamespaceRoute: NamespaceRoute,
@@ -287,6 +328,7 @@ const rootRouteChildren: RootRouteChildren = {
   ComputerActivityRoute: ComputerActivityRoute,
   ComputerAgentsRoute: ComputerAgentsRoute,
   ComputerMcpServersRoute: ComputerMcpServersRoute,
+  LibraryCollectionsRoute: LibraryCollectionsRoute,
   ProjectsSuggestedRoute: ProjectsSuggestedRoute,
 }
 export const routeTree = rootRouteImport

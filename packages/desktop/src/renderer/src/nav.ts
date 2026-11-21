@@ -56,6 +56,7 @@ const searchText = (search: Record<string, unknown>, key: string) =>
 export const breadcrumbFor = (path: string, search: Record<string, unknown> = {}): string[] => {
   if (path === "/settings") return ["Settings"];
   if (path === "/namespace") return ["Library", searchText(search, "name")];
+  if (path === "/collection") return ["Library", "Collections", searchText(search, "name")];
   if (path === "/skill") {
     const key = searchText(search, "key");
     const at = key.lastIndexOf("/");
