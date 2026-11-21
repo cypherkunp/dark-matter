@@ -304,7 +304,12 @@ export const createServices = async ({
     },
     activity: { list: (query) => activity.list(query), export: (filter) => activity.export(filter) },
     scan: {
-      run: (client) => scans.run(client),
+      // After the first Scan the Agents' folders are watched before the call returns, so no change is missed.
+      run: async (client) => {
+        const result = await scans.run(client);
+        await liveRefresh?.sync();
+        return result;
+      },
       status: () => scans.status(),
     },
     inbox: {
