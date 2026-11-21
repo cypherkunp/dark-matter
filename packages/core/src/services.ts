@@ -1,7 +1,14 @@
 import { join } from "node:path";
-import { type CoreInfo, LibraryLockFile, ProjectsFile, SettingsFile, UnknownFinding } from "@dark-matter/contracts";
+import {
+  type CoreInfo,
+  LibraryLockFile,
+  type ProjectRecord,
+  ProjectsFile,
+  SettingsFile,
+  UnknownFinding,
+} from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
-import { ActivityLog } from "./activity";
+import { ActivityLog, type Wrote } from "./activity";
 import { Adopt } from "./adopt";
 import { agentAdapters } from "./agents";
 import { openCache } from "./cache";
@@ -16,6 +23,7 @@ import { McpAdopt, McpLibrary } from "./mcp-library";
 import { type KeyRenameHook, NamespaceRename } from "./namespace-rename";
 import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
+import { ProjectMcpService } from "./project-mcp";
 import { ProjectSkillService } from "./project-skills";
 import { projectServices, waitingSuggestions } from "./projects";
 import { Scans } from "./scans";
@@ -110,6 +118,14 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project"] }),
   });
   const projectSkills = new ProjectSkillService({ home, libraryHome, library, projects, activity, bus });
+  const projectMcp = new ProjectMcpService({ home, mcp: mcpLibrary, secrets, projects, activity, bus });
+  /** A changed record (e.g. Agents) re-delivers Project Skills, then Project MCP Servers. */
+  const deliverProject = {
+    deliver: async (path: string, next: ProjectRecord, wrote: Wrote) => {
+      await projectSkills.deliver(path, next, wrote);
+      await projectMcp.redeliver(path, wrote);
+    },
+  };
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
@@ -193,15 +209,17 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       undo: (key, client) => adopt.undo(key, client),
     },
     mcp: {
-      list: async () => ({ servers: await mcpLibrary.list(home) }),
+      list: async () => ({ servers: await mcpLibrary.list(home, secrets) }),
       adoptPlan: ({ findings, names }) => mcpAdopt.plan(findings, names),
       adoptExecute: ({ findings, names, planId }, client) => mcpAdopt.apply(findings, names, planId, client),
       undoAdopt: (name, client) => mcpAdopt.undo(name, client),
+      ...projectMcp.mcpServices(),
     },
     scheduler: { status: () => scheduler.status() },
     project: {
-      ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
+      ...projectServices({ env, projects, settings, activity, scans, bus, deliver: deliverProject }),
       ...projectSkills.services(),
+      ...projectMcp.services(),
     },
     skill: skillServices(library),
     namespace: {

@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
-import type { McpDefinition } from "@dark-matter/contracts";
+import { type McpDefinition, McpNotTranslatable } from "@dark-matter/contracts";
 import type { AgentPathEnv } from "./agents";
 import { jsonc, readConfigText, toml } from "./config-edit";
 
@@ -27,6 +27,24 @@ export interface AgentMcp {
   format: "json" | "toml";
   /** The MCP Servers a parsed config declares. Entries of unknown shape are skipped. */
   servers(config: unknown): McpEntry[];
+  /** Where a Personal Project MCP Server goes (#38): never committed. #39 adds `shared`. */
+  personal(project: string, env: AgentPathEnv): Promise<McpTarget>;
+  /**
+   * A Library definition as this Agent's entry. Secrets are already resolved
+   * (real values for Personal, env references for Shared), so only `${env:VAR}`
+   * references are left to translate into the Agent's own syntax.
+   */
+  toAgent(definition: McpDefinition): Record<string, unknown>;
+}
+
+/** One config file a Project MCP Server is written into for one Agent. */
+export interface McpTarget {
+  /** Absolute. */
+  file: string;
+  /** Project-relative when the file is inside the Project (it can be tracked or git-excluded), else null. */
+  projectFile: string | null;
+  /** The entry's key path for `name`, given the file's parsed content (OpenCode V1 vs V2). */
+  at(config: unknown, name: string): string[];
 }
 
 type Obj = Record<string, unknown>;
@@ -172,6 +190,98 @@ const codexEntry = (raw: Obj): McpDefinition | null => {
   });
 };
 
+/** Drops undefined and empty fields, keeping the order written. */
+const compact = (fields: Obj): Obj =>
+  Object.fromEntries(
+    Object.entries(fields).filter(
+      ([, value]) => value !== undefined && !(isObj(value) && Object.keys(value).length === 0),
+    ),
+  );
+
+const mapValues = (map: Record<string, string> | undefined, fn: (value: string) => string) =>
+  map && Object.fromEntries(Object.entries(map).map(([key, value]) => [key, fn(value)]));
+
+const ENV_REFS = /\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g;
+const ONLY_ENV_REF = /^\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}$/;
+
+/** Rewrites every `${env:VAR}` with the Agent's syntax. */
+const envSyntax = (to: (name: string) => string) => (text: string) =>
+  text.replace(ENV_REFS, (_ref, name: string) => to(name));
+
+/** Claude Code and Cursor share the `mcpServers` shape; Claude names the transport, Cursor infers it. */
+const mcpServersShape =
+  (refs: (text: string) => string, withType: boolean) =>
+  (definition: McpDefinition): Obj =>
+    definition.transport === "stdio"
+      ? compact({
+          ...(withType && { type: "stdio" }),
+          command: definition.command && refs(definition.command),
+          args: definition.args?.map(refs),
+          env: mapValues(definition.env, refs),
+        })
+      : compact({
+          ...((withType || definition.transport === "sse") && { type: definition.transport }),
+          url: definition.url && refs(definition.url),
+          headers: mapValues(definition.headers, refs),
+        });
+
+const opencodeShape = (definition: McpDefinition): Obj => {
+  const refs = envSyntax((name) => `{env:${name}}`);
+  return definition.transport === "stdio"
+    ? compact({
+        type: "local",
+        command: [definition.command ?? "", ...(definition.args ?? [])].map(refs),
+        environment: mapValues(definition.env, refs),
+        cwd: definition.cwd && refs(definition.cwd),
+      })
+    : compact({
+        type: "remote",
+        url: definition.url && refs(definition.url),
+        headers: mapValues(definition.headers, refs),
+      });
+};
+
+/** Codex has no interpolation: env references become `env_vars`, `bearer_token_env_var` and `env_http_headers`. */
+const codexShape = (definition: McpDefinition): Obj => {
+  const literal = (where: string) => (text: string | undefined) => {
+    if (text?.includes("${env:"))
+      throw new McpNotTranslatable("codex", `${where} can't hold an env reference (${text})`);
+    return text;
+  };
+  if (definition.transport === "stdio") {
+    const env: Record<string, string> = {};
+    const envVars: string[] = [];
+    for (const [key, value] of Object.entries(definition.env ?? {})) {
+      const ref = ONLY_ENV_REF.exec(value)?.[1];
+      if (ref === key) envVars.push(key);
+      else env[key] = literal(`env ${key}`)(value) ?? "";
+    }
+    return compact({
+      command: literal("command")(definition.command),
+      args: definition.args?.map((arg) => literal("args")(arg) ?? ""),
+      env,
+      env_vars: envVars.length > 0 ? envVars : undefined,
+      cwd: literal("cwd")(definition.cwd),
+    });
+  }
+  const httpHeaders: Record<string, string> = {};
+  const envHeaders: Record<string, string> = {};
+  let bearer: string | undefined;
+  for (const [key, value] of Object.entries(definition.headers ?? {})) {
+    const bearerRef = /^Bearer \$\{env:([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(value)?.[1];
+    const ref = ONLY_ENV_REF.exec(value)?.[1];
+    if (key.toLowerCase() === "authorization" && bearerRef) bearer = bearerRef;
+    else if (ref) envHeaders[key] = ref;
+    else httpHeaders[key] = literal(`header ${key}`)(value) ?? "";
+  }
+  return compact({
+    url: literal("url")(definition.url),
+    bearer_token_env_var: bearer,
+    http_headers: httpHeaders,
+    env_http_headers: envHeaders,
+  });
+};
+
 const exists = (path: string) =>
   stat(path).then(
     () => true,
@@ -184,6 +294,16 @@ export const claudeMcp: AgentMcp = {
   format: "json",
   servers: (config) =>
     entriesOf(isObj(config) ? config.mcpServers : undefined, ["mcpServers"], mcpServersEntry(claudeRefs)),
+  // Local scope: `projects["<abs path>"].mcpServers` in the hot state file, outside the Project.
+  personal: async (project, { home }) => ({
+    file: join(home, ".claude.json"),
+    projectFile: null,
+    at: (_config, name) => ["projects", project, "mcpServers", name],
+  }),
+  toAgent: mcpServersShape(
+    envSyntax((name) => `\${${name}}`),
+    true,
+  ),
 };
 
 /** `~/.cursor/mcp.json` `mcpServers`. Its on/off state lives in Cursor's private database and is never touched. */
@@ -192,6 +312,12 @@ export const cursorMcp: AgentMcp = {
   format: "json",
   servers: (config) =>
     entriesOf(isObj(config) ? config.mcpServers : undefined, ["mcpServers"], mcpServersEntry(cursorRefs)),
+  personal: async (project) => ({
+    file: join(project, ".cursor/mcp.json"),
+    projectFile: ".cursor/mcp.json",
+    at: (_config, name) => ["mcpServers", name],
+  }),
+  toAgent: mcpServersShape((text) => text, false),
 };
 
 /** OpenCode's global `opencode.jsonc` (else `opencode.json`): V2 `mcp.servers.<name>` and V1 `mcp.<name>`. */
@@ -208,6 +334,23 @@ export const opencodeMcp: AgentMcp = {
     );
     return [...entriesOf(mcp.servers, ["mcp", "servers"], opencodeEntry), ...entriesOf(v1, ["mcp"], opencodeEntry)];
   },
+  // The Project's `opencode.jsonc` if it has one, else `opencode.json`. Written in the file's own
+  // shape: V1 `mcp.<name>` when it already holds V1 entries and no `mcp.servers`, else V2.
+  personal: async (project) => {
+    const projectFile = (await exists(join(project, "opencode.jsonc"))) ? "opencode.jsonc" : "opencode.json";
+    return {
+      file: join(project, projectFile),
+      projectFile,
+      at: (config, name) => {
+        const mcp = isObj(config) && isObj(config.mcp) ? config.mcp : {};
+        const v1 =
+          mcp.servers === undefined &&
+          Object.entries(mcp).some(([, value]) => isObj(value) && typeof value.type === "string");
+        return v1 ? ["mcp", name] : ["mcp", "servers", name];
+      },
+    };
+  },
+  toAgent: opencodeShape,
 };
 
 /** `~/.codex/config.toml` `[mcp_servers.<name>]`. `CODEX_HOME` isn't honoured yet. */
@@ -215,6 +358,13 @@ export const codexMcp: AgentMcp = {
   globalFile: async ({ home }) => join(home, ".codex/config.toml"),
   format: "toml",
   servers: (config) => entriesOf(isObj(config) ? config.mcp_servers : undefined, ["mcp_servers"], codexEntry),
+  // Loaded only once the Project is trusted in Codex; Dark Matter never trusts it for you.
+  personal: async (project) => ({
+    file: join(project, ".codex/config.toml"),
+    projectFile: ".codex/config.toml",
+    at: (_config, name) => ["mcp_servers", name],
+  }),
+  toAgent: codexShape,
 };
 
 /** Reading, removing and putting back an entry, by file format. */
@@ -223,11 +373,14 @@ export const mcpConfigEdits = {
     read: (text: string, path: string) => jsonc.read(text, path),
     remove: (text: string, at: string[]) => jsonc.remove(text, at),
     restore: (text: string, at: string[], raw: Obj) => jsonc.set(text, at, raw),
+    /** Writes (or replaces) the entry at `at`. */
+    write: (text: string, at: string[], entry: Obj) => jsonc.put(text, at, entry),
   },
   toml: {
     read: (text: string, path: string) => toml.read(text, path),
     remove: (text: string, at: string[]) => toml.removeTable(text, at),
     restore: (text: string, at: string[], raw: Obj) => toml.setTable(text, at, raw),
+    write: (text: string, at: string[], entry: Obj) => toml.setTable(toml.removeTable(text, at), at, entry),
   },
 } as const;
 

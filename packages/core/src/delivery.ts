@@ -111,11 +111,26 @@ export const gitExcludeFile = async (project: string): Promise<string | null> =>
   return join(root, "info", "exclude");
 };
 
-const BLOCK_START = "# Dark Matter Links (managed by Dark Matter; edits inside this block are replaced)";
-const BLOCK_END = "# End of Dark Matter Links";
+const LINKS_EXCLUDE_BLOCK = {
+  start: "# Dark Matter Links (managed by Dark Matter; edits inside this block are replaced)",
+  end: "# End of Dark Matter Links",
+};
 
-/** `text` with Dark Matter's block replaced by `paths` (removed when empty); everything else kept as is. */
-export const withExcludeBlock = (text: string, paths: readonly string[]): string => {
+/** The info/exclude block Personal Project MCP Servers (#38) keep their Project config files in. */
+export const MCP_EXCLUDE_BLOCK = {
+  start: "# Dark Matter Personal MCP Servers (managed by Dark Matter; edits inside this block are replaced)",
+  end: "# End of Dark Matter Personal MCP Servers",
+};
+
+/**
+ * `text` with one of Dark Matter's blocks (the Links one by default) replaced by `paths`
+ * (removed when empty); everything else kept as is.
+ */
+export const withExcludeBlock = (
+  text: string,
+  paths: readonly string[],
+  { start: BLOCK_START, end: BLOCK_END } = LINKS_EXCLUDE_BLOCK,
+): string => {
   const lines = text.split("\n");
   const start = lines.indexOf(BLOCK_START);
   const end = start === -1 ? -1 : lines.indexOf(BLOCK_END, start);

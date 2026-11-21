@@ -5,7 +5,6 @@ import {
   type ClientKind,
   FindingNotFound,
   InvalidOwnedFile,
-  KeychainUnavailable,
   type LibraryMcpServer,
   type McpAdoptedFrom,
   type McpAdoptOutcome,
@@ -19,6 +18,7 @@ import {
   PlanStale,
   type PlanStep,
   type ScanResult,
+  SecretMissing,
 } from "@dark-matter/contracts";
 import type { ActivityLog } from "./activity";
 import { type AgentPathEnv, agentAdapters } from "./agents";
@@ -92,18 +92,25 @@ export class McpLibrary {
     return stored.filter((entry): entry is Stored => entry !== null).sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async list(home: string): Promise<LibraryMcpServer[]> {
-    return (await this.all()).map(({ name, path, value, problem }) => {
+  /** Every Library MCP Server; with `secrets`, which of their Secrets are missing from the keychain. */
+  async list(home: string, secrets?: SecretStore): Promise<LibraryMcpServer[]> {
+    const listed = (await this.all()).map(async ({ name, path, value, problem }) => {
       const definition = value ? definitionOf(value) : null;
+      const names = definition ? secretNames(definition) : [];
+      const missing = [];
+      if (secrets)
+        for (const secret of names) if ((await secrets.get(secret).catch(() => null)) === null) missing.push(secret);
       return {
         name,
         definition,
-        secrets: definition ? secretNames(definition) : [],
+        secrets: names,
+        missingSecrets: missing,
         adoptedFrom: (value?.adoptedFrom ?? []).map(({ agent, file }) => ({ agent, file })),
         file: homeRelative(home, path),
         problem,
       };
     });
+    return Promise.all(listed);
   }
 
   /** Writes a definition file atomically, keys sorted. */
@@ -115,7 +122,7 @@ export class McpLibrary {
   }
 }
 
-const definitionOf = ({ adoptedFrom: _adoptedFrom, ...definition }: McpServerFile): McpDefinition => definition;
+export const definitionOf = ({ adoptedFrom: _adoptedFrom, ...definition }: McpServerFile): McpDefinition => definition;
 
 /** Replaces every occurrence of each Secret's value in the entry's strings with its reference, or back. */
 const swapStrings = (value: unknown, swap: (text: string) => string): unknown => {
@@ -133,8 +140,8 @@ const hideSecrets = (raw: unknown, secrets: readonly InlineSecret[]) => {
   );
 };
 
-/** Fills `${secret:NAME}` references from the keychain. */
-const fillSecrets = async (value: unknown, secrets: SecretStore): Promise<unknown> => {
+/** Fills `${secret:NAME}` references from the keychain; a missing one throws `SecretMissing`. */
+export const fillSecrets = async (value: unknown, secrets: SecretStore): Promise<unknown> => {
   const names = new Set<string>();
   swapStrings(value, (text) => {
     for (const match of text.matchAll(/\$\{secret:([^}]+)\}/g)) names.add(match[1] ?? "");
@@ -143,7 +150,7 @@ const fillSecrets = async (value: unknown, secrets: SecretStore): Promise<unknow
   const values = new Map<string, string>();
   for (const name of names) {
     const secret = await secrets.get(name);
-    if (secret === null) throw new KeychainUnavailable(`the Secret ${name} isn't in the keychain`);
+    if (secret === null) throw new SecretMissing(name);
     values.set(name, secret);
   }
   return swapStrings(value, (text) =>
