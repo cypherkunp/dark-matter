@@ -128,6 +128,13 @@ export const CollectionRecord = z.strictObject({
 });
 export type CollectionRecord = z.infer<typeof CollectionRecord>;
 
+/** Favourites (#35): starred Library Skills (by key) and starred Sources (`owner/repo`). Both kept sorted. */
+export const FavouritesRecord = z.strictObject({
+  skills: z.array(z.string()).default([]),
+  sources: z.array(z.string()).default([]),
+});
+export type FavouritesRecord = z.infer<typeof FavouritesRecord>;
+
 /**
  * `~/.dark-matter/settings.json`, owned intent (ADR-0005). Every field has a
  * default, so a missing file is an empty object. Later tickets add Favourites,
@@ -143,6 +150,8 @@ export const SettingsFile = z.strictObject({
   collections: z.record(z.string(), CollectionRecord).default({}),
   /** Set when the First run is finished or skipped (#46), so it runs once. Absent until then. */
   firstRun: z.strictObject({ completedAt: z.iso.datetime() }).optional(),
+  /** Starred Skills and Sources (#35). Absent until something is starred. */
+  favourites: FavouritesRecord.optional(),
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 
@@ -726,6 +735,27 @@ export const InboxDriftGroup = z.object({
 });
 export type InboxDriftGroup = z.infer<typeof InboxDriftGroup>;
 
+/** A Skill folder a starred Source gained since it was last checked, not yet in the Library (#35). */
+export const NewSkillFinding = z.object({
+  /** `new-skill:<owner/repo>:<path>`. */
+  id: z.string(),
+  source: z.string(),
+  /** The folder in the repo (`.` = the root). */
+  path: z.string(),
+  /** The folder's name (the repo's for the root). */
+  name: z.string(),
+  /** When a check first found it. */
+  foundAt: z.iso.datetime(),
+});
+export type NewSkillFinding = z.infer<typeof NewSkillFinding>;
+
+/** "New Skills in ⭐ owner/repo". */
+export const InboxNewSkillsGroup = z.object({
+  source: z.string(),
+  findings: z.array(NewSkillFinding),
+});
+export type InboxNewSkillsGroup = z.infer<typeof InboxNewSkillsGroup>;
+
 /** Findings still waiting on a decision. Ignored findings are left out. */
 export const Inbox = z.object({
   /** The badge: findings waiting, across every kind. */
@@ -744,6 +774,8 @@ export const Inbox = z.object({
   drift: z.array(InboxDriftGroup).default([]),
   /** Agent-managed MCP Servers that are still on, by Agent. */
   managedMcpServers: z.array(InboxManagedMcpGroup).default([]),
+  /** New Skills in starred Sources, by Source (#35). Never Imported on their own. */
+  newSkills: z.array(InboxNewSkillsGroup).default([]),
 });
 export type Inbox = z.infer<typeof Inbox>;
 
@@ -910,6 +942,7 @@ export const Domain = z.enum([
   "skill",
   "collections",
   "importer",
+  "favourites",
 ]);
 export type Domain = z.infer<typeof Domain>;
 

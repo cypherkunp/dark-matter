@@ -1,6 +1,7 @@
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { isTaggedError } from "./errors";
+import { Favourites, FavouritesView, StarSkillInput, StarSourceInput } from "./favourites";
 import {
   AppliedUpdates,
   ApplyUpdatesInput,
@@ -314,6 +315,13 @@ export interface CoreServices {
     plan(input: CollectionPlanInput): Promise<CollectionPlan>;
     /** Adds the chosen items as ordinary Project Skills; items blocked in a Project are skipped and reported. */
     apply(input: ApplyCollectionInput, client: ClientKind): Promise<AppliedCollection>;
+  };
+  favourites: {
+    get(): Favourites;
+    /** Starred Skills plus every Library Skill from a starred Source. */
+    view(): Promise<FavouritesView>;
+    setSkill(input: StarSkillInput, client: ClientKind): Promise<Favourites>;
+    setSource(input: StarSourceInput, client: ClientKind): Promise<Favourites>;
   };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
@@ -655,6 +663,18 @@ export const createAppRouter = (services: CoreServices) =>
         .input(SkillsShGetInput)
         .output(ImportResult)
         .mutation(({ input, ctx }) => services.skillsSh.get(input, ctx.client)),
+    }),
+    favourites: t.router({
+      get: t.procedure.output(Favourites).query(() => services.favourites.get()),
+      view: t.procedure.output(FavouritesView).query(() => services.favourites.view()),
+      setSkill: t.procedure
+        .input(StarSkillInput)
+        .output(Favourites)
+        .mutation(({ input, ctx }) => services.favourites.setSkill(input, ctx.client)),
+      setSource: t.procedure
+        .input(StarSourceInput)
+        .output(Favourites)
+        .mutation(({ input, ctx }) => services.favourites.setSource(input, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

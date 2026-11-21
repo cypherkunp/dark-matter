@@ -6,6 +6,7 @@ import type {
   InboxManagedGroup,
   InboxManagedMcpGroup,
   InboxMcpGroup,
+  InboxNewSkillsGroup,
   InboxProjectGroup,
   ScanResult,
 } from "@dark-matter/contracts";
@@ -24,6 +25,7 @@ export const inboxFrom = (
   suggestedProjects = 0,
   untracked: readonly InboxProjectGroup[] = [],
   driftGroups: readonly InboxDriftGroup[] = [],
+  newSkillGroups: readonly InboxNewSkillsGroup[] = [],
 ): Inbox => {
   const skipped = new Set(ignored);
   const all = scan?.globalSkills ?? [];
@@ -67,6 +69,11 @@ export const inboxFrom = (
     .filter((group) => group.findings.length > 0);
   const driftAll = driftGroups.reduce((sum, group) => sum + group.findings.length, 0);
   const driftWaiting = drift.reduce((sum, group) => sum + group.findings.length, 0);
+  const newSkills = newSkillGroups
+    .map((group) => ({ ...group, findings: group.findings.filter((finding) => !skipped.has(finding.id)) }))
+    .filter((group) => group.findings.length > 0);
+  const newSkillsAll = newSkillGroups.reduce((sum, group) => sum + group.findings.length, 0);
+  const newSkillsWaiting = newSkills.reduce((sum, group) => sum + group.findings.length, 0);
   const managedMcp = (scan?.managedMcpServers ?? []).filter((finding) => !finding.off);
   const managedMcpWaiting = managedMcp.filter((finding) => !skipped.has(finding.id));
   const managedMcpServers: InboxManagedMcpGroup[] = agentAdapters.flatMap((adapter) => {
@@ -81,6 +88,7 @@ export const inboxFrom = (
       untrackedWaiting +
       managedMcpWaiting.length +
       driftWaiting +
+      newSkillsWaiting +
       suggestedProjects,
     drift,
     untrackedSkills,
@@ -98,10 +106,13 @@ export const inboxFrom = (
       managedMcp.length -
       managedMcpWaiting.length +
       driftAll -
-      driftWaiting,
+      driftWaiting +
+      newSkillsAll -
+      newSkillsWaiting,
     suggestedProjects,
     mcpServers,
     managedMcpServers,
+    newSkills,
   };
 };
 
