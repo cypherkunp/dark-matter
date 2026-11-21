@@ -6,6 +6,7 @@ import { Download, Plus } from "lucide-react";
 import { useState } from "react";
 import { CopyActions, CopyStateBadge, useProjectSkillChanges } from "@/components/copy-actions";
 import { looksLikeGitHubSource } from "@/components/github-import";
+import { SkillsShResults } from "@/components/skills-sh";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -150,7 +151,7 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
           </div>
           <Input
             aria-label="Search the Library or paste a GitHub URL"
-            placeholder="Search the Library, or paste a GitHub URL or owner/repo"
+            placeholder="Search the Library and skills.sh, or paste a GitHub URL or owner/repo"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -196,6 +197,16 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
                 </label>
               ))}
             </div>
+          )}
+          {/* skills.sh (#31): Get Imports the Skill, then adds it to this Project as chosen above. */}
+          {!importable && query.trim().length >= 2 && (
+            <section aria-label="From skills.sh" className="flex min-h-0 flex-col gap-2">
+              <h3 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">From skills.sh</h3>
+              <SkillsShResults
+                text={query}
+                onGot={(keys) => add.mutate({ skills: keys.map((key) => ({ path, key, mode })) })}
+              />
+            </section>
           )}
           {add.error && <p className="text-sm text-status-warning">{add.error.message}</p>}
           <div className="flex justify-end gap-2">

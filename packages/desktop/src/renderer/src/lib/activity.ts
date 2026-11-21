@@ -3,6 +3,7 @@ import type { ActivityClient, ActivityEntry, ActivityFilter, ActivitySubject } f
 /** Human labels for Activity Log actions; unknown actions show as recorded. */
 const actionLabels: Record<string, string> = {
   "settings.updatePreferences": "Saved preferences",
+  "settings.completeFirstRun": "Finished the First run",
   "ownedFiles.discard": "Discarded a hand edit",
   "scan.run": "Scanned",
   "inbox.ignore": "Ignored a finding",
@@ -33,6 +34,11 @@ const actionLabels: Record<string, string> = {
   "project.mcpServerOn": "Turned a Project MCP Server On",
   "project.mcpServerOff": "Turned a Project MCP Server Off",
   "project.removeMcpServer": "Removed a Project MCP Server",
+  "project.mcpServerMode": "Changed a Project MCP Server's mode",
+  "project.updateMcpServer": "Updated a Shared MCP Server",
+  "project.pullMcpServer": "Pulled an MCP Server edit into the Library",
+  "project.trustInCodex": "Trusted a Project in Codex",
+  "mcp.deleteSecret": "Deleted a Secret",
   "namespace.rename": "Renamed a Namespace",
   "skill.saveFile": "Saved a Skill file",
   "skill.delete": "Moved a Skill to the trash",

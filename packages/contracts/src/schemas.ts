@@ -113,12 +113,10 @@ export const CollectionName = z
   .max(80, "Use at most 80 characters")
   .refine((name) => !name.includes("\n"), "Use one line");
 
-/**
- * One thing in a Collection: a Library Skill by key. A discriminated union, so
- * MCP Servers (#41) join as `{ kind: "mcpServer", name }` without a new shape.
- */
+/** One thing in a Collection: a Library Skill by key, or a Library MCP Server by name (#41). */
 export const CollectionItem = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("skill"), key: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("mcpServer"), name: z.string().min(1) }),
 ]);
 export type CollectionItem = z.infer<typeof CollectionItem>;
 
@@ -141,6 +139,8 @@ export const SettingsFile = z.strictObject({
   dismissedSuggestedProjects: z.array(z.string()).default([]),
   /** Collections by name (#36). Items keep their order. */
   collections: z.record(z.string(), CollectionRecord).default({}),
+  /** Set when the First run is finished or skipped (#46), so it runs once. Absent until then. */
+  firstRun: z.strictObject({ completedAt: z.iso.datetime() }).optional(),
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 
@@ -424,6 +424,14 @@ export const ProjectScan = z.object({
 });
 export type ProjectScan = z.infer<typeof ProjectScan>;
 
+/** The Skills already in a Suggested Project (First run, #46): untracked ones and Vendored (`tracked`) ones. */
+export const SuggestedProjectSkills = z.object({
+  path: z.string(),
+  name: z.string(),
+  skills: z.array(ProjectSkillEntry),
+});
+export type SuggestedProjectSkills = z.infer<typeof SuggestedProjectSkills>;
+
 /**
  * How an Agent-managed Skill can be turned off through its Agent's own global
  * settings. `skill` turns off just this Skill; `plugin` the whole plugin it
@@ -494,6 +502,8 @@ export const McpAdoptedFrom = z.strictObject({
   at: z.array(z.string()).min(1),
   /** The entry as the Agent wrote it, with each inline Secret replaced by `${secret:NAME}`. */
   entry: z.unknown(),
+  /** The Project it came from, when it was put back there as Personal (#39); Undo releases it first. */
+  project: z.string().optional(),
 });
 export type McpAdoptedFrom = z.infer<typeof McpAdoptedFrom>;
 
@@ -916,8 +926,11 @@ export const ProjectSkillRecord = z.strictObject({
 });
 export type ProjectSkillRecord = z.infer<typeof ProjectSkillRecord>;
 
-/** How a Project MCP Server reaches the Project's Agents. #39 adds "shared". */
-export const McpDeliveryMode = z.enum(["personal"]);
+/**
+ * How a Project MCP Server reaches the Project's Agents: "personal" (never
+ * committed, real Secrets) or "shared" (#39: committed config, env references only).
+ */
+export const McpDeliveryMode = z.enum(["personal", "shared"]);
 export type McpDeliveryMode = z.infer<typeof McpDeliveryMode>;
 
 /** One entry Dark Matter wrote for a Project MCP Server: how it tells its own entries apart. */
@@ -927,6 +940,11 @@ export const McpDelivered = z.strictObject({
   file: z.string(),
   /** The entry's key path in that file, e.g. `["mcpServers", "github"]`. */
   at: z.array(z.string()).min(1),
+  /**
+   * Shared only (#39): a hash of the entry as Dark Matter wrote it, so a hand
+   * edit in the repo shows as "modified in repo" instead of being overwritten.
+   */
+  written: z.string().optional(),
 });
 export type McpDelivered = z.infer<typeof McpDelivered>;
 
@@ -1130,9 +1148,10 @@ export type FulfilLockInput = z.infer<typeof FulfilLockInput>;
 export const CopyDiff = z.object({ patch: z.string() });
 export type CopyDiff = z.infer<typeof CopyDiff>;
 
-/** A Collection item as Collections list it: `missing` when its Library Skill is gone (deleted or never there). */
+/** A Collection item as Collections list it: `missing` when its Library Skill or MCP Server is gone (deleted or never there). */
 export const CollectionItemView = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("skill"), key: z.string(), name: z.string(), missing: z.boolean() }),
+  z.object({ kind: z.literal("mcpServer"), name: z.string(), missing: z.boolean() }),
 ]);
 export type CollectionItemView = z.infer<typeof CollectionItemView>;
 
@@ -1153,6 +1172,8 @@ export const CollectionPlanInput = z.object({
   name: z.string().min(1),
   projects: z.array(z.string().min(1)).min(1),
   modes: z.record(z.string(), DeliveryMode).optional(),
+  /** Personal or Shared per MCP Server (#41), by name; Personal when left out. */
+  mcpModes: z.record(z.string(), McpDeliveryMode).optional(),
 });
 export type CollectionPlanInput = z.infer<typeof CollectionPlanInput>;
 
@@ -1179,34 +1200,24 @@ export const CollectionCell = z.object({
 });
 export type CollectionCell = z.infer<typeof CollectionCell>;
 
-export const CollectionPlan = z.object({ name: z.string(), cells: z.array(CollectionCell) });
-export type CollectionPlan = z.infer<typeof CollectionPlan>;
-
-/** Applying a Collection: the cells you ticked, each with Link or Copy. Blocked ones are skipped and reported. */
-export const ApplyCollectionInput = z.object({
-  name: z.string().min(1),
-  skills: z.array(AddProjectSkill).min(1),
-});
-export type ApplyCollectionInput = z.infer<typeof ApplyCollectionInput>;
-
-export const AppliedCollection = z.object({
-  /** Each touched Project's Project Skills afterwards. */
-  projects: z.array(ProjectSkills),
-  /** Per item and Project, what happened. */
-  cells: z.array(CollectionCell),
-});
-export type AppliedCollection = z.infer<typeof AppliedCollection>;
-
 /**
  * One Agent's delivery of a Project MCP Server: "delivered" (its entry is
- * written), "off", or "tracked" (its Project config file is committed, so
- * Personal isn't offered for that Agent).
+ * written), "off", "tracked" (its Project config file is committed, so
+ * Personal isn't offered for that Agent), and for Shared (#39) "outdated" (the
+ * Library definition changed: Update) or "modifiedInRepo" (hand-edited: Take
+ * Library version or Pull into Library).
  */
 export const McpDeliveryStatus = z.object({
   agent: AgentId,
   /** The config file, home-relative. */
   file: z.string(),
-  status: z.enum(["delivered", "off", "tracked"]),
+  status: z.enum(["delivered", "off", "tracked", "outdated", "modifiedInRepo"]),
+  /**
+   * The Agent's own gate on a written entry (#39), when it has one: "approved",
+   * "needsApproval" (Cursor; Claude Code when Dark Matter couldn't record it),
+   * or "untrusted" (Codex: delivered, inactive until the Project is trusted).
+   */
+  approval: z.enum(["approved", "needsApproval", "untrusted"]).optional(),
 });
 export type McpDeliveryStatus = z.infer<typeof McpDeliveryStatus>;
 
@@ -1219,6 +1230,8 @@ export const ProjectMcpServer = z.object({
   secrets: z.array(z.string()),
   /** One per chosen Agent with an MCP surface (never `.agents`). */
   deliveries: z.array(McpDeliveryStatus),
+  /** Shared only (#39): the environment variables each teammate must set. */
+  envVars: z.array(z.string()).optional(),
 });
 export type ProjectMcpServer = z.infer<typeof ProjectMcpServer>;
 
@@ -1235,8 +1248,11 @@ export type AddProjectMcpServers = z.infer<typeof AddProjectMcpServers>;
 export const ProjectMcpServerRef = ProjectPath.extend({ name: McpServerName });
 export type ProjectMcpServerRef = z.infer<typeof ProjectMcpServerRef>;
 
-/** Where Personal would write for each of a Project's Agents, and whether it's offered (not tracked by git). */
-export const McpTarget = z.object({ agent: AgentId, file: z.string(), personal: z.boolean() });
+/**
+ * Where Personal would write for each of a Project's Agents, and whether it's
+ * offered (not tracked by git); `shared` is the committed file Shared writes (#39).
+ */
+export const McpTarget = z.object({ agent: AgentId, file: z.string(), personal: z.boolean(), shared: z.string() });
 export type McpTarget = z.infer<typeof McpTarget>;
 
 /** A Secret's new value (entered or rotated). It goes straight into the keychain. */
@@ -1245,6 +1261,121 @@ export type SetSecretInput = z.infer<typeof SetSecretInput>;
 
 export const UpdateMcpDefinitionInput = z.object({ name: McpServerName, definition: McpDefinition });
 export type UpdateMcpDefinitionInput = z.infer<typeof UpdateMcpDefinitionInput>;
+
+/**
+ * What adding one Collection MCP Server to one Project does (#41): "add" (a
+ * Project MCP Server, delivered On), "present", "blocked" (it can't be
+ * delivered: a name taken in a config file, `blockedBy`, or another
+ * `problem` such as a Secret not in the keychain yet) or "missing".
+ */
+export const CollectionMcpCell = z.object({
+  path: z.string(),
+  name: z.string(),
+  mode: McpDeliveryMode,
+  outcome: z.enum(["add", "present", "blocked", "missing"]),
+  /** For a Name Conflict: the config file and entry in the way, as `<~file> › <at>`. */
+  blockedBy: z.string().nullable(),
+  /** For "blocked": why, in words. */
+  problem: z.string().nullable(),
+});
+export type CollectionMcpCell = z.infer<typeof CollectionMcpCell>;
+
+export const CollectionPlan = z.object({
+  name: z.string(),
+  cells: z.array(CollectionCell),
+  mcpCells: z.array(CollectionMcpCell),
+});
+export type CollectionPlan = z.infer<typeof CollectionPlan>;
+
+/** Applying a Collection: the cells you ticked, each with Link or Copy. Blocked ones are skipped and reported. */
+export const ApplyCollectionInput = z
+  .object({
+    name: z.string().min(1),
+    skills: z.array(AddProjectSkill).default([]),
+    mcpServers: z.array(AddProjectMcpServer).default([]),
+  })
+  .refine((input) => input.skills.length + input.mcpServers.length > 0, "Pick at least one item");
+export type ApplyCollectionInput = z.infer<typeof ApplyCollectionInput>;
+
+export const AppliedCollection = z.object({
+  /** Each touched Project's Project Skills afterwards. */
+  projects: z.array(ProjectSkills),
+  /** Per item and Project, what happened. */
+  cells: z.array(CollectionCell),
+  /** Each touched Project's MCP Servers afterwards (#41). */
+  mcpProjects: z.array(ProjectMcpServers),
+  mcpCells: z.array(CollectionMcpCell),
+});
+export type AppliedCollection = z.infer<typeof AppliedCollection>;
+
+/** Turning a Project MCP Server On or Off; `discardEdits` confirms dropping a Shared entry modified in repo (#39). */
+export const SetProjectMcpServerOn = ProjectMcpServerRef.extend({
+  on: z.boolean(),
+  discardEdits: z.boolean().optional(),
+});
+export type SetProjectMcpServerOn = z.infer<typeof SetProjectMcpServerOn>;
+
+export const RemoveProjectMcpServer = ProjectMcpServerRef.extend({ discardEdits: z.boolean().optional() });
+export type RemoveProjectMcpServer = z.infer<typeof RemoveProjectMcpServer>;
+
+export const SetProjectMcpServerMode = ProjectMcpServerRef.extend({
+  mode: McpDeliveryMode,
+  discardEdits: z.boolean().optional(),
+});
+export type SetProjectMcpServerMode = z.infer<typeof SetProjectMcpServerMode>;
+
+/** Update a Shared delivery to the Library version; `discardEdits` confirms dropping an edit made in the repo. */
+export const UpdateProjectMcpServer = ProjectMcpServerRef.extend({ discardEdits: z.boolean().optional() });
+export type UpdateProjectMcpServer = z.infer<typeof UpdateProjectMcpServer>;
+
+/** Pull one Agent's hand-edited Shared entry back into the Library definition. */
+export const PullProjectMcpServer = ProjectMcpServerRef.extend({ agent: AgentId });
+export type PullProjectMcpServer = z.infer<typeof PullProjectMcpServer>;
+
+/**
+ * A change to one Project MCP Server to dry-run (#39): add it or change its
+ * mode (`mode`), On/Off (`on`), `remove` it, or `update` a Shared delivery.
+ * Left out, `mode` and `on` keep what the Project has (Personal and On for a new one).
+ */
+export const McpChangeInput = ProjectMcpServerRef.extend({
+  mode: McpDeliveryMode.optional(),
+  on: z.boolean().optional(),
+  remove: z.boolean().optional(),
+  update: z.boolean().optional(),
+  discardEdits: z.boolean().optional(),
+});
+export type McpChangeInput = z.infer<typeof McpChangeInput>;
+
+/** What a change would write, before anything is written. */
+export const McpChangePlan = z.object({
+  edits: z.array(z.object({ file: z.string(), change: z.string() })),
+  /** The env vars teammates must set for it (Shared), else empty. */
+  envVars: z.array(z.string()),
+  /** It edits a committed (Shared) config file: everyone on the team gets the change. */
+  teamChange: z.boolean(),
+});
+export type McpChangePlan = z.infer<typeof McpChangePlan>;
+
+/**
+ * An MCP Server entry already in a Project's config that Dark Matter didn't
+ * write (#39): Vendored when its file is tracked by git (shown, left alone),
+ * else untracked (or Claude Code local scope), which Adopt moves into the
+ * Library and puts back as Personal. The id is the Adopt finding id.
+ */
+export const RepoMcpServer = z.object({
+  /** `project-mcp:<agent>:<project path>:<name>`. */
+  id: z.string(),
+  agent: AgentId,
+  name: z.string(),
+  /** The config file, home-relative. */
+  file: z.string(),
+  /** Inline secrets masked as `${secret:…}`. */
+  definition: McpDefinition,
+});
+export type RepoMcpServer = z.infer<typeof RepoMcpServer>;
+
+export const RepoMcpServers = z.object({ vendored: z.array(RepoMcpServer), untracked: z.array(RepoMcpServer) });
+export type RepoMcpServers = z.infer<typeof RepoMcpServers>;
 
 /** One stat card on an overview screen (#45): its number (null before the first Scan) and the screen that resolves it. */
 export const StatCard = z.object({ count: z.int().nonnegative().nullable(), path: z.string() });

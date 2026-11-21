@@ -12,7 +12,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-  const results = filterCommands(useCommands(), query).slice(0, LIMIT);
+  const results = filterCommands(useCommands(query), query).slice(0, LIMIT);
   const selected = results[Math.min(active, results.length - 1)];
 
   useEffect(() => {
@@ -55,13 +55,13 @@ export function CommandPalette() {
           <div className="flex items-center gap-2 border-b px-4">
             <Search className="size-4 text-muted-foreground" />
             <input
-              aria-label="Search Skills, Namespaces, Projects and actions"
+              aria-label="Search Skills, Namespaces, Collections, Projects and actions"
               role="combobox"
               aria-expanded
               aria-controls="command-results"
               aria-activedescendant={selected ? `command-${selected.id}` : undefined}
               className="h-11 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              placeholder="Jump to a Skill, Namespace or Project, or run an action…"
+              placeholder="Jump to a Skill, Namespace, Collection or Project, or run an action…"
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);

@@ -39,6 +39,7 @@ import { type DailyJob, Scheduler } from "./scheduler";
 import type { SecretStore } from "./secrets";
 import { SkillEditor } from "./skill-editor";
 import { skillServices } from "./skill-page";
+import { SkillsSh, type SkillsShOptions } from "./skills-sh";
 import { Trash } from "./trash";
 import { untrackedSkills } from "./untracked";
 
@@ -54,6 +55,7 @@ export interface ServicesOptions {
   notifier: Notifier;
   secrets: SecretStore;
   github: GitHubOptions;
+  skillsSh: SkillsShOptions;
 }
 
 /** The core's service methods behind the router (ADR-0003): every action is one of these. */
@@ -66,6 +68,7 @@ export const createServices = async ({
   notifier,
   secrets,
   github,
+  skillsSh,
   systemRoot,
 }: ServicesOptions) => {
   const cache = await openCache(libraryHome);
@@ -132,7 +135,12 @@ export const createServices = async ({
     activity,
     latestScan: () => scans.latest,
     rescan: () => scans.refresh(),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["mcp", "inbox"] }),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["mcp", "inbox", "project", "collections"] }),
+    projectFindings: () => projectMcp.findings(),
+    keepPersonal: {
+      keep: (path, name, wrote) => projectMcp.keepPersonal(path, name, wrote),
+      release: (path, name, wrote) => projectMcp.release(path, name, wrote),
+    },
   });
   /** What follows a Library Skill to a new key. Project Skills (Links and Copies) push their hook below. */
   const keyRenameHooks: KeyRenameHook[] = [];
@@ -166,6 +174,8 @@ export const createServices = async ({
     onChange: (domains) => bus.publish({ type: "invalidate", domains }),
   });
   const lockImporter: LockImporter | null = importer.lockImporter();
+  /** skills.sh search and Get (#31); Get Imports through `importer`. */
+  const skillsShSearch = new SkillsSh({ ...skillsSh, clock, library, importer });
   const projectSkills = new ProjectSkillService({
     home,
     libraryHome,
@@ -246,7 +256,9 @@ export const createServices = async ({
     settings,
     library,
     activity,
+    mcp: mcpLibrary,
     projectSkills,
+    projectMcp,
     onChange: () => bus.publish({ type: "invalidate", domains: ["collections", "settings"] }),
   });
   keyRenameHooks.push(collections.keyRenameHook(home));
@@ -289,6 +301,16 @@ export const createServices = async ({
         await activity.prune(activityRetention());
         return saved;
       },
+      completeFirstRun: (client) =>
+        activity.track(
+          { client, action: "settings.completeFirstRun", subjects: [{ kind: "settings", id: "firstRun" }] },
+          async (wrote) => {
+            const completedAt = clock.now().toISOString();
+            wrote(await settings.update((current) => ({ ...current, firstRun: current.firstRun ?? { completedAt } })));
+            bus.publish({ type: "invalidate", domains: ["settings"] });
+            return settings.value;
+          },
+        ),
     },
     ownedFiles: {
       problems: () => ownedFiles.flatMap((file) => (file.problem ? [file.problem] : [])),
@@ -415,6 +437,10 @@ export const createServices = async ({
     },
     collections: collections.services(),
     importer: importerServices(importer),
+    skillsSh: {
+      search: ({ query }) => skillsShSearch.search(query),
+      get: ({ id }, client) => skillsShSearch.get(id, client),
+    },
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),

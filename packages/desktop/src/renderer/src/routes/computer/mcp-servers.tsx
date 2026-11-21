@@ -1,8 +1,12 @@
-import type { LibraryMcpServer } from "@dark-matter/contracts";
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: shows the MCP reference syntax, not a template.
+import { Dialog } from "@base-ui/react/dialog";
+import { type LibraryMcpServer, McpDefinition } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { KeyRound, Server } from "lucide-react";
 import { useState } from "react";
+import { CodeEditor } from "@/components/code-editor";
+import { ConfirmDialog } from "@/components/copy-actions";
 import { definitionSummary } from "@/components/inbox-mcp";
 import { byAgent, ManagedMcpGroups } from "@/components/managed-mcp";
 import { PageHead } from "@/components/page-head";
@@ -21,7 +25,9 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 function SecretField({ name, missing }: { name: string; missing: boolean }) {
   const trpc = useTRPC();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [value, setValue] = useState("");
+  const remove = useMutation(trpc.mcp.deleteSecret.mutationOptions({ onSuccess: () => setDeleting(false) }));
   const save = useMutation(
     trpc.mcp.setSecret.mutationOptions({
       onSuccess: () => {
@@ -59,18 +65,99 @@ function SecretField({ name, missing }: { name: string; missing: boolean }) {
           </Button>
         </form>
       ) : (
-        <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-          {missing ? "Enter" : "Rotate"}
-        </Button>
+        <>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+            {missing ? "Enter" : "Rotate"}
+          </Button>
+          {!missing && (
+            <Button size="sm" variant="ghost" onClick={() => setDeleting(true)}>
+              Delete
+            </Button>
+          )}
+        </>
       )}
       {save.error && <span className="text-status-warning">{save.error.message}</span>}
+      {deleting && (
+        <ConfirmDialog
+          title={`Delete the Secret ${name}?`}
+          confirm="Delete Secret"
+          busy={remove.isPending}
+          error={remove.error?.message}
+          onConfirm={() => remove.mutate({ name })}
+          onClose={() => {
+            remove.reset();
+            setDeleting(false);
+          }}
+        >
+          <p>
+            Its value is removed from the keychain. Definitions keep referring to it by name, so you can enter it again
+            later. A Secret that On Personal deliveries still use can't be deleted.
+          </p>
+        </ConfirmDialog>
+      )}
     </div>
+  );
+}
+
+/**
+ * Edits a Library MCP Server's definition as JSON. Saving rewrites its Personal
+ * deliveries straight away and marks Shared ones outdated, per Project.
+ */
+function EditDefinitionDialog({ server, onClose }: { server: LibraryMcpServer; onClose: () => void }) {
+  const trpc = useTRPC();
+  const initial = `${JSON.stringify(server.definition, null, 2)}\n`;
+  const [text, setText] = useState(initial);
+  const [problem, setProblem] = useState<string | null>(null);
+  const save = useMutation(trpc.mcp.updateDefinition.mutationOptions({ onSuccess: onClose }));
+  const submit = () => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    const definition = McpDefinition.safeParse(parsed);
+    if (!definition.success) {
+      setProblem(definition.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "));
+      return;
+    }
+    setProblem(null);
+    save.mutate({ name: server.name, definition: definition.data });
+  };
+  return (
+    <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
+        <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(42rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
+          <Dialog.Title className="font-semibold text-lg">Edit {server.name}</Dialog.Title>
+          <Dialog.Description className="text-muted-foreground text-sm">
+            Refer to Secrets as <span className="font-mono">{"${secret:NAME}"}</span> and to env vars as{" "}
+            <span className="font-mono">{"${env:VAR}"}</span>. Saving rewrites Personal deliveries now; Shared ones show
+            as outdated until you update each Project.
+          </Dialog.Description>
+          <div data-testid="mcp-definition-editor" className="min-h-48 overflow-auto rounded-xl border">
+            <CodeEditor path={`${server.name}.json`} initial={initial} onChange={setText} onSave={submit} />
+          </div>
+          {(problem ?? save.error?.message) && (
+            <p className="text-sm text-status-warning">{problem ?? save.error?.message}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>
+            <Button disabled={save.isPending} onClick={submit}>
+              Save
+            </Button>
+          </div>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
 function ServerRow({ server }: { server: LibraryMcpServer }) {
   const trpc = useTRPC();
   const undo = useMutation(trpc.mcp.undoAdopt.mutationOptions());
+  const [editing, setEditing] = useState(false);
   const origins = server.adoptedFrom.map((origin) => `${agentName(origin.agent)} ${origin.file}`).join(", ");
   return (
     <div data-testid="library-mcp-server" className="flex min-h-16 items-center gap-3 px-5 py-3">
@@ -92,6 +179,12 @@ function ServerRow({ server }: { server: LibraryMcpServer }) {
         {server.problem && <p className="text-status-warning text-xs">{server.problem}</p>}
         {undo.error && <p className="text-status-warning text-xs">{undo.error.message}</p>}
       </div>
+      {server.definition && (
+        <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+          Edit
+        </Button>
+      )}
+      {editing && <EditDefinitionDialog server={server} onClose={() => setEditing(false)} />}
       {server.adoptedFrom.length > 0 && (
         <Button
           size="sm"
