@@ -154,7 +154,7 @@ export const createServices = async ({
   });
   /** The daily run, in order. Later jobs (update checks, starred Sources) are added here. */
   const dailyJobs: DailyJob[] = [
-    scanJob(scans, () => settings.value.ignoredFindings),
+    scanJob({ scans, settings, drift: () => drift.groups() }),
     retentionJob(activity, activityRetention),
   ];
   const scheduler = new Scheduler({

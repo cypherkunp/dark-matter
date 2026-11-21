@@ -203,6 +203,12 @@ export const SettingsFile = z.strictObject({
   firstRun: z.strictObject({ completedAt: z.iso.datetime() }).optional(),
   /** Starred Skills and Sources (#35). Absent until something is starred. */
   favourites: FavouritesRecord.optional(),
+  /**
+   * Inbox findings (Global Skills, Global MCP Servers, drift) the Scheduled Scan
+   * has already told you about, or that were there when it first ran, by id.
+   * Kept sorted; absent until the first Scheduled Scan.
+   */
+  notifiedFindings: z.array(z.string()).optional(),
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 

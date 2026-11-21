@@ -1,5 +1,7 @@
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { agentHome, snapshotTree } from "./agent-home";
+import { agentHome, gitRepo, snapshotTree } from "./agent-home";
 import { bootCore, connect, fakeClock, fakeNotifier, localTime, tempHome } from "./harness";
 
 const setup = async (start: Date) => {
@@ -133,20 +135,116 @@ describe("the Scheduled Scan", () => {
       .toEqual([{ title: "2 new Global Skills found", body: "docx, pdf. Review them in the Inbox.", path: "/inbox" }]);
   });
 
-  test("never Adopts: it writes nothing outside state/ and the Activity Log", async () => {
+  test("notifies about a Global Skill a watcher re-scan found first (story 23)", async () => {
+    const { home, clock, trpc, fixture, notifier } = await setup(localTime(20, 8));
+    await mkdir(join(home, ".agents/skills"), { recursive: true });
+    await trpc.scan.run.mutate();
+    clock.set(localTime(20, 9));
+    await expect.poll(() => scheduledScans(trpc)).toHaveLength(1);
+
+    // The Agent folders are watched, so the Scan cache has it long before the next run.
+    await fixture.skill(".agents/skills/pdf", { name: "pdf" });
+    await expect
+      .poll(async () => (await trpc.inbox.list.query()).globalSkills.flatMap((group) => group.findings), {
+        timeout: 5000,
+      })
+      .toHaveLength(1);
+    clock.set(localTime(21, 9));
+
+    await expect
+      .poll(() => notifier.sent)
+      .toEqual([{ title: "New Global Skill found", body: "pdf. Review it in the Inbox.", path: "/inbox" }]);
+    // Notified once: the next run is quiet.
+    clock.set(localTime(22, 9));
+    await expect.poll(() => scheduledScans(trpc)).toHaveLength(3);
+    expect(notifier.sent).toHaveLength(1);
+  }, 15_000);
+
+  test("notifies about a Global Skill the startup Scan found after a restart", async () => {
+    const { home, libraryHome } = await tempHome();
+    const env = { HOME: home, DARK_MATTER_HOME: libraryHome };
+    const firstClock = fakeClock(localTime(20, 8));
+    const first = await bootCore(env, { clock: firstClock });
+    await connect(first).trpc.scan.run.mutate();
+    firstClock.set(localTime(20, 9));
+    await expect.poll(() => scheduledScans(connect(first).trpc)).toHaveLength(1);
+    await first.stop();
+    await agentHome(home).skill(".claude/skills/pdf", { name: "pdf" });
+
+    const clock = fakeClock(localTime(21, 8));
+    const notifier = fakeNotifier();
+    const second = await bootCore(env, { clock, notifier });
+    const { trpc } = connect(second);
+    await expect
+      .poll(async () => (await trpc.inbox.list.query()).globalSkills.flatMap((group) => group.findings), {
+        timeout: 5000,
+      })
+      .toHaveLength(1);
+    clock.set(localTime(21, 9));
+
+    await expect
+      .poll(() => notifier.sent)
+      .toEqual([{ title: "New Global Skill found", body: "pdf. Review it in the Inbox.", path: "/inbox" }]);
+  });
+
+  test("notifies about new Global MCP Servers and drift too (story 26)", async () => {
+    const { home, libraryHome } = await tempHome();
+    const fixture = agentHome(libraryHome);
+    await fixture.skill(join(libraryHome, "skills/local/pdf"), { description: "About pdf" });
+    await writeFile(
+      join(libraryHome, "library-lock.json"),
+      JSON.stringify({
+        version: 1,
+        skills: { "local/pdf": { source: "local/pdf", sourceType: "local", computedHash: "0".repeat(64) } },
+      }),
+    );
+    const clock = fakeClock(localTime(20, 8));
+    const notifier = fakeNotifier();
+    const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome }, { clock, notifier });
+    const { trpc } = connect(core);
+    const app = await gitRepo(home, "code/app");
+    await trpc.project.add.mutate({ path: app, agents: ["claude-code"] });
+    await trpc.project.addSkills.mutate({ skills: [{ path: app, key: "local/pdf" }] });
+    await trpc.scan.run.mutate();
+    clock.set(localTime(20, 9));
+    await expect.poll(() => scheduledScans(trpc)).toHaveLength(1);
+    expect(notifier.sent).toEqual([]);
+
+    await agentHome(home).file(
+      ".cursor/mcp.json",
+      JSON.stringify({ mcpServers: { github: { command: "npx", args: ["gh-mcp"] } } }),
+    );
+    await rm(join(app, ".claude/skills/pdf"));
+    clock.set(localTime(21, 9));
+
+    await expect
+      .poll(() => notifier.sent)
+      .toEqual([
+        {
+          title: "2 new Inbox findings",
+          body: "Global MCP Server: github; drift: app › pdf. Review them in the Inbox.",
+          path: "/inbox",
+        },
+      ]);
+  });
+
+  test("never Adopts: it writes nothing outside state/, the Activity Log and what it has notified", async () => {
     const { clock, trpc, fixture, home } = await setup(localTime(20, 8));
     await trpc.scan.run.mutate();
     await fixture.skill(".agents/skills/pdf", { name: "pdf" });
     await fixture.link(".claude/skills/pdf", ".agents/skills/pdf");
     await fixture.skill("code/my-skills/mine", { name: "mine" });
     await fixture.link(".cursor/skills/mine", "code/my-skills/mine");
-    const except = [".dark-matter/state", ".dark-matter/activity"];
+    const except = [".dark-matter/state", ".dark-matter/activity", ".dark-matter/settings.json"];
     const before = await snapshotTree(home, except);
 
     clock.set(localTime(20, 9));
     await expect.poll(() => scheduledScans(trpc)).toHaveLength(1);
 
     expect(await snapshotTree(home, except)).toEqual(before);
+    expect(JSON.parse(await readFile(join(home, ".dark-matter/settings.json"), "utf8"))).toMatchObject({
+      notifiedFindings: ["global-skill:~/.agents/skills/pdf", "global-skill:~/code/my-skills/mine"],
+    });
     expect((await trpc.inbox.list.query()).count).toBe(2);
   });
 });
