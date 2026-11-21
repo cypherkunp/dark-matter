@@ -58,7 +58,10 @@ export class Scans {
     this.#running.catch((error: unknown) => log(`catch-up Scan failed: ${String(error)}`));
   }
 
-  /** A Scan after the core changed an Agent's settings, so the cache shows it. Not logged on its own. */
+  /**
+   * A Scan after a change the core made itself (an Agent's settings, an Adopt),
+   * so the cache and the Inbox catch up. Not logged on its own.
+   */
   async refresh(): Promise<ScanResult> {
     await this.settle();
     this.#running ??= this.#start(() => this.#scan());

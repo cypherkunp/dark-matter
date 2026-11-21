@@ -1,13 +1,15 @@
 import { join } from "node:path";
-import { type CoreInfo, ProjectsFile, SettingsFile, UnknownFinding } from "@dark-matter/contracts";
+import { type CoreInfo, LibraryLockFile, ProjectsFile, SettingsFile, UnknownFinding } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import { ActivityLog } from "./activity";
+import { Adopt } from "./adopt";
 import { agentAdapters } from "./agents";
 import { openCache } from "./cache";
 import type { Clock } from "./clock";
 import { editConfigFile } from "./config-edit";
 import type { EventBus } from "./events";
 import { agentCards, inboxFrom } from "./inbox";
+import { Library } from "./library";
 import { log } from "./log";
 import { managedSkillRef } from "./managed-skills";
 import type { Notifier } from "./notifier";
@@ -40,9 +42,15 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
   });
   const settings = await OwnedFile.open("settings.json", join(libraryHome, "settings.json"), SettingsFile);
   const projects = await OwnedFile.open("projects.json", join(libraryHome, "projects.json"), ProjectsFile);
-  const ownedFiles = [settings, projects];
+  const libraryLock = await OwnedFile.open(
+    "library-lock.json",
+    join(libraryHome, "library-lock.json"),
+    LibraryLockFile,
+  );
+  const library = new Library(libraryHome, home, libraryLock);
+  const ownedFiles = [settings, projects, libraryLock];
   const ownedFileChanged = () =>
-    bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "project"] });
+    bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "project", "library"] });
   const env = { home };
   const scans = new Scans({
     env,
@@ -67,13 +75,21 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     },
     onChange: () => bus.publish({ type: "invalidate", domains: ["scheduler"] }),
   });
+  const adopt = new Adopt({
+    home,
+    library,
+    activity,
+    latestScan: () => scans.latest,
+    rescan: () => scans.refresh(),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox"] }),
+  });
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
 
   const services: Omit<CoreServices, "events" | "notifications"> = {
     info,
-    library: { list: async () => ({ skills: [] }) },
+    library: { list: async () => ({ skills: await library.list() }) },
     settings: {
       get: () => settings.value,
       updatePreferences: (patch, client) =>
@@ -143,6 +159,11 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
             await scans.refresh();
           },
         ),
+    },
+    adopt: {
+      plan: ({ findings }) => adopt.plan(findings),
+      apply: ({ findings, planId }, client) => adopt.apply(findings, planId, client),
+      undo: (key, client) => adopt.undo(key, client),
     },
     scheduler: { status: () => scheduler.status() },
     project: projectServices({ env, projects, settings, activity, scans, bus }),

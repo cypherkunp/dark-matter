@@ -81,3 +81,43 @@ export class UnknownFinding extends TaggedError<"UnknownFinding"> {
     super(`No finding ${id} in the latest Scan offers that action`);
   }
 }
+
+/** A plan changed between its dry run and apply (the disk or the Scan moved on). Plan again. */
+export class PlanStale extends TaggedError<"PlanStale"> {
+  readonly _tag = "PlanStale";
+  constructor() {
+    super("Things changed since this plan was made. Review the new plan and apply it again.");
+  }
+}
+
+/** A finding id that the latest Scan doesn't have (gone, already Adopted, or never seen). */
+export class FindingNotFound extends TaggedError<"FindingNotFound"> {
+  readonly _tag = "FindingNotFound";
+  constructor(readonly id: string) {
+    super(`No finding ${id} in the latest Scan. Scan again.`);
+  }
+}
+
+/** A Library Skill key that isn't in the Library Lock. */
+export class SkillNotFound extends TaggedError<"SkillNotFound"> {
+  readonly _tag = "SkillNotFound";
+  constructor(readonly key: string) {
+    super(`No Library Skill ${key}`);
+  }
+}
+
+/** Undo Adopt on a Library Skill that wasn't Adopted. */
+export class NotAdopted extends TaggedError<"NotAdopted"> {
+  readonly _tag = "NotAdopted";
+  constructor(readonly key: string) {
+    super(`${key} wasn't Adopted, so there's nowhere to move it back to`);
+  }
+}
+
+/** Something already sits where a move or link would go; nothing is overwritten. */
+export class PathTaken extends TaggedError<"PathTaken"> {
+  readonly _tag = "PathTaken";
+  constructor(readonly path: string) {
+    super(`${path} already exists; move it aside first`);
+  }
+}

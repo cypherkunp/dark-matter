@@ -4,8 +4,11 @@ import { isTaggedError } from "./errors";
 import {
   ActivityList,
   ActivityQuery,
+  AdoptInput,
+  AdoptPlan,
   AgentCard,
   AgentId,
+  ApplyAdoptInput,
   type ClientKind,
   type CoreEvent,
   CoreInfo,
@@ -73,6 +76,14 @@ export interface CoreServices {
      * own global settings, with a targeted, format-preserving edit.
      */
     turnOff(input: { id: string; scope: OffScope }, client: ClientKind): Promise<void>;
+  };
+  adopt: {
+    /** The dry run: what Adopting these findings would do. Writes nothing. */
+    plan(input: AdoptInput): Promise<AdoptPlan>;
+    /** Re-plans, checks the plan id still matches, then applies it. */
+    apply(input: ApplyAdoptInput, client: ClientKind): Promise<AdoptPlan>;
+    /** Undo Adopt: moves the Skill back to where it was Adopted from and puts back what Adopt removed. */
+    undo(key: string, client: ClientKind): Promise<void>;
   };
   scheduler: {
     status(): SchedulerStatus;
@@ -151,6 +162,20 @@ export const createAppRouter = (services: CoreServices) =>
       turnOff: t.procedure
         .input(z.object({ id: z.string().min(1), scope: OffScope }))
         .mutation(({ input, ctx }) => services.managedSkills.turnOff(input, ctx.client)),
+    }),
+    adopt: t.router({
+      plan: t.procedure
+        .input(AdoptInput)
+        .output(AdoptPlan)
+        .query(({ input }) => services.adopt.plan(input)),
+      // `apply` is reserved by tRPC, so the procedure that applies a plan is `execute`.
+      execute: t.procedure
+        .input(ApplyAdoptInput)
+        .output(AdoptPlan)
+        .mutation(({ input, ctx }) => services.adopt.apply(input, ctx.client)),
+      undo: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.adopt.undo(input.key, ctx.client)),
     }),
     scheduler: t.router({
       status: t.procedure.output(SchedulerStatus).query(() => services.scheduler.status()),

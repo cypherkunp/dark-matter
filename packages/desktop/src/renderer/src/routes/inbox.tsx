@@ -2,6 +2,8 @@ import type { GlobalSkill, InboxFolderGroup, InboxManagedGroup, ManagedSkill, Of
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight, Inbox as InboxIcon } from "lucide-react";
+import { useState } from "react";
+import { AdoptDialog } from "@/components/adopt-dialog";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -14,7 +16,9 @@ export const Route = createFileRoute("/inbox")({ component: Inbox });
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-function Finding({ finding }: { finding: GlobalSkill }) {
+type Adopt = (findings: string[]) => void;
+
+function Finding({ finding, onAdopt }: { finding: GlobalSkill; onAdopt: Adopt }) {
   const trpc = useTRPC();
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   const reachedFrom = finding.locations.filter((location) => location.path !== finding.realPath);
@@ -37,30 +41,45 @@ function Finding({ finding }: { finding: GlobalSkill }) {
             .join(" · ")}
         </div>
       </div>
-      <Button size="sm" variant="outline" disabled={ignore.isPending} onClick={() => ignore.mutate({ id: finding.id })}>
-        Ignore
-      </Button>
+      <div className="flex gap-1.5">
+        <Button size="sm" variant="ghost" disabled={ignore.isPending} onClick={() => ignore.mutate({ id: finding.id })}>
+          Ignore
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => onAdopt([finding.id])}>
+          Adopt
+        </Button>
+      </div>
     </div>
   );
 }
 
-function FolderGroup({ group }: { group: InboxFolderGroup }) {
+function FolderGroup({ group, onAdopt }: { group: InboxFolderGroup; onAdopt: Adopt }) {
   return (
     <section data-testid="inbox-group" className="flex flex-col gap-3">
       <h2 className="flex flex-wrap items-center gap-2 font-semibold text-sm">
         <span className="font-mono">{group.folder}</span>
         <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
-        <span className="ml-auto flex flex-wrap gap-1">
+        <span className="ml-auto flex flex-wrap items-center gap-1">
           {group.agents.map((agent) => (
             <span key={agent} className="rounded-md border px-1.5 py-0.5 font-normal text-[11px] text-muted-foreground">
               {agentName(agent)}
             </span>
           ))}
+          {group.findings.length > 1 && (
+            <Button
+              size="xs"
+              variant="ghost"
+              className="font-normal"
+              onClick={() => onAdopt(group.findings.map((finding) => finding.id))}
+            >
+              Adopt all {group.findings.length}
+            </Button>
+          )}
         </span>
       </h2>
       <div className="divide-y rounded-xl border">
         {group.findings.map((finding) => (
-          <Finding key={finding.id} finding={finding} />
+          <Finding key={finding.id} finding={finding} onAdopt={onAdopt} />
         ))}
       </div>
     </section>
@@ -141,6 +160,8 @@ function Inbox() {
   const managed = inbox.data?.managedSkills ?? [];
   const count = inbox.data?.count ?? 0;
   const ignored = inbox.data?.ignoredCount ?? 0;
+  const [adopting, setAdopting] = useState<string[] | null>(null);
+  const allFindings = groups.flatMap((group) => group.findings.map((finding) => finding.id));
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
@@ -185,13 +206,20 @@ function Inbox() {
             </Link>
           )}
           {groups.length > 0 && (
-            <p className="text-muted-foreground text-sm">
-              Global Skills load in every Project. Adopt them into the Library so each Project asks for only what it
-              needs.
-            </p>
+            <div className="flex items-start gap-4">
+              <p className="flex-1 text-muted-foreground text-sm">
+                Global Skills load in every Project. Adopt them into the Library so each Project asks for only what it
+                needs.
+              </p>
+              {allFindings.length > 1 && (
+                <Button size="sm" onClick={() => setAdopting(allFindings)}>
+                  Adopt all {allFindings.length}
+                </Button>
+              )}
+            </div>
           )}
           {groups.map((group) => (
-            <FolderGroup key={group.folder} group={group} />
+            <FolderGroup key={group.folder} group={group} onAdopt={setAdopting} />
           ))}
           {managed.length > 0 && (
             <>
@@ -209,6 +237,7 @@ function Inbox() {
           )}
         </>
       )}
+      <AdoptDialog findings={adopting} onClose={() => setAdopting(null)} />
     </div>
   );
 }
