@@ -43,7 +43,7 @@ export interface LiveRefreshOptions {
 const LIBRARY_IGNORE = ["state", "activity", "trash", "backups", "staging", "core.json", "core.lock"];
 const PROJECT_IGNORE = [".git", "**/node_modules"];
 const RESYNC_MS = 60_000;
-/** How often a watched Agent config file is stat-checked: cheap, and quick enough to feel live. */
+/** How often a watched Agent config file (or a Project root's existence) is stat-checked: cheap, and quick enough to feel live. */
 const CONFIG_POLL_MS = 250;
 
 const inside = (path: string, root: string) => path === root || path.startsWith(root + sep);
@@ -78,7 +78,11 @@ export const startLiveRefresh = async (options: LiveRefreshOptions) => {
     if (options.scanned()) options.rescan();
   };
   const syncFiles = async () => {
-    const wanted = new Set(await options.configFiles());
+    const configs = new Set(await options.configFiles());
+    // A Project folder renamed or deleted as a whole isn't reliably reported by the
+    // folder watcher (FSEvents drops root renames), so its existence is polled too (review #16).
+    const projectRoots = new Set(options.projectPaths());
+    const wanted = new Set([...configs, ...projectRoots]);
     for (const [path] of polled)
       if (!wanted.has(path)) {
         unwatchFile(path);
@@ -89,7 +93,11 @@ export const startLiveRefresh = async (options: LiveRefreshOptions) => {
         polled.set(
           path,
           watchFile(path, { interval: CONFIG_POLL_MS, persistent: false }, (now, before) => {
-            if (now.mtimeMs !== before.mtimeMs || now.size !== before.size || now.ino !== before.ino) configChanged();
+            if (projectRoots.has(path)) {
+              // Appeared or disappeared (a Project's own contents are the folder watcher's).
+              if ((now.ino === 0) !== (before.ino === 0)) void onChanges([path]).catch(options.onError);
+            } else if (now.mtimeMs !== before.mtimeMs || now.size !== before.size || now.ino !== before.ino)
+              configChanged();
           }),
         );
   };

@@ -22,6 +22,10 @@ const ticking = (clock: ReturnType<typeof fakeClock>, day: number) => {
   return () => clock.set(localTime(day, 9, minute++));
 };
 
+/** What the Scheduled Scan has recorded as notified, or null before its first run saved it. */
+const notified = async (libraryHome: string): Promise<string[] | null> =>
+  JSON.parse(await readFile(join(libraryHome, "settings.json"), "utf8").catch(() => "{}")).notifiedFindings ?? null;
+
 /** Lets anything a clock change started finish, so a test can check it didn't happen. */
 const settled = () => new Promise((resolve) => setTimeout(resolve, 150));
 
@@ -145,11 +149,12 @@ describe("the Scheduled Scan", () => {
   });
 
   test("notifies about a Global Skill a watcher re-scan found first (story 23)", async () => {
-    const { home, clock, trpc, fixture, notifier } = await setup(localTime(20, 8));
+    const { home, env, clock, trpc, fixture, notifier } = await setup(localTime(20, 8));
     await mkdir(join(home, ".agents/skills"), { recursive: true });
     await trpc.scan.run.mutate();
     clock.set(localTime(20, 9));
     await expect.poll(() => scheduledScans(trpc), { timeout: 5000 }).toHaveLength(1);
+    await expect.poll(() => notified(env.DARK_MATTER_HOME), { timeout: 5000 }).not.toBeNull();
 
     // The Agent folders are watched, so the Scan cache has it long before the next run.
     await fixture.skill(".agents/skills/pdf", { name: "pdf" });
@@ -231,6 +236,8 @@ describe("the Scheduled Scan", () => {
     await trpc.scan.run.mutate();
     clock.set(localTime(20, 9));
     await expect.poll(() => scheduledScans(trpc), { timeout: 5000 }).toHaveLength(1);
+    // The first run's baseline is saved once its findings are read: change nothing before that.
+    await expect.poll(() => notified(libraryHome), { timeout: 5000 }).not.toBeNull();
     expect(notifier.sent).toEqual([]);
 
     await agentHome(home).file(
