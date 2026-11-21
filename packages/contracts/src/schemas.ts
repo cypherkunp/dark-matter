@@ -1054,6 +1054,11 @@ export const McpDelivered = z.strictObject({
    * edit in the repo shows as "modified in repo" instead of being overwritten.
    */
   written: z.string().optional(),
+  /**
+   * Personal only (story 104): a hash of the entry as Dark Matter wrote it (never
+   * the Secret value), so a hand edit shows as "modified" instead of being overwritten.
+   */
+  hash: z.string().optional(),
 });
 export type McpDelivered = z.infer<typeof McpDelivered>;
 
@@ -1324,7 +1329,8 @@ export const McpDeliveryStatus = z.object({
   agent: AgentId,
   /** The config file, home-relative. */
   file: z.string(),
-  status: z.enum(["delivered", "off", "tracked", "outdated", "modifiedInRepo"]),
+  /** `modified`: a Personal entry edited by hand since Dark Matter wrote it (story 104). */
+  status: z.enum(["delivered", "off", "tracked", "outdated", "modifiedInRepo", "modified"]),
   /**
    * The Agent's own gate on a written entry (#39), when it has one: "approved",
    * "needsApproval" (Cursor; Claude Code when Dark Matter couldn't record it),

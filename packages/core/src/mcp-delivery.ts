@@ -8,6 +8,7 @@ import {
   type McpDelivered,
   type McpDeliveryMode,
   type McpDeliveryStatus,
+  McpEditedByHand,
   McpFileShared,
   McpModifiedInRepo,
   McpSecretInShared,
@@ -320,10 +321,13 @@ export const planMcpDelivery = async (
 
   /** Throws when an entry Dark Matter wrote for the team was edited since, unless discarding is confirmed. */
   const checkUnmodified = async (name: string, delivered: McpDelivered) => {
-    if (delivered.written === undefined || discard.has(name)) return;
+    const recorded = delivered.written ?? delivered.hash;
+    if (recorded === undefined || discard.has(name)) return;
     const existing = lookup(await parsed(fromHomeRelative(env.home, delivered.file)), delivered.at);
-    if (existing !== undefined && entryHash(existing) !== delivered.written)
-      throw new McpModifiedInRepo(name, delivered.file);
+    if (existing !== undefined && entryHash(existing) !== recorded)
+      throw delivered.written !== undefined
+        ? new McpModifiedInRepo(name, delivered.file)
+        : new McpEditedByHand(name, delivered.file);
   };
 
   for (const [name, gone] of Object.entries(removed))
@@ -382,6 +386,13 @@ export const planMcpDelivery = async (
           status = "outdated";
           write = false;
         }
+      } else if (write && ours?.hash !== undefined && existing !== undefined && entryHash(existing) !== ours.hash) {
+        // A Personal entry edited by hand: kept, whatever changed in the Library or the keychain, until you choose.
+        if (!discard.has(name)) {
+          if (refresh.has(name)) throw new McpEditedByHand(name, file);
+          status = "modified";
+          write = false;
+        }
       }
       if (write) {
         const format = formatOf(target.file);
@@ -391,8 +402,14 @@ export const planMcpDelivery = async (
           team: mode.committed,
           run: () => editConfigFile(target.file, (text) => format.write(text, at, written)),
         });
-        delivered.push(mode.committed ? { ...entry, written: entryHash(written) } : entry);
-      } else delivered.push(ours ?? entry);
+        delivered.push({
+          ...entry,
+          ...(mode.committed ? { written: entryHash(written) } : { hash: entryHash(written) }),
+        });
+      } else if (!mode.committed && ours && ours.hash === undefined && existing !== undefined && status === "delivered")
+        // Delivered before hashes were recorded: remember it as it is now.
+        delivered.push({ ...ours, hash: entryHash(existing) });
+      else delivered.push(ours ?? entry);
       if (target.projectFile) filesByMode[wanted.mode].add(target.projectFile);
       if (mode.excluded && target.projectFile) excluded.add(target.projectFile);
       if (adapter.id === "claude-code" && mode.committed) claudeShared.now.add(name);

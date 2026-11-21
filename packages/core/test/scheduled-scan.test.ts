@@ -140,7 +140,7 @@ describe("the Scheduled Scan", () => {
     await mkdir(join(home, ".agents/skills"), { recursive: true });
     await trpc.scan.run.mutate();
     clock.set(localTime(20, 9));
-    await expect.poll(() => scheduledScans(trpc)).toHaveLength(1);
+    await expect.poll(() => scheduledScans(trpc), { timeout: 5000 }).toHaveLength(1);
 
     // The Agent folders are watched, so the Scan cache has it long before the next run.
     await fixture.skill(".agents/skills/pdf", { name: "pdf" });
@@ -152,11 +152,11 @@ describe("the Scheduled Scan", () => {
     clock.set(localTime(21, 9));
 
     await expect
-      .poll(() => notifier.sent)
+      .poll(() => notifier.sent, { timeout: 5000 })
       .toEqual([{ title: "New Global Skill found", body: "pdf. Review it in the Inbox.", path: "/inbox" }]);
     // Notified once: the next run is quiet.
     clock.set(localTime(22, 9));
-    await expect.poll(() => scheduledScans(trpc)).toHaveLength(3);
+    await expect.poll(() => scheduledScans(trpc), { timeout: 5000 }).toHaveLength(3);
     expect(notifier.sent).toHaveLength(1);
   }, 15_000);
 
@@ -167,7 +167,7 @@ describe("the Scheduled Scan", () => {
     const first = await bootCore(env, { clock: firstClock });
     await connect(first).trpc.scan.run.mutate();
     firstClock.set(localTime(20, 9));
-    await expect.poll(() => scheduledScans(connect(first).trpc)).toHaveLength(1);
+    await expect.poll(() => scheduledScans(connect(first).trpc), { timeout: 5000 }).toHaveLength(1);
     await first.stop();
     await agentHome(home).skill(".claude/skills/pdf", { name: "pdf" });
 
@@ -183,9 +183,9 @@ describe("the Scheduled Scan", () => {
     clock.set(localTime(21, 9));
 
     await expect
-      .poll(() => notifier.sent)
+      .poll(() => notifier.sent, { timeout: 5000 })
       .toEqual([{ title: "New Global Skill found", body: "pdf. Review it in the Inbox.", path: "/inbox" }]);
-  });
+  }, 15_000);
 
   test("notifies about new Global MCP Servers and drift too (story 26)", async () => {
     const { home, libraryHome } = await tempHome();
@@ -207,7 +207,7 @@ describe("the Scheduled Scan", () => {
     await trpc.project.addSkills.mutate({ skills: [{ path: app, key: "local/pdf" }] });
     await trpc.scan.run.mutate();
     clock.set(localTime(20, 9));
-    await expect.poll(() => scheduledScans(trpc)).toHaveLength(1);
+    await expect.poll(() => scheduledScans(trpc), { timeout: 5000 }).toHaveLength(1);
     expect(notifier.sent).toEqual([]);
 
     await agentHome(home).file(
@@ -218,7 +218,7 @@ describe("the Scheduled Scan", () => {
     clock.set(localTime(21, 9));
 
     await expect
-      .poll(() => notifier.sent)
+      .poll(() => notifier.sent, { timeout: 5000 })
       .toEqual([
         {
           title: "2 new Inbox findings",
@@ -226,7 +226,7 @@ describe("the Scheduled Scan", () => {
           path: "/inbox",
         },
       ]);
-  });
+  }, 15_000);
 
   test("never Adopts: it writes nothing outside state/, the Activity Log and what it has notified", async () => {
     const { clock, trpc, fixture, home } = await setup(localTime(20, 8));

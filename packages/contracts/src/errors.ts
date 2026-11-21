@@ -342,6 +342,17 @@ export class McpSecretInShared extends TaggedError<"McpSecretInShared"> {
   }
 }
 
+/** A Personal MCP entry was edited by hand since Dark Matter wrote it (story 104); it's never overwritten or removed without asking. */
+export class McpEditedByHand extends TaggedError<"McpEditedByHand"> {
+  readonly _tag = "McpEditedByHand";
+  constructor(
+    readonly server: string,
+    readonly file: string,
+  ) {
+    super(`${server} was edited by hand in ${file}. Confirm discarding the edit, or keep it as it is.`);
+  }
+}
+
 /** A Secret that On Personal deliveries still use can't be deleted: turn them Off or edit the definitions first. */
 export class SecretInUse extends TaggedError<"SecretInUse"> {
   readonly _tag = "SecretInUse";
