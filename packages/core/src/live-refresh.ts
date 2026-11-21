@@ -72,6 +72,7 @@ export const startLiveRefresh = async (options: LiveRefreshOptions) => {
   /** Stat-polled Agent config files, by path. */
   const polled = new Map<string, StatWatcher>();
   const configChanged = () => {
+    if (closed) return;
     // Personal entries' status, Claude Code's local scope and Global MCP Servers live in these.
     options.bus.publish({ type: "invalidate", domains: ["project", "inbox", "agents", "mcp"] });
     if (options.scanned()) options.rescan();
@@ -105,7 +106,9 @@ export const startLiveRefresh = async (options: LiveRefreshOptions) => {
     await watcher.sync(roots()).catch(options.onError);
   };
 
+  let closed = false;
   const onChanges = async (paths: string[]) => {
+    if (closed) return;
     forgetSkillHashes(paths);
     const domains = new Set<Domain>();
     let rescan = false;
@@ -144,6 +147,7 @@ export const startLiveRefresh = async (options: LiveRefreshOptions) => {
     /** Re-reads which folders to watch, e.g. after a Scan or a change to `projects.json`. */
     sync,
     close: async () => {
+      closed = true;
       stopTimer();
       for (const [path] of polled) unwatchFile(path);
       polled.clear();

@@ -373,6 +373,8 @@ export const createServices = async ({
   });
   // Live refresh (#42): owned files, MCP definitions, the Library, Projects and Agent folders.
   await mcpLibrary.all();
+  /** Set once the core starts stopping. */
+  let closing = false;
   let liveRefresh: Awaited<ReturnType<typeof startLiveRefresh>> | null = null;
   liveRefresh = await startLiveRefresh({
     env,
@@ -391,8 +393,11 @@ export const createServices = async ({
       Object.values(libraryLock.value.skills).flatMap((entry) =>
         entry.localSource ? [library.absolute(entry.localSource)] : [],
       ),
-    rescan: () =>
-      void scans.refresh().catch((error: unknown) => log(`re-Scan after a change failed: ${String(error)}`)),
+    rescan: () => {
+      // A change still in flight while the core stops doesn't Scan into a closed cache.
+      if (closing) return;
+      void scans.refresh().catch((error: unknown) => log(`re-Scan after a change failed: ${String(error)}`));
+    },
     bus,
     clock,
     onError: (error) => log(`watching folders: ${String(error)}`),
@@ -659,6 +664,7 @@ export const createServices = async ({
     /** The server hands in how to call a mutation, for applying Requests approved after their call stopped waiting. */
     setRequestApplier: (applier: RequestApplier) => requests.setApplier(applier),
     close: async () => {
+      closing = true;
       stopExpiring();
       await liveRefresh?.close();
       await scheduler.stop();
