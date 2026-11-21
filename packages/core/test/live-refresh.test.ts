@@ -158,6 +158,11 @@ describe("drift: npx skills overwrote a Link", () => {
     expect(
       await readFile(join(libraryHome, "trash", stamp ?? "", "app/.claude/skills/pdf/SKILL.md"), "utf8"),
     ).toContain("the skills CLI's copy");
+    // Recorded like a deleted Skill, so the daily purge removes it after the retention (review #14).
+    expect(await readJson(join(libraryHome, "trash", stamp ?? "", "trashed.json"))).toMatchObject({
+      key: `drift:${app}`,
+      kind: "drift",
+    });
     expect(await drift()).toEqual([]);
   });
 
