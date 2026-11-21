@@ -13,6 +13,15 @@ const setup = async (start: Date) => {
   return { home, env, clock, notifier, fixture: agentHome(home), trpc: connect(core).trpc };
 };
 
+/**
+ * Moves the clock a minute at a time from `day` 09:00 while polling, so a daily
+ * run that was still finishing the previous one's jobs is picked up on the next tick.
+ */
+const ticking = (clock: ReturnType<typeof fakeClock>, day: number) => {
+  let minute = 0;
+  return () => clock.set(localTime(day, 9, minute++));
+};
+
 /** Lets anything a clock change started finish, so a test can check it didn't happen. */
 const settled = () => new Promise((resolve) => setTimeout(resolve, 150));
 
@@ -149,14 +158,28 @@ describe("the Scheduled Scan", () => {
         timeout: 5000,
       })
       .toHaveLength(1);
-    clock.set(localTime(21, 9));
+    const tick = ticking(clock, 21);
 
     await expect
-      .poll(() => notifier.sent, { timeout: 5000 })
+      .poll(
+        () => {
+          tick();
+          return notifier.sent;
+        },
+        { timeout: 5000 },
+      )
       .toEqual([{ title: "New Global Skill found", body: "pdf. Review it in the Inbox.", path: "/inbox" }]);
     // Notified once: the next run is quiet.
-    clock.set(localTime(22, 9));
-    await expect.poll(() => scheduledScans(trpc), { timeout: 5000 }).toHaveLength(3);
+    const next = ticking(clock, 22);
+    await expect
+      .poll(
+        async () => {
+          next();
+          return scheduledScans(trpc);
+        },
+        { timeout: 5000 },
+      )
+      .toHaveLength(3);
     expect(notifier.sent).toHaveLength(1);
   }, 15_000);
 
@@ -215,10 +238,16 @@ describe("the Scheduled Scan", () => {
       JSON.stringify({ mcpServers: { github: { command: "npx", args: ["gh-mcp"] } } }),
     );
     await rm(join(app, ".claude/skills/pdf"));
-    clock.set(localTime(21, 9));
+    const tick = ticking(clock, 21);
 
     await expect
-      .poll(() => notifier.sent, { timeout: 5000 })
+      .poll(
+        () => {
+          tick();
+          return notifier.sent;
+        },
+        { timeout: 5000 },
+      )
       .toEqual([
         {
           title: "2 new Inbox findings",

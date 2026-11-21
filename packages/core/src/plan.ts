@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { cp, lstat, mkdir, rename, rm, symlink, unlink } from "node:fs/promises";
+import { cp, lstat, mkdir, readFile, readlink, rename, rm, rmdir, stat, symlink, unlink } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";
 import { PathTaken, type PlanStep } from "@dark-matter/contracts";
 import type { Wrote } from "./activity";
+import { writeFileAtomic } from "./atomic";
 import { fromHomeRelative } from "./home-path";
+import { log } from "./log";
 import { fingerprintSkillFolder } from "./skill-hash";
 import { toSortedJson } from "./sorted-json";
 
@@ -24,6 +26,10 @@ export interface ApplyContext {
   editFile(step: Extract<PlanStep, { kind: "editFile" }>): Promise<string[]>;
   /** Carries out `storeSecret` and `deleteSecret` steps (the keychain); plans without them leave it out. */
   secret?(step: Extract<PlanStep, { kind: "storeSecret" | "deleteSecret" }>): Promise<void>;
+  /** Told which files a rollback put back, so owned files held in memory can reload them. */
+  restored?(paths: string[]): Promise<void>;
+  /** The last part of the transaction, after every step: if it throws, the steps are reversed too. */
+  finish?(): Promise<void>;
 }
 
 const exists = (path: string) =>
@@ -80,72 +86,132 @@ const targetsOf = (steps: readonly PlanStep[]): string[] => {
   return targets;
 };
 
-/** Applies steps in order. Nothing is ever overwritten: a taken target throws `PathTaken` before any step runs. */
+/** Moves a folder out of the way into staging, so a removal can be reversed until the plan finishes. */
+const stash = async (path: string, libraryHome: string) => {
+  const into = stagingFor(path, libraryHome);
+  await mkdir(dirname(into), { recursive: true });
+  await moveFolder(path, into, libraryHome);
+  return into;
+};
+
+/**
+ * Applies steps in order, as one transaction (review #7). Nothing is ever
+ * overwritten: a taken target throws `PathTaken` before any step runs. Each
+ * completed step records how to reverse it, and if a later step fails, the
+ * completed ones are reversed in reverse order before the error is rethrown.
+ * Removed folders are stashed rather than deleted until every step succeeded;
+ * the file an `editFile` step names is put back byte for byte (`restored` is told).
+ * A Secret stored in the keychain stays there (it's harmless and named).
+ */
 export const applySteps = async (steps: readonly PlanStep[], context: ApplyContext): Promise<void> => {
   const abs = (path: string) => fromHomeRelative(context.home, path);
   for (const target of targetsOf(steps)) {
     if (await exists(abs(target))) throw new PathTaken(abs(target));
   }
+  /** How to reverse each completed step, newest last. */
+  const undo: (() => Promise<void>)[] = [];
   const vacant = async (path: string) => {
     if (await exists(path)) throw new PathTaken(path);
-    await mkdir(dirname(path), { recursive: true });
+    const made = await mkdir(dirname(path), { recursive: true });
+    // Folders made for it go on rollback too, innermost first, while they're empty.
+    if (made)
+      undo.push(async () => {
+        for (let dir = dirname(path); dir.length >= made.length; dir = dirname(dir)) await rmdir(dir);
+      });
   };
-  for (const step of steps) {
-    switch (step.kind) {
-      case "move": {
-        const to = abs(step.to);
-        await vacant(to);
-        await moveFolder(abs(step.from), to, context.libraryHome);
-        context.wrote(to);
-        break;
-      }
-      case "copy": {
-        const to = abs(step.to);
-        await vacant(to);
-        await copyIntoPlace(abs(step.from), to, context.libraryHome);
-        context.wrote(to);
-        break;
-      }
-      case "createLink": {
-        const path = abs(step.path);
-        await vacant(path);
-        await symlink(step.target, path, "dir");
-        context.wrote(path);
-        break;
-      }
-      case "removeLink": {
-        const path = abs(step.path);
-        if (!(await lstat(path)).isSymbolicLink()) throw new Error(`${path} is no longer a symlink`);
-        await unlink(path);
-        context.wrote(path);
-        break;
-      }
-      case "removeCopy": {
-        // Re-checked right before removing: only a byte-for-byte duplicate of a kept folder goes.
-        const path = abs(step.path);
-        if ((await fingerprintSkillFolder(path)) !== (await fingerprintSkillFolder(abs(step.sameAs)))) {
-          throw new Error(`${path} no longer matches ${step.sameAs}; nothing was removed`);
+  /** Removed folders waiting to be deleted once every step succeeded. */
+  const stashed: string[] = [];
+  try {
+    for (const step of steps) {
+      switch (step.kind) {
+        case "move": {
+          const from = abs(step.from);
+          const to = abs(step.to);
+          await vacant(to);
+          await moveFolder(from, to, context.libraryHome);
+          undo.push(() => moveFolder(to, from, context.libraryHome));
+          context.wrote(to);
+          break;
         }
-        await rm(path, { recursive: true });
-        context.wrote(path);
-        break;
+        case "copy": {
+          const to = abs(step.to);
+          await vacant(to);
+          await copyIntoPlace(abs(step.from), to, context.libraryHome);
+          undo.push(() => rm(to, { recursive: true, force: true }));
+          context.wrote(to);
+          break;
+        }
+        case "createLink": {
+          const path = abs(step.path);
+          await vacant(path);
+          await symlink(step.target, path, "dir");
+          undo.push(() => unlink(path));
+          context.wrote(path);
+          break;
+        }
+        case "removeLink": {
+          const path = abs(step.path);
+          if (!(await lstat(path)).isSymbolicLink()) throw new Error(`${path} is no longer a symlink`);
+          const target = await readlink(path);
+          await unlink(path);
+          undo.push(() => symlink(target, path, "dir"));
+          context.wrote(path);
+          break;
+        }
+        case "removeCopy": {
+          // Re-checked right before removing: only a byte-for-byte duplicate of a kept folder goes.
+          const path = abs(step.path);
+          if ((await fingerprintSkillFolder(path)) !== (await fingerprintSkillFolder(abs(step.sameAs)))) {
+            throw new Error(`${path} no longer matches ${step.sameAs}; nothing was removed`);
+          }
+          const into = await stash(path, context.libraryHome);
+          stashed.push(into);
+          undo.push(() => moveFolder(into, path, context.libraryHome));
+          context.wrote(path);
+          break;
+        }
+        case "removeFolder": {
+          const path = abs(step.path);
+          const info = await lstat(path);
+          if (info.isSymbolicLink() || !info.isDirectory()) throw new Error(`${path} is no longer a folder`);
+          const into = await stash(path, context.libraryHome);
+          stashed.push(into);
+          undo.push(() => moveFolder(into, path, context.libraryHome));
+          context.wrote(path);
+          break;
+        }
+        case "editFile": {
+          // Its file as it was, with its mode, so a rollback puts it back byte for byte.
+          const path = abs(step.path);
+          const text = await readFile(path, "utf8").catch(() => null);
+          const mode = text === null ? undefined : (await stat(path)).mode & 0o777;
+          const written = await context.editFile(step);
+          undo.push(async () => {
+            if (text === null) await rm(path, { force: true });
+            else await writeFileAtomic(path, text, mode);
+            await context.restored?.([path]);
+          });
+          for (const path of written) context.wrote(path);
+          break;
+        }
+        case "storeSecret":
+        case "deleteSecret":
+          if (!context.secret) throw new Error(`no keychain to carry out ${step.kind} ${step.name}`);
+          await context.secret(step);
+          break;
       }
-      case "removeFolder": {
-        const path = abs(step.path);
-        const info = await lstat(path);
-        if (info.isSymbolicLink() || !info.isDirectory()) throw new Error(`${path} is no longer a folder`);
-        await rm(path, { recursive: true });
-        context.wrote(path);
-        break;
-      }
-      case "editFile":
-        for (const path of await context.editFile(step)) context.wrote(path);
-        break;
-      case "storeSecret":
-      case "deleteSecret":
-        if (!context.secret) throw new Error(`no keychain to carry out ${step.kind} ${step.name}`);
-        await context.secret(step);
-        break;
     }
+    await context.finish?.();
+  } catch (error) {
+    for (const reverse of undo.reverse()) {
+      try {
+        await reverse();
+      } catch (undoError) {
+        // Keep reversing the rest; the original failure is what the caller sees.
+        log(`couldn't reverse a step after a failed plan: ${String(undoError)}`);
+      }
+    }
+    throw error;
   }
+  for (const into of stashed) await rm(into, { recursive: true, force: true });
 };

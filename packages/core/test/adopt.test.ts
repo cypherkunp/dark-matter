@@ -1,4 +1,4 @@
-import { lstat, mkdir, readdir, readFile, readlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readdir, readFile, readlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { agentHome, snapshotTree } from "./agent-home";
@@ -371,5 +371,34 @@ describe("Undo Adopt", () => {
     await expect(trpc.adopt.undo.mutate({ key: "local/pdf" })).rejects.toMatchObject({ data: { tag: "PathTaken" } });
     expect(await exists(join(home, ".agents/skills/pdf"))).toBe(false);
     expect(await exists(join(libraryHome, "skills/local/pdf/SKILL.md"))).toBe(true);
+  });
+});
+
+describe("Adopt is all or nothing", () => {
+  test("a failure partway through reverses every completed step, in order", async () => {
+    const { fixture, home, libraryHome, trpc } = await setup();
+    await fixture.skill(".claude/skills/alpha", { name: "alpha" });
+    await fixture.link(".agents/skills/alpha", ".claude/skills/alpha");
+    await fixture.skill(".cursor/skills/beta", { name: "beta" });
+    await trpc.scan.run.mutate();
+    const plan = await trpc.adopt.plan.query({
+      findings: ["global-skill:~/.claude/skills/alpha", "global-skill:~/.cursor/skills/beta"],
+    });
+    const moves = plan.steps.flatMap((step) => (step.kind === "move" ? [step.from] : []));
+    expect(moves).toEqual(["~/.claude/skills/alpha", "~/.cursor/skills/beta"]);
+    const before = await snapshotTree(home, [".dark-matter/state", ".dark-matter/activity"]);
+    // beta can't leave its folder: the second move fails after alpha moved and its symlink went.
+    await chmod(join(home, ".cursor/skills"), 0o555);
+    try {
+      await expect(trpc.adopt.execute.mutate({ findings: plan.findings, planId: plan.planId })).rejects.toThrow();
+    } finally {
+      await chmod(join(home, ".cursor/skills"), 0o755);
+    }
+
+    expect(await snapshotTree(home, [".dark-matter/state", ".dark-matter/activity"])).toEqual(before);
+    expect(await exists(join(libraryHome, "library-lock.json"))).toBe(false);
+    expect((await trpc.library.list.query()).skills).toEqual([]);
+    const [entry] = (await trpc.activity.list.query({ actions: ["adopt.apply"] })).entries;
+    expect(entry?.result).toBe("error");
   });
 });

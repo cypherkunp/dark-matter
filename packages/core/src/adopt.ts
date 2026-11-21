@@ -163,8 +163,12 @@ export class Adopt {
               }
               return [];
             },
+            // A failure partway reverses every completed step (review #7); the lock is re-read from disk then.
+            restored: async () => void (await library.lock.reload()),
+            finish: async () => {
+              if (planned.keep.length > 0) await this.#options.keepLinks?.apply(planned.keep, wrote);
+            },
           });
-          if (planned.keep.length > 0) await this.#options.keepLinks?.apply(planned.keep, wrote);
           this.#options.onChange();
           await this.#options.rescan();
           return plan;
