@@ -5,16 +5,18 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { tildify } from "@/lib/paths";
 import { useTRPC } from "@/lib/trpc";
+import { relativeTime, useNow } from "@/lib/use-now";
 import { cn } from "@/lib/utils";
 import { type NavItem, navSections } from "@/nav";
 import { StatusDot } from "./status-dot";
+import { useScan } from "./use-scan";
 
 const rowClass =
   "no-drag flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-sidebar-foreground hover:bg-sidebar-accent/60";
 const activeRowClass = "bg-sidebar-accent font-medium hover:bg-sidebar-accent";
 
 /** Sidebar paths with a screen of their own; the rest open the placeholder screen. */
-const builtPaths = new Set(["/library", "/computer/activity"] as const);
+const builtPaths = new Set(["/inbox", "/library", "/computer/agents", "/computer/activity"] as const);
 type BuiltPath = typeof builtPaths extends Set<infer P> ? P : never;
 const isBuilt = (path: string): path is BuiltPath => builtPaths.has(path as BuiltPath);
 
@@ -40,10 +42,13 @@ export function Sidebar({ connected }: { connected: boolean }) {
   const info = useQuery(trpc.core.info.queryOptions());
   const library = useQuery(trpc.library.list.queryOptions());
   const problems = useQuery(trpc.ownedFiles.problems.queryOptions());
+  const inbox = useQuery(trpc.inbox.list.queryOptions());
+  const { scanning, lastScanAt } = useScan();
+  const now = useNow();
   const [filter, setFilter] = useState("");
 
   const skillCount = library.data?.skills.length;
-  const counts: Record<string, number | undefined> = { "/inbox": 0, "/library": skillCount };
+  const counts: Record<string, number | undefined> = { "/inbox": inbox.data?.count, "/library": skillCount };
   const sectionCounts: Record<string, number | undefined> = { Library: skillCount, Projects: 0 };
   const matches = (item: { label: string }) => item.label.toLowerCase().includes(filter.trim().toLowerCase());
 
@@ -89,7 +94,16 @@ export function Sidebar({ connected }: { connected: boolean }) {
                 <NavLink key={item.path} path={item.path} className={rowClass}>
                   <item.icon className="size-4 text-muted-foreground" />
                   <span className="truncate">{item.label}</span>
-                  {item.path in counts && <Count value={counts[item.path]} />}
+                  {item.path === "/inbox" && (counts[item.path] ?? 0) > 0 ? (
+                    <span
+                      data-testid="inbox-badge"
+                      className="ml-auto rounded-full border border-warning-border bg-warning-surface px-1.5 text-[11px] text-status-warning tabular-nums"
+                    >
+                      {counts[item.path]}
+                    </span>
+                  ) : (
+                    item.path in counts && <Count value={counts[item.path]} />
+                  )}
                 </NavLink>
               ))}
               {group && (
@@ -110,8 +124,16 @@ export function Sidebar({ connected }: { connected: boolean }) {
 
       <footer className="flex h-10 shrink-0 items-center gap-2 border-sidebar-border border-t px-4 text-muted-foreground text-xs">
         {/* Grey until the first Scan: green means up to date (visual reference). */}
-        <StatusDot tone="off" />
-        <span data-testid="core-status">{connected ? "Not scanned yet" : "Connecting to core…"}</span>
+        <StatusDot tone={connected && lastScanAt ? "healthy" : "off"} />
+        <span data-testid="core-status">
+          {!connected
+            ? "Connecting to core…"
+            : scanning
+              ? "Scanning…"
+              : lastScanAt
+                ? `Scanned ${relativeTime(Date.parse(lastScanAt), now)}`
+                : "Not scanned yet"}
+        </span>
         <Link
           to="/settings"
           aria-label="Settings"
