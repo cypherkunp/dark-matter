@@ -212,4 +212,29 @@ describe("Collections with MCP Servers", () => {
     expect(applied.mcpCells.map((c) => c.outcome)).toEqual(["add"]);
     expect(applied.cells).toEqual([]);
   });
+  test("an MCP Server added from a Collection as Shared lands in the Project's committed config with env-var references (#39)", async () => {
+    const { trpc, project, readJson } = await setup();
+    const app = await project("code/app", ["claude-code"]);
+    await trpc.collections.create.mutate({ name: "kit", items: [server("github"), server("linear")] });
+
+    const applied = await trpc.collections.execute.mutate({
+      name: "kit",
+      mcpServers: [
+        { path: app, name: "github", mode: "shared" },
+        { path: app, name: "linear", mode: "personal" },
+      ],
+    });
+
+    expect(applied.mcpCells.map((c) => [c.name, c.mode, c.outcome])).toEqual([
+      ["github", "shared", "add"],
+      ["linear", "personal", "add"],
+    ]);
+    expect(applied.mcpProjects[0]?.servers.map((s) => [s.name, s.mode, s.on])).toEqual([
+      ["github", "shared", true],
+      ["linear", "personal", true],
+    ]);
+    const team = await readJson(join(app, ".mcp.json"));
+    expect(Object.keys(team.mcpServers)).toEqual(["github"]);
+    expect(JSON.stringify(team)).not.toContain("ghp_real");
+  });
 });
