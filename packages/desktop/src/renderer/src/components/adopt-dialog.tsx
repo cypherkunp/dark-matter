@@ -14,7 +14,7 @@ const outcomeLabels: Record<AdoptOutcome, string> = {
   localSource: "Local Source",
 };
 
-const stepText = (step: PlanStep): string => {
+export const stepText = (step: PlanStep): string => {
   switch (step.kind) {
     case "move":
       return `move ${step.from} → ${step.to}`;
@@ -28,6 +28,10 @@ const stepText = (step: PlanStep): string => {
       return `remove identical copy ${step.path}`;
     case "editFile":
       return `edit ${step.path}: ${step.change}${step.backup ? ` (backup ${step.backup})` : ""}`;
+    case "storeSecret":
+      return `store Secret ${step.name} in the keychain`;
+    case "deleteSecret":
+      return `delete Secret ${step.name} from the keychain`;
   }
 };
 
