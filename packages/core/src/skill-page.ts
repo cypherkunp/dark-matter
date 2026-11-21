@@ -55,6 +55,7 @@ export const skillServices = (library: Library) => ({
     const path = library.folder(key);
     const text = await readFile(join(path, "SKILL.md"), "utf8").catch(() => "");
     const { frontmatter, body } = splitSkillMd(text);
-    return { key, namespace, name, path, frontmatter, body, warnings: frontmatterWarnings(frontmatter, name), entry };
+    const warnings = frontmatterWarnings(frontmatter, name);
+    return { key, namespace, name, path, frontmatter, body, warnings, entry, modified: await library.modified(key) };
   },
 });

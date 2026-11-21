@@ -1,6 +1,7 @@
 import type { LibrarySkill } from "@dark-matter/contracts";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
+import { ModifiedBadge } from "./modified-badge";
 
 export const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
@@ -27,6 +28,7 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
               Local Source
             </span>
           )}
+          {skill.modified && <ModifiedBadge />}
           {skill.nameConflict && (
             <span
               data-testid="name-conflict"

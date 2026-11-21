@@ -46,6 +46,8 @@ export const LibrarySkill = z.object({
   localSource: z.string().nullable(),
   /** Where Adopt moved it from, home-relative; null if it wasn't Adopted. */
   adoptedFrom: z.string().nullable(),
+  /** Changed since it was last Imported: its files no longer match the Library Lock's computedHash. */
+  modified: z.boolean(),
   /** How many Projects use it (On or Off). */
   projects: z.int().nonnegative(),
   /** It's in a Name Conflict in at least one Project. */
@@ -173,8 +175,49 @@ export const SkillDetail = z.object({
   body: z.string(),
   warnings: z.array(FrontmatterWarning),
   entry: LibraryLockEntry,
+  /** See LibrarySkill.modified. */
+  modified: z.boolean(),
 });
 export type SkillDetail = z.infer<typeof SkillDetail>;
+
+/** A file in a Skill folder, `/`-separated and relative to it. */
+export const SkillFilePath = z.object({ key: z.string().min(1), path: z.string().min(1) });
+export type SkillFilePath = z.infer<typeof SkillFilePath>;
+
+/** One entry of a Skill's file tree (#34). Binary files are listed but not editable. */
+export const SkillFileEntry = z.object({ path: z.string(), size: z.int().nonnegative(), binary: z.boolean() });
+export type SkillFileEntry = z.infer<typeof SkillFileEntry>;
+
+export const SkillFiles = z.object({ files: z.array(SkillFileEntry) });
+export type SkillFiles = z.infer<typeof SkillFiles>;
+
+/** A file's text for the editor; `content` is null for a binary file. */
+export const SkillFileContent = z.object({ path: z.string(), content: z.string().nullable(), binary: z.boolean() });
+export type SkillFileContent = z.infer<typeof SkillFileContent>;
+
+export const SaveSkillFileInput = SkillFilePath.extend({ content: z.string() });
+export type SaveSkillFileInput = z.infer<typeof SaveSkillFileInput>;
+
+/** After a save: SKILL.md's frontmatter warnings (never blocking) and whether the Skill is now Modified. */
+export const SavedSkillFile = z.object({ warnings: z.array(FrontmatterWarning), modified: z.boolean() });
+export type SavedSkillFile = z.infer<typeof SavedSkillFile>;
+
+/** A Project a Library Skill's deletion would affect: its Links break, its Copies stay behind. */
+export const SkillDeleteImpact = z.object({
+  path: z.string(),
+  projectName: z.string(),
+  mode: z.string(),
+  on: z.boolean(),
+});
+export type SkillDeleteImpact = z.infer<typeof SkillDeleteImpact>;
+
+/** What deleting a Library Skill would do: move it to `trash/` for `retentionDays`, and the Projects affected. */
+export const SkillDeletePlan = z.object({
+  key: z.string(),
+  retentionDays: z.int().positive(),
+  projects: z.array(SkillDeleteImpact),
+});
+export type SkillDeletePlan = z.infer<typeof SkillDeletePlan>;
 
 /** The owned files the core watches and validates. */
 export const OwnedFileName = z.enum(["settings.json", "projects.json", "library-lock.json"]);

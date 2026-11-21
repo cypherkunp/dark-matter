@@ -22,6 +22,9 @@ const actionLabels: Record<string, string> = {
   "mcp.adopt": "Adopted MCP Servers",
   "mcp.undoAdopt": "Undid an MCP Server Adopt",
   "namespace.rename": "Renamed a Namespace",
+  "skill.saveFile": "Saved a Skill file",
+  "skill.delete": "Moved a Skill to the trash",
+  "trash.purge": "Emptied expired trash",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;
