@@ -1,10 +1,12 @@
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, dirname, join, sep } from "node:path";
-import type { AgentScan, GlobalSkill, ScanResult, SkillLocation } from "@dark-matter/contracts";
+import type { AgentScan, GlobalSkill, ManagedSkill, ScanResult, SkillLocation } from "@dark-matter/contracts";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters, type SkillFolder } from "./agents";
+import { readConfigText } from "./config-edit";
 import { homeRelative } from "./home-path";
+import { managedSkillRef } from "./managed-skills";
 
 /**
  * The Scan (#10): a strictly read-only sweep of every Agent's global skill
@@ -63,6 +65,7 @@ export const scan = async (env: AgentPathEnv, adapters = agentAdapters, now = ne
     });
   }
   globalSkills.sort((a, b) => a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name));
+  const managedSkills = await findManagedSkills(env, adapters);
 
   const agents: AgentScan[] = await Promise.all(
     adapters.map(async (adapter) => {
@@ -76,11 +79,64 @@ export const scan = async (env: AgentPathEnv, adapters = agentAdapters, now = ne
         globalSkillCount: [...byRealPath.values()].filter((found) =>
           found.entries.some((entry) => own.includes(entry.folder)),
         ).length,
+        managedSkillCount: managedSkills.filter((skill) => skill.agent === adapter.id).length,
       };
     }),
   );
 
-  return { scannedAt: now.toISOString(), agents, globalSkills };
+  return { scannedAt: now.toISOString(), agents, globalSkills, managedSkills };
+};
+
+/**
+ * Every Agent's Agent-managed Skills, read from its managed folders, with
+ * whether its own settings already turn each one off. Only reads.
+ */
+const findManagedSkills = async (env: AgentPathEnv, adapters: readonly AgentAdapter[]): Promise<ManagedSkill[]> => {
+  const rel = (path: string) => homeRelative(env.home, path);
+  const found: ManagedSkill[] = [];
+  for (const adapter of adapters) {
+    const { off } = adapter.managed;
+    const configFile = off ? await off.file(env.home) : null;
+    const config = configFile ? ((await readConfigText(configFile).catch(() => null)) ?? "") : "";
+    const seen = new Set<string>();
+    for (const folder of await adapter.managed.folders(env.home)) {
+      for (const entry of await listSkillEntries({ path: folder.path })) {
+        if (seen.has(entry.realPath)) continue;
+        seen.add(entry.realPath);
+        const meta = await readFrontmatter(entry.realPath);
+        const skill = {
+          id: `managed-skill:${adapter.id}:${rel(entry.realPath)}`,
+          agent: adapter.id,
+          name: meta.name ?? basename(entry.path),
+          description: meta.description ?? "",
+          path: rel(entry.realPath),
+          kind: folder.kind,
+          plugin: folder.plugin,
+        };
+        const ref = managedSkillRef(skill, env.home);
+        found.push({
+          ...skill,
+          off: off !== null && isOffOrUnknown(() => off.isOff(config, ref)),
+          offSwitches:
+            off && configFile
+              ? off.scopes(ref).map((scope) => ({ scope, file: rel(configFile), setting: off.setting(ref, scope) }))
+              : [],
+        });
+      }
+    }
+  }
+  return found.sort(
+    (a, b) => a.agent.localeCompare(b.agent) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
+  );
+};
+
+/** A config that doesn't parse can't say a Skill is off; turning it off will report the problem. */
+const isOffOrUnknown = (check: () => boolean) => {
+  try {
+    return check();
+  } catch {
+    return false;
+  }
 };
 
 interface Entry {

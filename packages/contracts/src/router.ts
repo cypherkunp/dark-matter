@@ -10,6 +10,7 @@ import {
   CoreInfo,
   Inbox,
   LibraryList,
+  OffScope,
   OwnedFileName,
   OwnedFileProblem,
   PreferencesPatch,
@@ -58,6 +59,13 @@ export interface CoreServices {
   };
   agents: {
     list(): AgentCard[];
+  };
+  managedSkills: {
+    /**
+     * "Turn off everywhere": turns an Agent-managed Skill off through its Agent's
+     * own global settings, with a targeted, format-preserving edit.
+     */
+    turnOff(input: { id: string; scope: OffScope }, client: ClientKind): Promise<void>;
   };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
@@ -109,6 +117,11 @@ export const createAppRouter = (services: CoreServices) =>
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+    }),
+    managedSkills: t.router({
+      turnOff: t.procedure
+        .input(z.object({ id: z.string().min(1), scope: OffScope }))
+        .mutation(({ input, ctx }) => services.managedSkills.turnOff(input, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

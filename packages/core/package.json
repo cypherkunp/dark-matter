@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@dark-matter/contracts": "catalog:",
+    "@decimalturn/toml-patch": "catalog:",
     "@trpc/server": "catalog:",
+    "jsonc-parser": "catalog:",
     "ws": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"

@@ -12,4 +12,6 @@ export default defineConfig({
   dts: false,
   // Bundle every dependency: the packaged app ships this one file, no node_modules.
   deps: { alwaysBundle: [/./], onlyBundle: false },
+  // jsonc-parser's `main` is a UMD build whose dynamic requires don't bundle; use its ESM build.
+  alias: { "jsonc-parser": "jsonc-parser/lib/esm/main.js" },
 });

@@ -1,5 +1,13 @@
 import { join } from "node:path";
 import type { AgentId } from "@dark-matter/contracts";
+import {
+  type AgentManagedSkills,
+  claudeManaged,
+  codexManaged,
+  cursorManaged,
+  noManaged,
+  opencodeManaged,
+} from "./managed-skills";
 
 /** Where an adapter resolves its paths from. Grows as adapters need more (e.g. `CODEX_HOME`). */
 export interface AgentPathEnv {
@@ -20,9 +28,8 @@ export interface SkillFolder {
  * Everything Dark Matter knows about one Agent (facts from the Skill discovery
  * research, #2, checked November 2026). Adding an Agent means adding an adapter.
  *
- * Only the skill-folder parts exist so far. Later tickets add sibling sections
- * here rather than new registries: `managed` (Agent-managed Skill locations and
- * "Turn off everywhere"), `history` (sources of Suggested Projects), `mcp`
+ * Later tickets add sibling sections here rather than new registries:
+ * `history` (sources of Suggested Projects), `mcp`
  * (config locations, formats and translation) and Project skill folders.
  */
 export interface AgentAdapter {
@@ -34,6 +41,8 @@ export interface AgentAdapter {
     /** Global skill folders it loads: its own first, then compatibility folders. */
     globalFolders(env: AgentPathEnv): SkillFolder[];
   };
+  /** Agent-managed Skill locations (read-only) and "Turn off everywhere" (managed-skills.ts). */
+  managed: AgentManagedSkills;
 }
 
 const claudeSkills = ({ home }: AgentPathEnv): SkillFolder => ({
@@ -52,6 +61,7 @@ const claudeCode: AgentAdapter = {
   configDir: ({ home }) => join(home, ".claude"),
   // Claude Code alone doesn't read `.agents/skills` (anthropics/claude-code#31005).
   skills: { globalFolders: (env) => [claudeSkills(env)] },
+  managed: claudeManaged,
 };
 
 const cursor: AgentAdapter = {
@@ -62,6 +72,7 @@ const cursor: AgentAdapter = {
   skills: {
     globalFolders: (env) => [cursorSkills(env), agentsSkills(env), claudeSkills(env), codexSkills(env)],
   },
+  managed: cursorManaged,
 };
 
 const opencode: AgentAdapter = {
@@ -69,6 +80,7 @@ const opencode: AgentAdapter = {
   name: "OpenCode",
   configDir: ({ home }) => join(home, ".config/opencode"),
   skills: { globalFolders: (env) => [opencodeSkills(env), claudeSkills(env), agentsSkills(env)] },
+  managed: opencodeManaged,
 };
 
 const codex: AgentAdapter = {
@@ -78,6 +90,7 @@ const codex: AgentAdapter = {
   // `~/.codex/skills` is deprecated but still loaded; its `.system/` (hidden) is Agent-managed.
   // The admin folder `/etc/codex/skills` is outside `$HOME` and not scanned yet.
   skills: { globalFolders: (env) => [agentsSkills(env), codexSkills(env)] },
+  managed: codexManaged,
 };
 
 const agents: AgentAdapter = {
@@ -85,6 +98,7 @@ const agents: AgentAdapter = {
   name: ".agents",
   configDir: ({ home }) => join(home, ".agents"),
   skills: { globalFolders: (env) => [agentsSkills(env)] },
+  managed: noManaged,
 };
 
 /** The v1 Agents, in the order screens list them. */

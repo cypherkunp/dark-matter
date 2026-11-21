@@ -3,6 +3,7 @@ packages:
 
 catalog:
   "@base-ui/react": 1.9.0
+  "@decimalturn/toml-patch": 3.3.2
   "@biomejs/biome": 2.6.8
   "@dark-matter/contracts": workspace:^
   "@playwright/test": 1.65.1
@@ -23,6 +24,7 @@ catalog:
   electron: 45.4.1
   electron-builder: 26.18.1
   electron-vite: 6.0.0
+  jsonc-parser: 3.3.1
   knip: 6.47.0
   lucide-react: 1.77.0
   react: 19.3.1
