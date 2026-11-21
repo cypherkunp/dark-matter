@@ -291,8 +291,38 @@ export const AgentCard = z.object({
 });
 export type AgentCard = z.infer<typeof AgentCard>;
 
+/** When the daily Scheduled Scan runs. */
+export const SchedulerStatus = z.object({
+  /** The Scheduled Scan time, local `HH:MM`. */
+  time: z.string(),
+  /** The next run, or null until a Scan has ever run (the First run asks first). */
+  nextRunAt: z.iso.datetime().nullable(),
+  /** When the last Scheduled Scan started; null before the first. */
+  lastRunAt: z.iso.datetime().nullable(),
+});
+export type SchedulerStatus = z.infer<typeof SchedulerStatus>;
+
+/** An OS notification the core asks the app to show, over the `notifications` subscription (Electron main shows it). */
+export const CoreNotification = z.object({
+  title: z.string(),
+  body: z.string(),
+  /** The screen to open when it's clicked, e.g. `/inbox`. */
+  path: z.string(),
+});
+export type CoreNotification = z.infer<typeof CoreNotification>;
+
 /** Router domains a client caches; an `invalidate` event names the ones that changed. */
-export const Domain = z.enum(["core", "library", "settings", "ownedFiles", "activity", "scan", "inbox", "agents"]);
+export const Domain = z.enum([
+  "core",
+  "library",
+  "settings",
+  "ownedFiles",
+  "activity",
+  "scan",
+  "inbox",
+  "agents",
+  "scheduler",
+]);
 export type Domain = z.infer<typeof Domain>;
 
 /** Pushed over the `events` subscription to drive TanStack Query invalidation. */

@@ -80,8 +80,8 @@ describe("the Activity Log", () => {
     const older: ActivityEntry = {
       id: "older",
       time: "2026-11-01T08:00:00.000Z",
-      client: "scheduled-scan",
-      action: "scan.run",
+      client: "cli",
+      action: "settings.updatePreferences",
       subjects: [],
       result: "ok",
       filesWritten: [],

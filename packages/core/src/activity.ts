@@ -123,6 +123,19 @@ export class ActivityLog {
     );
   }
 
+  /** The time of the newest entry matching `filter`, or null if there is none. */
+  latest(filter: { action?: string; client?: ActivityClient }): Date | null {
+    const row = this.#options.cache
+      .prepare(
+        `SELECT time FROM activity
+         WHERE (?1 IS NULL OR json_extract(entry, '$.action') = ?1)
+           AND (?2 IS NULL OR json_extract(entry, '$.client') = ?2)
+         ORDER BY time DESC LIMIT 1`,
+      )
+      .get(filter.action ?? null, filter.client ?? null) as { time: string } | undefined;
+    return row ? new Date(row.time) : null;
+  }
+
   /** Re-reads each day file whose size differs from what the index has seen, and forgets deleted ones. */
   async #reindex(): Promise<void> {
     const names = (await readdir(this.#dir).catch(() => [] as string[])).filter((name) => DAY_FILE.test(name)).sort();
