@@ -202,9 +202,7 @@ export class NotInLibrary extends TaggedError<"NotInLibrary"> {
     readonly skillName: string,
     readonly source: string,
   ) {
-    super(
-      `${skillName} (from ${source}) isn't in the Library. Importing from GitHub isn't available yet, so it can't be fulfilled.`,
-    );
+    super(`${skillName} (from ${source}) isn't in the Library, and only GitHub Sources can be Imported to fulfil it.`);
   }
 }
 
@@ -221,6 +219,46 @@ export class KeychainUnavailable extends TaggedError<"KeychainUnavailable"> {
   readonly _tag = "KeychainUnavailable";
   constructor(readonly problem: string) {
     super(`The keychain isn't available: ${problem}`);
+  }
+}
+
+/** Import (#30) couldn't read what was pasted as a GitHub Source. */
+export class InvalidImportSource extends TaggedError<"InvalidImportSource"> {
+  readonly _tag = "InvalidImportSource";
+  constructor(readonly input: string) {
+    super(`${input} isn't owner/repo, a GitHub repo or tree URL, or a skills.sh listing URL`);
+  }
+}
+
+/** A GitHub Source, ref or path can't be reached: missing, renamed, private without access, or offline. */
+export class SourceUnreachable extends TaggedError<"SourceUnreachable"> {
+  readonly _tag = "SourceUnreachable";
+  constructor(
+    readonly source: string,
+    readonly problem: string,
+  ) {
+    super(`Can't reach ${source}: ${problem}`);
+  }
+}
+
+/** GitHub's rate limit is used up (60 requests an hour without a token). */
+export class RateLimited extends TaggedError<"RateLimited"> {
+  readonly _tag = "RateLimited";
+  constructor(readonly resetAt: string | null) {
+    super(
+      `GitHub's rate limit is used up${resetAt ? ` until ${resetAt}` : ""}. Log in with \`gh auth login\` or add a token in Settings.`,
+    );
+  }
+}
+
+/** A picked Skill folder that the Source doesn't have at the previewed commit. */
+export class ImportSkillNotFound extends TaggedError<"ImportSkillNotFound"> {
+  readonly _tag = "ImportSkillNotFound";
+  constructor(
+    readonly source: string,
+    readonly path: string,
+  ) {
+    super(`${source} has no Skill at ${path}`);
   }
 }
 

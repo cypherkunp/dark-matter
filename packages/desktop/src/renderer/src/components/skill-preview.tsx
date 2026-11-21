@@ -4,7 +4,7 @@ import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 /** Tailwind classes for rendered Markdown (no typography plugin): compact, like the rest of the app. */
-const markdownComponents: Components = {
+export const markdownComponents: Components = {
   h1: (props) => <h1 className="mt-6 mb-3 font-semibold text-xl tracking-tight first:mt-0" {...props} />,
   h2: (props) => <h2 className="mt-6 mb-2 font-semibold text-lg first:mt-0" {...props} />,
   h3: (props) => <h3 className="mt-5 mb-2 font-semibold text-base first:mt-0" {...props} />,

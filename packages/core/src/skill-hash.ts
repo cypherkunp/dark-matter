@@ -14,14 +14,20 @@ const EXCLUDED_DIRS = new Set([".git", "__pycache__", "__pypackages__"]);
 const isExcluded = (name: string, isDirectory: boolean) =>
   EXCLUDED_FILES.has(name) || (isDirectory && EXCLUDED_DIRS.has(name));
 
+/** A file found by `walkSkillFolder`: its `/`-separated relative path and where to read it. */
+interface FoundFile {
+  path: string;
+  full: string;
+}
+
 /**
- * Every file in a Skill folder. A symlink counts as what it points to; broken,
- * cyclic and outside-the-folder symlinks are skipped. `all` keeps the files the
- * `skills` CLI leaves out of its hash (`metadata.json`, `.git/`, `__pycache__/`).
+ * Every file in a Skill folder, without reading it. A symlink counts as what
+ * it points to; broken, cyclic and outside-the-folder symlinks are skipped.
+ * `all` keeps the files the `skills` CLI leaves out of its hash.
  */
-export const readSkillFiles = async (skillDir: string, { all = false } = {}): Promise<SkillFile[]> => {
+const walkSkillFolder = async (skillDir: string, all: boolean): Promise<FoundFile[]> => {
   const root = await realpath(skillDir);
-  const files: SkillFile[] = [];
+  const files: FoundFile[] = [];
   const walk = async (dir: string, prefix: string, ancestors: ReadonlySet<string>) => {
     const real = await realpath(dir);
     if (ancestors.has(real)) return;
@@ -38,10 +44,21 @@ export const readSkillFiles = async (skillDir: string, { all = false } = {}): Pr
         if (!all && isDirectory && isExcluded(entry.name, true)) continue;
       } else if (!isDirectory && !entry.isFile()) continue;
       if (isDirectory) await walk(full, `${path}/`, branch);
-      else files.push({ path, content: await readFile(full) });
+      else files.push({ path, full });
     }
   };
   await walk(skillDir, "", new Set());
+  return files;
+};
+
+/**
+ * Every file in a Skill folder. A symlink counts as what it points to; broken,
+ * cyclic and outside-the-folder symlinks are skipped. `all` keeps the files the
+ * `skills` CLI leaves out of its hash (`metadata.json`, `.git/`, `__pycache__/`).
+ */
+export const readSkillFiles = async (skillDir: string, { all = false } = {}): Promise<SkillFile[]> => {
+  const found = await walkSkillFolder(skillDir, all);
+  const files = await Promise.all(found.map(async ({ path, full }) => ({ path, content: await readFile(full) })));
   return files.sort((a, b) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)));
 };
 
@@ -70,6 +87,52 @@ export const hashSkillFiles = (files: readonly SkillFile[]): string => {
 /** The skills-lock v2 `computedHash` of a Skill folder, as `skills check` computes it. */
 export const computeSkillFolderHash = async (skillDir: string): Promise<string> =>
   hashSkillFiles(await readSkillFiles(skillDir));
+
+/** Hashes by Skill folder (real path), each with the stat signature of the files it was computed from. */
+const hashCache = new Map<string, { signature: string; hash: string }>();
+const HASH_CACHE_LIMIT = 4096;
+
+/** Paths, sizes and mtimes of the hashed files: a changed signature means the hash is stale. */
+const signatureOf = async (skillDir: string) => {
+  const found = await walkSkillFolder(skillDir, false);
+  const parts = await Promise.all(
+    found.map(async ({ path, full }) => {
+      const info = await stat(full, { bigint: true });
+      return `${path}\0${info.size}\0${info.mtimeNs}\0${info.ino}`;
+    }),
+  );
+  return parts.sort().join("\n");
+};
+
+/**
+ * `computeSkillFolderHash` with a cache (#42), for the Library's Modified (#34)
+ * and Copy status (#28) on every query. An entry is reused while its folder's
+ * file list, sizes and mtimes are unchanged (a stat walk, no reads), and the
+ * watcher drops entries under paths that changed (`forgetSkillHashes`).
+ */
+export const cachedSkillFolderHash = async (skillDir: string): Promise<string> => {
+  const real = await realpath(skillDir);
+  const signature = await signatureOf(real);
+  const cached = hashCache.get(real);
+  if (cached?.signature === signature) return cached.hash;
+  const hash = await computeSkillFolderHash(real);
+  hashCache.delete(real);
+  hashCache.set(real, { signature, hash });
+  if (hashCache.size > HASH_CACHE_LIMIT) {
+    const oldest = hashCache.keys().next().value;
+    if (oldest !== undefined) hashCache.delete(oldest);
+  }
+  return hash;
+};
+
+/** Drops cached hashes of folders at, inside or around any of `paths` (they changed on disk). */
+export const forgetSkillHashes = (paths: readonly string[]) => {
+  for (const folder of hashCache.keys()) {
+    const prefix = folder + sep;
+    if (paths.some((path) => path === folder || path.startsWith(prefix) || folder.startsWith(path + sep)))
+      hashCache.delete(folder);
+  }
+};
 
 /**
  * A stricter fingerprint than `computedHash`: every file byte for byte, the

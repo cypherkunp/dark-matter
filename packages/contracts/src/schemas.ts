@@ -180,6 +180,8 @@ export const LibraryLockEntry = z.strictObject({
   localSource: z.string().optional(),
   /** Projects (home-relative) where Adopt & keep Link put a Link back (#29); Undo Adopt removes those Project Skills first. */
   keptLinks: z.array(z.string()).optional(),
+  /** Imported (#30): the GitHub tree SHA of the Skill's folder at `commit`, so update checks compare folders, not commits. */
+  skillFolderHash: z.string().optional(),
 });
 export type LibraryLockEntry = z.infer<typeof LibraryLockEntry>;
 
@@ -675,6 +677,45 @@ export const InboxProjectGroup = z.object({
 });
 export type InboxProjectGroup = z.infer<typeof InboxProjectGroup>;
 
+/**
+ * Drift (#42): owned intent (`projects.json`) and the disk disagree.
+ * "missing": a delivery was deleted by hand. "replaced": something else (e.g.
+ * `npx skills`) took a delivery's place. "lockAdded" / "lockRemoved": a
+ * teammate's `skills-lock.json` change added an entry that isn't a Project
+ * Skill, or removed a Copy's entry. "projectGone": the Project's folder is gone.
+ */
+export const DriftKind = z.enum(["missing", "replaced", "lockAdded", "lockRemoved", "projectGone"]);
+export type DriftKind = z.infer<typeof DriftKind>;
+
+/** Restore re-applies owned intent; Accept updates `projects.json` to match disk. */
+export const DriftAction = z.enum(["restore", "accept"]);
+export type DriftAction = z.infer<typeof DriftAction>;
+
+export const DriftFinding = z.object({
+  /** `drift:<project>:<key>`, `drift:<project>:lock:<name>` or `drift:<project>`. */
+  id: z.string(),
+  kind: DriftKind,
+  /** The Project, by absolute path. */
+  project: z.string(),
+  /** The Library key, when one is known. */
+  key: z.string().nullable(),
+  /** The delivered (or locked) name. */
+  name: z.string().nullable(),
+  /** Its delivery mode (`DeliveryMode`, declared further down). */
+  mode: z.enum(["link", "copy"]).nullable(),
+  /** Project-relative paths that drifted. */
+  paths: z.array(z.string()),
+  actions: z.array(DriftAction),
+});
+export type DriftFinding = z.infer<typeof DriftFinding>;
+
+export const InboxDriftGroup = z.object({
+  project: z.string(),
+  name: z.string(),
+  findings: z.array(DriftFinding),
+});
+export type InboxDriftGroup = z.infer<typeof InboxDriftGroup>;
+
 /** Findings still waiting on a decision. Ignored findings are left out. */
 export const Inbox = z.object({
   /** The badge: findings waiting, across every kind. */
@@ -689,6 +730,8 @@ export const Inbox = z.object({
   suggestedProjects: z.int().nonnegative(),
   /** Global MCP Servers, by Agent config file. */
   mcpServers: z.array(InboxMcpGroup).default([]),
+  /** Drift between `projects.json` and the disk, by Project (#42). */
+  drift: z.array(InboxDriftGroup).default([]),
   /** Agent-managed MCP Servers that are still on, by Agent. */
   managedMcpServers: z.array(InboxManagedMcpGroup).default([]),
 });
@@ -856,6 +899,7 @@ export const Domain = z.enum([
   "mcp",
   "skill",
   "collections",
+  "importer",
 ]);
 export type Domain = z.infer<typeof Domain>;
 

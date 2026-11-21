@@ -14,6 +14,7 @@ import { ChevronRight, Inbox as InboxIcon } from "lucide-react";
 import { useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { AdoptDialog } from "@/components/adopt-dialog";
+import { InboxDrift } from "@/components/inbox-drift";
 import { InboxMcpServers } from "@/components/inbox-mcp";
 import { ManagedMcpGroups } from "@/components/managed-mcp";
 import { PageHead } from "@/components/page-head";
@@ -276,6 +277,7 @@ function Inbox() {
               <ChevronRight className="size-4 text-muted-foreground" />
             </Link>
           )}
+          <InboxDrift groups={inbox.data?.drift ?? []} />
           {groups.length > 0 && (
             <div className="flex items-start gap-4">
               <p className="flex-1 text-muted-foreground text-sm">

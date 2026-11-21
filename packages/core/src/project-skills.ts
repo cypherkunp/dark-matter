@@ -146,6 +146,25 @@ export class ProjectSkillService {
     return plan.skills;
   }
 
+  /**
+   * Drift (#42): in the serial queue, `change` may prepare the disk and returns
+   * the record to deliver (the current one re-applies intent: Restore).
+   */
+  reconcile(
+    path: string,
+    wrote: Wrote,
+    change: (record: ProjectRecord) => Promise<{ next: ProjectRecord; removed?: string[] }>,
+  ) {
+    return this.#serial(async () => {
+      try {
+        const { next, removed } = await change(this.#record(path));
+        return await this.deliver(path, next, wrote, removed);
+      } finally {
+        this.#changed();
+      }
+    });
+  }
+
   #changed() {
     this.options.bus.publish({ type: "invalidate", domains: ["project", "library", "skill"] });
   }

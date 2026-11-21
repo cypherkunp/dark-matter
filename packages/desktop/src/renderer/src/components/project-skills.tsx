@@ -1,11 +1,14 @@
 import { Dialog } from "@base-ui/react/dialog";
 import type { DeliveryMode, ProjectSkill } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Download, Plus } from "lucide-react";
 import { useState } from "react";
 import { CopyActions, CopyStateBadge, useProjectSkillChanges } from "@/components/copy-actions";
+import { looksLikeGitHubSource } from "@/components/github-import";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useTRPC } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
@@ -109,10 +112,18 @@ function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill })
 function AddSkillsDialog({ path, added, onClose }: { path: string; added: string[]; onClose: () => void }) {
   const trpc = useTRPC();
   const library = useQuery(trpc.library.list.queryOptions());
+  const navigate = useNavigate();
   const [picked, setPicked] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
   const [mode, setMode] = useState<DeliveryMode>("link");
   const add = useMutation(trpc.project.addSkills.mutationOptions({ onSuccess: onClose }));
-  const candidates = (library.data?.skills ?? []).filter((skill) => !added.includes(skill.key));
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const candidates = (library.data?.skills ?? []).filter(
+    (skill) =>
+      !added.includes(skill.key) && words.every((word) => `${skill.name} ${skill.key}`.toLowerCase().includes(word)),
+  );
+  // A GitHub URL or owner/repo: Import it (#30), then add the Imported Skills to this Project.
+  const importable = looksLikeGitHubSource(query);
   return (
     <Dialog.Root open onOpenChange={(open) => !open && onClose()}>
       <Dialog.Portal>
@@ -137,8 +148,29 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
               </label>
             ))}
           </div>
+          <Input
+            aria-label="Search the Library or paste a GitHub URL"
+            placeholder="Search the Library, or paste a GitHub URL or owner/repo"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {importable && (
+            <Button
+              variant="outline"
+              className="justify-start"
+              onClick={() => {
+                onClose();
+                void navigate({ to: "/get/github", search: { url: query.trim(), project: path } });
+              }}
+            >
+              <Download />
+              Import <span className="truncate font-mono">{query.trim()}</span> from GitHub
+            </Button>
+          )}
           {candidates.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Every Library Skill is already in this Project.</p>
+            <p className="text-muted-foreground text-sm">
+              {words.length > 0 ? "No Library Skill matches." : "Every Library Skill is already in this Project."}
+            </p>
           ) : (
             <div className="min-h-0 divide-y overflow-y-auto rounded-xl border">
               {candidates.map((skill) => (
