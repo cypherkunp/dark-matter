@@ -1,9 +1,10 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { ManagedSkill, OffScope } from "@dark-matter/contracts";
 import { claudeDir, codexDir, opencodeDir } from "./agent-dirs";
 import type { AgentPathEnv } from "./agents";
 import { jsonc, toml } from "./config-edit";
+import { asObject, readJson, resolves, subdirs } from "./fs-util";
 import { fromHomeRelative } from "./home-path";
 
 /**
@@ -69,26 +70,6 @@ export interface AgentManagedSkills {
 }
 
 type Json = Record<string, unknown>;
-const asObject = (value: unknown): Json =>
-  typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Json) : {};
-
-const subdirs = async (path: string): Promise<string[]> => {
-  try {
-    const entries = await readdir(path, { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-      .map((entry) => join(path, entry.name))
-      .sort();
-  } catch {
-    return [];
-  }
-};
-
-const exists = (path: string) =>
-  stat(path).then(
-    () => true,
-    () => false,
-  );
 
 /** The most recently modified folder: the version a plugin cache currently serves. */
 const newest = async (paths: string[]): Promise<string | undefined> => {
@@ -125,7 +106,7 @@ const pluginCacheFolders = async (
  */
 export const claudeManaged: AgentManagedSkills = {
   async folders(env) {
-    const registry = await readJson(join(claudeDir(env), "plugins/installed_plugins.json"));
+    const registry = asObject(await readJson(join(claudeDir(env), "plugins/installed_plugins.json")));
     const folders: ManagedFolder[] = [];
     for (const [plugin, installs] of Object.entries(asObject(registry.plugins)).sort(([a], [b]) =>
       a.localeCompare(b),
@@ -183,7 +164,7 @@ export const opencodeManaged: AgentManagedSkills = {
   off: {
     async file(env) {
       const jsoncFile = join(opencodeDir(env), "opencode.jsonc");
-      return (await exists(jsoncFile)) ? jsoncFile : join(opencodeDir(env), "opencode.json");
+      return (await resolves(jsoncFile)) ? jsoncFile : join(opencodeDir(env), "opencode.json");
     },
     scopes: () => ["skill"],
     setting: (skill) =>
@@ -251,11 +232,3 @@ export const codexManaged: AgentManagedSkills = {
 
 /** The `.agents` convention has no Agent-managed Skills. */
 export const noManaged: AgentManagedSkills = { folders: async () => [], off: null };
-
-const readJson = async (path: string): Promise<Json> => {
-  try {
-    return asObject(JSON.parse(await readFile(path, "utf8")));
-  } catch {
-    return {};
-  }
-};

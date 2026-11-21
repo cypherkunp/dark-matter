@@ -1,9 +1,9 @@
-import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { type McpDefinition, McpNotTranslatable } from "@dark-matter/contracts";
 import { claudeJsonFile, codexDir, opencodeDir } from "./agent-dirs";
 import type { AgentPathEnv } from "./agents";
 import { jsonc, readConfigText, toml } from "./config-edit";
+import { isRecord, resolves } from "./fs-util";
 
 /**
  * One MCP Server entry in an Agent's config: its name, its key path in the
@@ -60,8 +60,8 @@ export interface McpTarget {
 
 type Obj = Record<string, unknown>;
 
-const isObj = (value: unknown): value is Obj =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
+/** A plain object, not a TOML date. */
+const isObj = (value: unknown): value is Obj => isRecord(value) && !(value instanceof Date);
 
 const strings = (value: unknown): string[] | undefined =>
   Array.isArray(value) && value.every((item) => typeof item === "string") ? value : undefined;
@@ -293,12 +293,6 @@ const codexShape = (definition: McpDefinition): Obj => {
   });
 };
 
-const exists = (path: string) =>
-  stat(path).then(
-    () => true,
-    () => false,
-  );
-
 /** `~/.claude.json` top-level `mcpServers` ("user" scope): a hot state file, so every edit is a targeted patch. */
 export const claudeMcp: AgentMcp = {
   globalFile: async (env) => claudeJsonFile(env),
@@ -343,7 +337,7 @@ export const cursorMcp: AgentMcp = {
 export const opencodeMcp: AgentMcp = {
   globalFile: async (env) => {
     const jsoncFile = join(opencodeDir(env), "opencode.jsonc");
-    return (await exists(jsoncFile)) ? jsoncFile : join(opencodeDir(env), "opencode.json");
+    return (await resolves(jsoncFile)) ? jsoncFile : join(opencodeDir(env), "opencode.json");
   },
   format: "json",
   servers: (config) => {
@@ -370,7 +364,7 @@ const cursorProjectTarget = (project: string): McpTarget => ({
 // The Project's `opencode.jsonc` if it has one, else `opencode.json`. Written in the file's own
 // shape: V1 `mcp.<name>` when it already holds V1 entries and no `mcp.servers`, else V2.
 const opencodeProjectTarget = async (project: string): Promise<McpTarget> => {
-  const projectFile = (await exists(join(project, "opencode.jsonc"))) ? "opencode.jsonc" : "opencode.json";
+  const projectFile = (await resolves(join(project, "opencode.jsonc"))) ? "opencode.jsonc" : "opencode.json";
   return {
     file: join(project, projectFile),
     projectFile,

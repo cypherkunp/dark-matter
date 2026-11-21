@@ -1,4 +1,4 @@
-import { lstat, realpath } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   type ActivitySubject,
@@ -14,6 +14,7 @@ import {
 import type { ActivityLog } from "./activity";
 import { copyMode, type DeliveryTarget, deliveredName, linkMode } from "./delivery";
 import type { EventBus } from "./events";
+import { lstatOrNull } from "./fs-util";
 import { homeRelative } from "./home-path";
 import type { Library } from "./library";
 import type { OwnedFile } from "./owned-file";
@@ -38,8 +39,6 @@ export interface DriftOptions {
   /** `project.fulfilLock`: Accept for a teammate's new lock entry. */
   fulfilLock(input: { path: string; names: string[] }, client: ClientKind): Promise<unknown>;
 }
-
-const lstatOrNull = (path: string) => lstat(path).catch(() => null);
 
 const finding = (
   project: string,

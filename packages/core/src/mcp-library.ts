@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type ClientKind,
@@ -24,6 +24,7 @@ import type { ActivityLog, Wrote } from "./activity";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { writeFileAtomic } from "./atomic";
 import { editConfigFile, readConfigText } from "./config-edit";
+import { resolves } from "./fs-util";
 import { fromHomeRelative, homeRelative } from "./home-path";
 import { type McpEntry, mcpConfigEdits, readGlobalMcp } from "./mcp-agents";
 import { type InlineSecret, maskSecrets, secretNames } from "./mcp-secrets";
@@ -483,7 +484,7 @@ export class McpAdopt {
           change: server.isNew ? "create" : `record ${server.file.adoptedFrom?.length ?? 0} adoptions`,
         },
         async () => {
-          if (server.isNew && (await exists(path))) throw new NameConflict([name]);
+          if (server.isNew && (await resolves(path))) throw new NameConflict([name]);
           return mcp.write(name, server.file);
         },
       );
@@ -527,12 +528,6 @@ export class McpAdopt {
     return (this.#options.writes ?? this.#ownWrites).run(task);
   }
 }
-
-const exists = (path: string) =>
-  stat(path).then(
-    () => true,
-    () => false,
-  );
 
 const lookupAt = (doc: unknown, at: readonly string[]): unknown =>
   at.reduce<unknown>(

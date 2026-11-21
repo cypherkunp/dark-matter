@@ -25,6 +25,7 @@ import type { ActivityLog, Wrote } from "./activity";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { editConfigFile, readConfigText, toml } from "./config-edit";
 import type { EventBus } from "./events";
+import { isRecord } from "./fs-util";
 import { fromHomeRelative, homeRelative } from "./home-path";
 import { codexUserConfig, mcpConfigEdits } from "./mcp-agents";
 import {
@@ -567,9 +568,6 @@ export class ProjectMcpService {
     };
   }
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const lookupAt = (doc: unknown, at: readonly string[]): unknown =>
   at.reduce<unknown>((value, key) => (isRecord(value) ? value[key] : undefined), doc);

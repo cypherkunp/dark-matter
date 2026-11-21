@@ -1,10 +1,11 @@
-import { open, readdir, readFile } from "node:fs/promises";
+import { open, readdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { claudeDir, claudeJsonFile, codexDir } from "./agent-dirs";
 import type { AgentPathEnv } from "./agents";
+import { readJson } from "./fs-util";
 
 /**
  * Readers for each Agent's history (#10): where it was run, never what was
@@ -39,14 +40,6 @@ const cwdIn = async (path: string): Promise<string | null> => {
 };
 
 const list = (dir: string) => readdir(dir).catch(() => [] as string[]);
-
-const readJson = async (path: string): Promise<unknown> => {
-  try {
-    return JSON.parse(await readFile(path, "utf8"));
-  } catch {
-    return undefined;
-  }
-};
 
 const absolute = (paths: Iterable<unknown>) =>
   [...paths].filter((path): path is string => typeof path === "string" && isAbsolute(path));

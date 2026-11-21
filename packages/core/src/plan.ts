@@ -4,6 +4,7 @@ import { dirname, join, sep } from "node:path";
 import { KeychainUnavailable, PathTaken, type PlanStep, PlanTargetChanged } from "@dark-matter/contracts";
 import type { Wrote } from "./activity";
 import { writeFileAtomic } from "./atomic";
+import { exists } from "./fs-util";
 import { fromHomeRelative } from "./home-path";
 import { log } from "./log";
 import { fingerprintSkillFolder } from "./skill-hash";
@@ -31,12 +32,6 @@ export interface ApplyContext {
   /** The last part of the transaction, after every step: if it throws, the steps are reversed too. */
   finish?(): Promise<void>;
 }
-
-const exists = (path: string) =>
-  lstat(path).then(
-    () => true,
-    () => false,
-  );
 
 /** Where a copy is assembled before its final rename: `staging/` for the Library, else beside the target. */
 const stagingFor = (to: string, libraryHome: string) =>

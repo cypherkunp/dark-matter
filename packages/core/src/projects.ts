@@ -1,4 +1,4 @@
-import { lstat, realpath, stat } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import { basename, dirname, sep } from "node:path";
 import {
   type AgentId,
@@ -16,26 +16,13 @@ import type { ActivityLog, Wrote } from "./activity";
 import { namespaceOf } from "./adopt";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters } from "./agents";
 import type { EventBus } from "./events";
+import { exists, isDirectory, within } from "./fs-util";
 import type { OwnedFile } from "./owned-file";
 import type { ProjectMcpProcedures } from "./project-mcp";
 import type { ProjectSkillProcedures } from "./project-skills";
 import { scanProject } from "./scanner";
 import type { Scans } from "./scans";
 import { projectLockSources } from "./skill-lock";
-
-const isDirectory = (path: string) =>
-  stat(path).then(
-    (info) => info.isDirectory(),
-    () => false,
-  );
-
-const exists = (path: string) =>
-  lstat(path).then(
-    () => true,
-    () => false,
-  );
-
-const within = (path: string, root: string) => path === root || path.startsWith(root + sep);
 
 /**
  * A Project's identity (#8): the git toplevel of `folder` (a `.git` folder or

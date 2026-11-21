@@ -1,9 +1,10 @@
 import { type StatWatcher, unwatchFile, watchFile } from "node:fs";
-import { dirname, join, sep } from "node:path";
+import { dirname, join } from "node:path";
 import type { Domain } from "@dark-matter/contracts";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import type { Clock } from "./clock";
 import type { EventBus } from "./events";
+import { within } from "./fs-util";
 import { forgetSkillHashes } from "./skill-hash";
 import { FolderWatcher, type WatchRoot } from "./watcher";
 
@@ -45,8 +46,6 @@ const PROJECT_IGNORE = [".git", "**/node_modules"];
 const RESYNC_MS = 60_000;
 /** How often a watched Agent config file (or a Project root's existence) is stat-checked: cheap, and quick enough to feel live. */
 const CONFIG_POLL_MS = 250;
-
-const inside = (path: string, root: string) => path === root || path.startsWith(root + sep);
 
 /**
  * Live refresh (#42): one `FolderWatcher` over the Library home, every
@@ -114,21 +113,21 @@ export const startLiveRefresh = async (options: LiveRefreshOptions) => {
       const reloaded = await Promise.all(options.ownedFiles.map((file) => file.reload().catch(options.onError)));
       if (reloaded.some(Boolean)) options.onOwnedFileChanged();
     }
-    if (paths.some((path) => inside(path, mcpDir))) {
+    if (paths.some((path) => within(path, mcpDir))) {
       await options.reloadMcp().catch(options.onError);
       domains.add("mcp");
     }
-    if (paths.some((path) => inside(path, skillsDir)))
+    if (paths.some((path) => within(path, skillsDir)))
       for (const domain of ["library", "skill", "project"] as const) domains.add(domain);
     const projects = options.projectPaths();
-    if (paths.some((path) => projects.some((project) => inside(path, project)))) {
+    if (paths.some((path) => projects.some((project) => within(path, project)))) {
       domains.add("project").add("inbox");
       rescan = true;
     }
     const folders = agentFolders();
-    if (paths.some((path) => folders.some((folder) => inside(path, folder)))) rescan = true;
+    if (paths.some((path) => folders.some((folder) => within(path, folder)))) rescan = true;
     const sources = options.localSources();
-    if (paths.some((path) => sources.some((source) => inside(path, source))))
+    if (paths.some((path) => sources.some((source) => within(path, source))))
       for (const domain of ["library", "skill", "project"] as const) domains.add(domain);
     if (domains.size > 0) options.bus.publish({ type: "invalidate", domains: [...domains] });
     if (rescan && options.scanned()) options.rescan();

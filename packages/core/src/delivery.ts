@@ -1,4 +1,4 @@
-import { lstat, mkdir, readFile, readlink, realpath } from "node:fs/promises";
+import { mkdir, readFile, readlink, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   type CopyState,
@@ -11,6 +11,7 @@ import {
 import type { Wrote } from "./activity";
 import { agentAdapters } from "./agents";
 import { writeFileAtomic } from "./atomic";
+import { lstatOrNull } from "./fs-util";
 import { homeRelative } from "./home-path";
 import { type Library, splitKey } from "./library";
 import { applySteps } from "./plan";
@@ -67,8 +68,6 @@ export interface DeliveryModeAdapter {
   /** Whether its deliveries go in `.git/info/exclude` (personal, never committed). */
   excluded: boolean;
 }
-
-const lstatOrNull = (path: string) => lstat(path).catch(() => null);
 
 /** A Link (#8): a directory symlink to the Library folder, never a symlinked SKILL.md (Codex rejects those). */
 export const linkMode: DeliveryModeAdapter = {

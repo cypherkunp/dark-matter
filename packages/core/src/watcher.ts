@@ -1,5 +1,5 @@
-import { stat } from "node:fs/promises";
 import type { AsyncSubscription } from "@parcel/watcher";
+import { isDirectory } from "./fs-util";
 
 /** One folder watched recursively; `ignore` are paths relative to it, or globs. */
 export interface WatchRoot {
@@ -16,12 +16,6 @@ export interface FolderWatcherOptions {
   /** A burst never waits longer than this. */
   maxWaitMs?: number;
 }
-
-const isDirectory = (path: string) =>
-  stat(path).then(
-    (info) => info.isDirectory(),
-    () => false,
-  );
 
 const key = (root: WatchRoot) => `${root.path}\0${[...(root.ignore ?? [])].join("\0")}`;
 

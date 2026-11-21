@@ -15,6 +15,7 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters, type SkillFolder } from "./agents";
 import { readConfigText } from "./config-edit";
+import { isDirectory } from "./fs-util";
 import { gitTrackedPaths } from "./git-tracked";
 import { homeRelative } from "./home-path";
 import { managedSkillRef } from "./managed-skills";
@@ -356,9 +357,3 @@ const realOrNull = (path: string) => realpath(path).catch(() => null);
 
 const realPaths = async (paths: string[]) =>
   (await Promise.all(paths.map(realOrNull))).filter((path): path is string => path !== null);
-
-const isDirectory = (path: string) =>
-  stat(path).then(
-    (info) => info.isDirectory(),
-    () => false,
-  );
