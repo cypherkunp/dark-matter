@@ -141,6 +141,8 @@ export const SettingsFile = z.strictObject({
   dismissedSuggestedProjects: z.array(z.string()).default([]),
   /** Collections by name (#36). Items keep their order. */
   collections: z.record(z.string(), CollectionRecord).default({}),
+  /** Set when the First run is finished or skipped (#46), so it runs once. Absent until then. */
+  firstRun: z.strictObject({ completedAt: z.iso.datetime() }).optional(),
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 
@@ -421,6 +423,14 @@ export const ProjectScan = z.object({
   skills: z.array(ProjectSkillEntry),
 });
 export type ProjectScan = z.infer<typeof ProjectScan>;
+
+/** The Skills already in a Suggested Project (First run, #46): untracked ones and Vendored (`tracked`) ones. */
+export const SuggestedProjectSkills = z.object({
+  path: z.string(),
+  name: z.string(),
+  skills: z.array(ProjectSkillEntry),
+});
+export type SuggestedProjectSkills = z.infer<typeof SuggestedProjectSkills>;
 
 /**
  * How an Agent-managed Skill can be turned off through its Agent's own global

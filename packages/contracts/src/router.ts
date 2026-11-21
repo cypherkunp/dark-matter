@@ -68,6 +68,7 @@ import {
   SkillFilePath,
   SkillFiles,
   SkillProjectUse,
+  SuggestedProjectSkills,
   SuggestedProjects,
   UpdateMcpDefinitionInput,
 } from "./schemas";
@@ -90,6 +91,8 @@ export interface CoreServices {
   settings: {
     get(): SettingsFile;
     updatePreferences(patch: PreferencesPatch, client: ClientKind): Promise<SettingsFile>;
+    /** Records that the First run is done (finished or skipped); keeps the first time. */
+    completeFirstRun(client: ClientKind): Promise<SettingsFile>;
   };
   ownedFiles: {
     /** Hand edits the core is holding because they don't validate. */
@@ -180,6 +183,8 @@ export interface CoreServices {
   project: {
     /** Suggested Projects from the last Scan, minus confirmed and dismissed ones. */
     suggested(): SuggestedProjects;
+    /** The Skills already in each waiting Suggested Project, read now (First run). Nothing before a Scan. */
+    suggestedSkills(): Promise<SuggestedProjectSkills[]>;
     list(): Promise<ProjectSummary[]>;
     get(path: string): Promise<ProjectDetail>;
     /**
@@ -263,6 +268,9 @@ export const createAppRouter = (services: CoreServices) =>
         .input(PreferencesPatch)
         .output(SettingsFile)
         .mutation(({ input, ctx }) => services.settings.updatePreferences(input, ctx.client)),
+      completeFirstRun: t.procedure
+        .output(SettingsFile)
+        .mutation(({ ctx }) => services.settings.completeFirstRun(ctx.client)),
     }),
     ownedFiles: t.router({
       problems: t.procedure.output(OwnedFileProblem.array()).query(() => services.ownedFiles.problems()),
@@ -343,6 +351,9 @@ export const createAppRouter = (services: CoreServices) =>
     }),
     project: t.router({
       suggested: t.procedure.output(SuggestedProjects).query(() => services.project.suggested()),
+      suggestedSkills: t.procedure
+        .output(SuggestedProjectSkills.array())
+        .query(() => services.project.suggestedSkills()),
       list: t.procedure.output(ProjectSummary.array()).query(() => services.project.list()),
       get: t.procedure
         .input(ProjectPath)
