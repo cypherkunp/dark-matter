@@ -20,6 +20,7 @@ const builtPaths = new Set([
   "/inbox",
   "/library",
   "/library/collections",
+  "/library/updates",
   "/computer/agents",
   "/computer/activity",
   "/computer/mcp-servers",
