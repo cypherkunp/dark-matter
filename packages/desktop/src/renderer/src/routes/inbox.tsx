@@ -14,6 +14,7 @@ import { ChevronRight, Inbox as InboxIcon } from "lucide-react";
 import { useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { AdoptDialog } from "@/components/adopt-dialog";
+import { IgnoredFindings } from "@/components/ignored-findings";
 import { InboxDrift } from "@/components/inbox-drift";
 import { InboxMcpServers } from "@/components/inbox-mcp";
 import { ManagedMcpGroups } from "@/components/managed-mcp";
@@ -326,6 +327,7 @@ function Inbox() {
           <ManagedMcpGroups groups={inbox.data?.managedMcpServers ?? []} inInbox />
         </>
       )}
+      <IgnoredFindings count={ignored} />
       <AdoptDialog findings={adopting} onClose={() => setAdopting(null)} onAdopted={adopted} />
       {granting && (
         <AddToProjectsDialog

@@ -55,6 +55,7 @@ import {
   McpServerName,
   McpTarget,
   OffScope,
+  Overview,
   OwnedFileName,
   OwnedFileProblem,
   PreferencesPatch,
@@ -138,11 +139,19 @@ export interface CoreServices {
     list(): Promise<Inbox>;
     /** Leaves a finding alone from now on (recorded in `settings.json`). */
     ignore(id: string, client: ClientKind): Promise<void>;
+    /** Only the ignored findings, grouped as in the Inbox. */
+    ignored(): Promise<Inbox>;
+    /** Puts an ignored finding back in the Inbox. */
+    unignore(id: string, client: ClientKind): Promise<void>;
   };
   agents: {
     list(): AgentCard[];
     /** Every Agent-managed MCP Server the latest Scan found, off ones included (#40). */
     managedMcp(): ManagedMcpServer[];
+  };
+  overview: {
+    /** The overview screens' stat cards and alerts (#45), from the latest Scan, the Inbox and drift. */
+    get(): Promise<Overview>;
   };
   drift: {
     /** Re-applies owned intent for a drift finding (#42). */
@@ -369,6 +378,13 @@ export const createAppRouter = (services: CoreServices) =>
       ignore: t.procedure
         .input(z.object({ id: z.string().min(1) }))
         .mutation(({ input, ctx }) => services.inbox.ignore(input.id, ctx.client)),
+      ignored: t.procedure.output(Inbox).query(() => services.inbox.ignored()),
+      unignore: t.procedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.inbox.unignore(input.id, ctx.client)),
+    }),
+    overview: t.router({
+      get: t.procedure.output(Overview).query(() => services.overview.get()),
     }),
     drift: t.router({
       restore: t.procedure
