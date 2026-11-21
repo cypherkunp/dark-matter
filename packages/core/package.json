@@ -13,6 +13,7 @@
     "@dark-matter/contracts": "catalog:",
     "@trpc/server": "catalog:",
     "ws": "catalog:",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -84,6 +84,8 @@ export type Preferences = z.infer<typeof Preferences>;
  */
 export const SettingsFile = z.strictObject({
   preferences: Preferences.prefault({}),
+  /** Inbox findings you chose to leave alone, by finding id. Kept sorted. */
+  ignoredFindings: z.array(z.string()).default([]),
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 
@@ -109,7 +111,7 @@ export type ActivityClient = z.infer<typeof ActivityClient>;
 
 /** What an Activity entry is about; `id` is a Skill key, Project path, file name… */
 export const ActivitySubject = z.object({
-  kind: z.enum(["settings", "skill", "project", "mcpServer", "source"]),
+  kind: z.enum(["settings", "skill", "project", "mcpServer", "source", "finding"]),
   id: z.string(),
 });
 export type ActivitySubject = z.infer<typeof ActivitySubject>;
@@ -138,8 +140,105 @@ export const ActivityList = z.object({
 });
 export type ActivityList = z.infer<typeof ActivityList>;
 
+/** A v1 Agent, as Dark Matter's adapters know it. */
+export const AgentId = z.enum(["claude-code", "cursor", "opencode", "codex", "agents"]);
+export type AgentId = z.infer<typeof AgentId>;
+
+/** One place an Agent skill folder reaches a Skill. Paths are home-relative. */
+export const SkillLocation = z.object({
+  /** The Agent skill folder, e.g. `~/.claude/skills`. */
+  folder: z.string(),
+  /** The entry in that folder, e.g. `~/.claude/skills/pdf`. */
+  path: z.string(),
+  /** The entry is a symlink to the Skill's real folder. */
+  symlink: z.boolean(),
+});
+export type SkillLocation = z.infer<typeof SkillLocation>;
+
+/**
+ * A Skill in some Agent's global folder, found by a Scan. One per resolved real
+ * path, however many symlinks reach it.
+ */
+export const GlobalSkill = z.object({
+  /** Stable across Scans: `global-skill:<realPath>`. Ignoring a finding records this. */
+  id: z.string(),
+  /** Frontmatter `name`, else the folder name. */
+  name: z.string(),
+  description: z.string(),
+  /** The Skill's identity: its resolved real folder, home-relative. */
+  realPath: z.string(),
+  /** The Agent folder the Inbox groups it under: the one holding its real folder, else the first that links to it. */
+  folder: z.string(),
+  locations: z.array(SkillLocation).min(1),
+  /** Every Agent that loads it through one of its locations. */
+  agents: z.array(AgentId),
+  /** `owner/repo` from the `skills` CLI's global lock, when it installed this Skill. */
+  source: z.string().nullable(),
+  /** Its real folder is outside every Agent folder, so Adopt makes it a Local Source. */
+  localSource: z.boolean(),
+});
+export type GlobalSkill = z.infer<typeof GlobalSkill>;
+
+/** What a Scan saw of one Agent. */
+export const AgentScan = z.object({
+  id: AgentId,
+  /** The Agent's own folder exists (e.g. `~/.claude`). */
+  detected: z.boolean(),
+  /** Global skill folders it loads, home-relative; the first is its own. */
+  globalSkillFolders: z.array(z.object({ path: z.string(), exists: z.boolean() })),
+  /** Global Skills it loads, counted once per real path. */
+  globalSkillCount: z.int().nonnegative(),
+});
+export type AgentScan = z.infer<typeof AgentScan>;
+
+/** Everything one Scan found. Cached in `state/`; rebuilt by scanning again. */
+export const ScanResult = z.object({
+  scannedAt: z.iso.datetime(),
+  agents: z.array(AgentScan),
+  globalSkills: z.array(GlobalSkill),
+});
+export type ScanResult = z.infer<typeof ScanResult>;
+
+export const ScanStatus = z.object({
+  running: z.boolean(),
+  /** When the last Scan finished; null before the first. */
+  lastScanAt: z.iso.datetime().nullable(),
+});
+export type ScanStatus = z.infer<typeof ScanStatus>;
+
+/** Global Skills in one Agent folder, for the Inbox. */
+export const InboxFolderGroup = z.object({
+  folder: z.string(),
+  /** The Agents that load this folder. */
+  agents: z.array(AgentId),
+  findings: z.array(GlobalSkill),
+});
+export type InboxFolderGroup = z.infer<typeof InboxFolderGroup>;
+
+/** Findings still waiting on a decision. Ignored findings are left out. */
+export const Inbox = z.object({
+  /** The badge: findings waiting, across every kind. */
+  count: z.int().nonnegative(),
+  globalSkills: z.array(InboxFolderGroup),
+  ignoredCount: z.int().nonnegative(),
+});
+export type Inbox = z.infer<typeof Inbox>;
+
+/** One card on the Agents screen. */
+export const AgentCard = z.object({
+  id: AgentId,
+  name: z.string(),
+  /** Null until the first Scan. */
+  detected: z.boolean().nullable(),
+  /** Its own global skill folder, home-relative. */
+  globalSkillFolder: z.string(),
+  /** Null until the first Scan. */
+  globalSkillCount: z.int().nonnegative().nullable(),
+});
+export type AgentCard = z.infer<typeof AgentCard>;
+
 /** Router domains a client caches; an `invalidate` event names the ones that changed. */
-export const Domain = z.enum(["core", "library", "settings", "ownedFiles", "activity"]);
+export const Domain = z.enum(["core", "library", "settings", "ownedFiles", "activity", "scan", "inbox", "agents"]);
 export type Domain = z.infer<typeof Domain>;
 
 /** Pushed over the `events` subscription to drive TanStack Query invalidation. */

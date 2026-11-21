@@ -4,8 +4,10 @@ import type { CoreServices } from "@dark-matter/contracts/router";
 import { ActivityLog } from "./activity";
 import { openCache } from "./cache";
 import type { EventBus } from "./events";
+import { agentCards, inboxFrom } from "./inbox";
 import { log } from "./log";
 import { OwnedFile } from "./owned-file";
+import { Scans } from "./scans";
 import { watchOwnedFiles } from "./watch-owned";
 
 export interface ServicesOptions {
@@ -27,7 +29,14 @@ export const createServices = async ({ libraryHome, home, info, bus }: ServicesO
   });
   const settings = await OwnedFile.open("settings.json", join(libraryHome, "settings.json"), SettingsFile);
   const ownedFiles = [settings];
-  const ownedFileChanged = () => bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles"] });
+  const ownedFileChanged = () => bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox"] });
+  const env = { home };
+  const scans = new Scans({
+    env,
+    cache,
+    activity,
+    onChange: () => bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents"] }),
+  });
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
@@ -62,12 +71,32 @@ export const createServices = async ({ libraryHome, home, info, bus }: ServicesO
         ),
     },
     activity: { list: (query) => activity.list(query) },
+    scan: {
+      run: (client) => scans.run(client),
+      status: () => scans.status(),
+    },
+    inbox: {
+      list: () => inboxFrom(scans.latest, settings.value.ignoredFindings, env),
+      ignore: (id, client) =>
+        activity.track({ client, action: "inbox.ignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
+          wrote(
+            await settings.update((current) => ({
+              ...current,
+              ignoredFindings: [...new Set([...current.ignoredFindings, id])].sort(),
+            })),
+          );
+          bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
+        }),
+    },
+    agents: { list: () => agentCards(scans.latest, env) },
   };
+  scans.catchUp();
 
   return {
     services,
     close: async () => {
       stopWatching();
+      await scans.settle();
       cache.close();
     },
   };

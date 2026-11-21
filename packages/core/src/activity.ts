@@ -114,6 +114,15 @@ export class ActivityLog {
     return { entries: rows.map((row) => ActivityEntry.parse(JSON.parse(row.entry))) };
   }
 
+  /** Whether any recorded entry has this action, e.g. whether a Scan has ever run. */
+  hasAction(action: string): boolean {
+    return (
+      this.#options.cache
+        .prepare("SELECT 1 FROM activity WHERE json_extract(entry, '$.action') = ? LIMIT 1")
+        .get(action) !== undefined
+    );
+  }
+
   /** Re-reads each day file whose size differs from what the index has seen, and forgets deleted ones. */
   async #reindex(): Promise<void> {
     const names = (await readdir(this.#dir).catch(() => [] as string[])).filter((name) => DAY_FILE.test(name)).sort();

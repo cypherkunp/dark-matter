@@ -28,6 +28,7 @@ describe("settings.json", () => {
 
     expect(await readFile(join(libraryHome, "settings.json"), "utf8")).toBe(
       `{
+  "ignoredFindings": [],
   "preferences": {
     "activityRetention": 30,
     "scheduledScanTime": "07:30",

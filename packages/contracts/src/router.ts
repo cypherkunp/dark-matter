@@ -4,13 +4,17 @@ import { isTaggedError } from "./errors";
 import {
   ActivityList,
   ActivityQuery,
+  AgentCard,
   type ClientKind,
   type CoreEvent,
   CoreInfo,
+  Inbox,
   LibraryList,
   OwnedFileName,
   OwnedFileProblem,
   PreferencesPatch,
+  ScanResult,
+  ScanStatus,
   SettingsFile,
 } from "./schemas";
 
@@ -41,6 +45,19 @@ export interface CoreServices {
   };
   activity: {
     list(query: ActivityQuery): ActivityList;
+  };
+  scan: {
+    /** Runs a read-only Scan, or joins the one already running. */
+    run(client: ClientKind): Promise<ScanResult>;
+    status(): ScanStatus;
+  };
+  inbox: {
+    list(): Inbox;
+    /** Leaves a finding alone from now on (recorded in `settings.json`). */
+    ignore(id: string, client: ClientKind): Promise<void>;
+  };
+  agents: {
+    list(): AgentCard[];
   };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
@@ -79,6 +96,19 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ActivityQuery)
         .output(ActivityList)
         .query(({ input }) => services.activity.list(input)),
+    }),
+    scan: t.router({
+      run: t.procedure.output(ScanResult).mutation(({ ctx }) => services.scan.run(ctx.client)),
+      status: t.procedure.output(ScanStatus).query(() => services.scan.status()),
+    }),
+    inbox: t.router({
+      list: t.procedure.output(Inbox).query(() => services.inbox.list()),
+      ignore: t.procedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.inbox.ignore(input.id, ctx.client)),
+    }),
+    agents: t.router({
+      list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);
