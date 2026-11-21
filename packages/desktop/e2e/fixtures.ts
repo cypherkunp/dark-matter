@@ -62,6 +62,8 @@ export const test = base.extend<{
         DARK_MATTER_SECRETS: "memory",
         // Nor the machine's /etc and /Library.
         DARK_MATTER_SYSTEM_ROOT: join(root, "system"),
+        // Nor the real skills.sh (a test that searches passes its fake).
+        DARK_MATTER_SKILLS_SH_API: "http://127.0.0.1:9",
       },
       readCoreFile: async () => {
         try {

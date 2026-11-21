@@ -87,6 +87,7 @@ import {
   UpdateMcpDefinitionInput,
   UpdateProjectMcpServer,
 } from "./schemas";
+import { SkillsShGetInput, SkillsShSearch, SkillsShSearchInput } from "./skills-sh";
 
 /** Per-connection context, built once when a connection authenticates. */
 export interface CoreContext {
@@ -210,6 +211,12 @@ export interface CoreServices {
     auth(): Promise<GitHubAuthStatus>;
     /** Stores (or with null removes) the GitHub PAT in the keychain. */
     setToken(input: SetGitHubTokenInput, client: ClientKind): Promise<GitHubAuthStatus>;
+  };
+  skillsSh: {
+    /** Searches skills.sh (debounce in the UI; the core keeps within 30 requests a minute and caches). */
+    search(input: SkillsShSearchInput): Promise<SkillsShSearch>;
+    /** Get: resolves the listing to its repo and Skill folder and Imports it through GitHub Import. */
+    get(input: SkillsShGetInput, client: ClientKind): Promise<ImportResult>;
   };
   /** OS notifications for the app to show, from now on, until `signal` aborts. */
   notifications(signal: AbortSignal): AsyncIterable<CoreNotification>;
@@ -598,6 +605,16 @@ export const createAppRouter = (services: CoreServices) =>
         .input(SetGitHubTokenInput)
         .output(GitHubAuthStatus)
         .mutation(({ input, ctx }) => services.importer.setToken(input, ctx.client)),
+    }),
+    skillsSh: t.router({
+      search: t.procedure
+        .input(SkillsShSearchInput)
+        .output(SkillsShSearch)
+        .query(({ input }) => services.skillsSh.search(input)),
+      get: t.procedure
+        .input(SkillsShGetInput)
+        .output(ImportResult)
+        .mutation(({ input, ctx }) => services.skillsSh.get(input, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);
