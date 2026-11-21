@@ -1,0 +1,46 @@
+# Release packaging (ticket #47). Credentials come only from the environment
+# (CI secrets, see docs/release.md); with none set, the build is unsigned.
+appId: io.github.cypherkunp.darkmatter
+productName: Dark Matter
+copyright: Copyright © Dark Matter contributors
+directories:
+  output: release
+  buildResources: build
+# Main, preload and renderer are bundled whole by electron-vite, so the app
+# ships only `out/` and no node_modules.
+files:
+  - out/**/*
+  - package.json
+  - "!node_modules/**/*"
+npmRebuild: false
+# The headless core runs outside the asar, launched by the app's own binary
+# with ELECTRON_RUN_AS_NODE=1 (ADR-0003). Main looks for it here.
+extraResources:
+  - from: ../core/dist/main.mjs
+    to: core/main.mjs
+  # The file watcher's native binaries (#42), resolved from main.mjs at runtime.
+  - from: ../core/dist/node_modules
+    to: core/node_modules
+# No auto-update channel: no update metadata, nothing published by the build.
+publish: null
+artifactName: dark-matter-${version}-${arch}.${ext}
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Notarises when APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID are
+  # set and the app is signed; skipped otherwise.
+  notarize: true
+linux:
+  category: Development
+  maintainer: Dark Matter contributors
+  synopsis: One Library of Skills and MCP Servers for your coding Agents
+  target:
+    - AppImage
+    - deb
+  executableName: dark-matter

@@ -23,9 +23,9 @@ describe("the events subscription", () => {
     const second = received(connect(core));
     await expect.poll(() => started.length).toBe(2);
 
-    core.publish({ type: "invalidate", domains: ["library"] });
+    core.publish({ type: "invalidate", domains: ["settings"] });
 
-    const expected = { type: "invalidate", domains: ["library"] };
+    const expected = { type: "invalidate", domains: ["settings"] };
     await expect(first).resolves.toEqual(expected);
     await expect(second).resolves.toEqual(expected);
   });

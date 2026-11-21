@@ -11,7 +11,24 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
+import { Route as CollectionRouteImport } from './routes/collection'
+import { Route as FirstRunRouteImport } from './routes/first-run'
+import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as NamespaceRouteImport } from './routes/namespace'
+import { Route as ProjectRouteImport } from './routes/project'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SkillRouteImport } from './routes/skill'
+import { Route as ComputerActivityRouteImport } from './routes/computer/activity'
+import { Route as ComputerAgentsRouteImport } from './routes/computer/agents'
+import { Route as ComputerMcpServersRouteImport } from './routes/computer/mcp-servers'
+import { Route as GetGithubRouteImport } from './routes/get/github'
+import { Route as GetSkillsShRouteImport } from './routes/get/skills-sh'
+import { Route as LibraryCollectionsRouteImport } from './routes/library_.collections'
+import { Route as LibraryFavouritesRouteImport } from './routes/library_.favourites'
+import { Route as LibraryTrashRouteImport } from './routes/library_.trash'
+import { Route as LibraryUpdatesRouteImport } from './routes/library_.updates'
+import { Route as ProjectsSuggestedRouteImport } from './routes/projects/suggested'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,40 +40,254 @@ const SplatRoute = SplatRouteImport.update({
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CollectionRoute = CollectionRouteImport.update({
+  id: '/collection',
+  path: '/collection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FirstRunRoute = FirstRunRouteImport.update({
+  id: '/first-run',
+  path: '/first-run',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InboxRoute = InboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NamespaceRoute = NamespaceRouteImport.update({
+  id: '/namespace',
+  path: '/namespace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectRoute = ProjectRouteImport.update({
+  id: '/project',
+  path: '/project',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SkillRoute = SkillRouteImport.update({
+  id: '/skill',
+  path: '/skill',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComputerActivityRoute = ComputerActivityRouteImport.update({
+  id: '/computer/activity',
+  path: '/computer/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComputerAgentsRoute = ComputerAgentsRouteImport.update({
+  id: '/computer/agents',
+  path: '/computer/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComputerMcpServersRoute = ComputerMcpServersRouteImport.update({
+  id: '/computer/mcp-servers',
+  path: '/computer/mcp-servers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GetGithubRoute = GetGithubRouteImport.update({
+  id: '/get/github',
+  path: '/get/github',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GetSkillsShRoute = GetSkillsShRouteImport.update({
+  id: '/get/skills-sh',
+  path: '/get/skills-sh',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryCollectionsRoute = LibraryCollectionsRouteImport.update({
+  id: '/library_/collections',
+  path: '/library/collections',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryFavouritesRoute = LibraryFavouritesRouteImport.update({
+  id: '/library_/favourites',
+  path: '/library/favourites',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryTrashRoute = LibraryTrashRouteImport.update({
+  id: '/library_/trash',
+  path: '/library/trash',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryUpdatesRoute = LibraryUpdatesRouteImport.update({
+  id: '/library_/updates',
+  path: '/library/updates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsSuggestedRoute = ProjectsSuggestedRouteImport.update({
+  id: '/projects/suggested',
+  path: '/projects/suggested',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/collection': typeof CollectionRoute
+  '/first-run': typeof FirstRunRoute
+  '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
+  '/namespace': typeof NamespaceRoute
+  '/project': typeof ProjectRoute
+  '/settings': typeof SettingsRoute
+  '/skill': typeof SkillRoute
+  '/computer/activity': typeof ComputerActivityRoute
+  '/computer/agents': typeof ComputerAgentsRoute
+  '/computer/mcp-servers': typeof ComputerMcpServersRoute
+  '/get/github': typeof GetGithubRoute
+  '/get/skills-sh': typeof GetSkillsShRoute
+  '/library/collections': typeof LibraryCollectionsRoute
+  '/library/favourites': typeof LibraryFavouritesRoute
+  '/library/trash': typeof LibraryTrashRoute
+  '/library/updates': typeof LibraryUpdatesRoute
+  '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/collection': typeof CollectionRoute
+  '/first-run': typeof FirstRunRoute
+  '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
+  '/namespace': typeof NamespaceRoute
+  '/project': typeof ProjectRoute
+  '/settings': typeof SettingsRoute
+  '/skill': typeof SkillRoute
+  '/computer/activity': typeof ComputerActivityRoute
+  '/computer/agents': typeof ComputerAgentsRoute
+  '/computer/mcp-servers': typeof ComputerMcpServersRoute
+  '/get/github': typeof GetGithubRoute
+  '/get/skills-sh': typeof GetSkillsShRoute
+  '/library/collections': typeof LibraryCollectionsRoute
+  '/library/favourites': typeof LibraryFavouritesRoute
+  '/library/trash': typeof LibraryTrashRoute
+  '/library/updates': typeof LibraryUpdatesRoute
+  '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/collection': typeof CollectionRoute
+  '/first-run': typeof FirstRunRoute
+  '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
+  '/namespace': typeof NamespaceRoute
+  '/project': typeof ProjectRoute
+  '/settings': typeof SettingsRoute
+  '/skill': typeof SkillRoute
+  '/computer/activity': typeof ComputerActivityRoute
+  '/computer/agents': typeof ComputerAgentsRoute
+  '/computer/mcp-servers': typeof ComputerMcpServersRoute
+  '/get/github': typeof GetGithubRoute
+  '/get/skills-sh': typeof GetSkillsShRoute
+  '/library_/collections': typeof LibraryCollectionsRoute
+  '/library_/favourites': typeof LibraryFavouritesRoute
+  '/library_/trash': typeof LibraryTrashRoute
+  '/library_/updates': typeof LibraryUpdatesRoute
+  '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$' | '/library'
+  fullPaths:
+    | '/'
+    | '/$'
+    | '/collection'
+    | '/first-run'
+    | '/inbox'
+    | '/library'
+    | '/namespace'
+    | '/project'
+    | '/settings'
+    | '/skill'
+    | '/computer/activity'
+    | '/computer/agents'
+    | '/computer/mcp-servers'
+    | '/get/github'
+    | '/get/skills-sh'
+    | '/library/collections'
+    | '/library/favourites'
+    | '/library/trash'
+    | '/library/updates'
+    | '/projects/suggested'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$' | '/library'
-  id: '__root__' | '/' | '/$' | '/library'
+  to:
+    | '/'
+    | '/$'
+    | '/collection'
+    | '/first-run'
+    | '/inbox'
+    | '/library'
+    | '/namespace'
+    | '/project'
+    | '/settings'
+    | '/skill'
+    | '/computer/activity'
+    | '/computer/agents'
+    | '/computer/mcp-servers'
+    | '/get/github'
+    | '/get/skills-sh'
+    | '/library/collections'
+    | '/library/favourites'
+    | '/library/trash'
+    | '/library/updates'
+    | '/projects/suggested'
+  id:
+    | '__root__'
+    | '/'
+    | '/$'
+    | '/collection'
+    | '/first-run'
+    | '/inbox'
+    | '/library'
+    | '/namespace'
+    | '/project'
+    | '/settings'
+    | '/skill'
+    | '/computer/activity'
+    | '/computer/agents'
+    | '/computer/mcp-servers'
+    | '/get/github'
+    | '/get/skills-sh'
+    | '/library_/collections'
+    | '/library_/favourites'
+    | '/library_/trash'
+    | '/library_/updates'
+    | '/projects/suggested'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
+  CollectionRoute: typeof CollectionRoute
+  FirstRunRoute: typeof FirstRunRoute
+  InboxRoute: typeof InboxRoute
   LibraryRoute: typeof LibraryRoute
+  NamespaceRoute: typeof NamespaceRoute
+  ProjectRoute: typeof ProjectRoute
+  SettingsRoute: typeof SettingsRoute
+  SkillRoute: typeof SkillRoute
+  ComputerActivityRoute: typeof ComputerActivityRoute
+  ComputerAgentsRoute: typeof ComputerAgentsRoute
+  ComputerMcpServersRoute: typeof ComputerMcpServersRoute
+  GetGithubRoute: typeof GetGithubRoute
+  GetSkillsShRoute: typeof GetSkillsShRoute
+  LibraryCollectionsRoute: typeof LibraryCollectionsRoute
+  LibraryFavouritesRoute: typeof LibraryFavouritesRoute
+  LibraryTrashRoute: typeof LibraryTrashRoute
+  LibraryUpdatesRoute: typeof LibraryUpdatesRoute
+  ProjectsSuggestedRoute: typeof ProjectsSuggestedRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,11 +306,130 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/collection': {
+      id: '/collection'
+      path: '/collection'
+      fullPath: '/collection'
+      preLoaderRoute: typeof CollectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/first-run': {
+      id: '/first-run'
+      path: '/first-run'
+      fullPath: '/first-run'
+      preLoaderRoute: typeof FirstRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inbox': {
+      id: '/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library': {
       id: '/library'
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/namespace': {
+      id: '/namespace'
+      path: '/namespace'
+      fullPath: '/namespace'
+      preLoaderRoute: typeof NamespaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/project': {
+      id: '/project'
+      path: '/project'
+      fullPath: '/project'
+      preLoaderRoute: typeof ProjectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/skill': {
+      id: '/skill'
+      path: '/skill'
+      fullPath: '/skill'
+      preLoaderRoute: typeof SkillRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/computer/activity': {
+      id: '/computer/activity'
+      path: '/computer/activity'
+      fullPath: '/computer/activity'
+      preLoaderRoute: typeof ComputerActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/computer/agents': {
+      id: '/computer/agents'
+      path: '/computer/agents'
+      fullPath: '/computer/agents'
+      preLoaderRoute: typeof ComputerAgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/computer/mcp-servers': {
+      id: '/computer/mcp-servers'
+      path: '/computer/mcp-servers'
+      fullPath: '/computer/mcp-servers'
+      preLoaderRoute: typeof ComputerMcpServersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/get/github': {
+      id: '/get/github'
+      path: '/get/github'
+      fullPath: '/get/github'
+      preLoaderRoute: typeof GetGithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/get/skills-sh': {
+      id: '/get/skills-sh'
+      path: '/get/skills-sh'
+      fullPath: '/get/skills-sh'
+      preLoaderRoute: typeof GetSkillsShRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library_/collections': {
+      id: '/library_/collections'
+      path: '/library/collections'
+      fullPath: '/library/collections'
+      preLoaderRoute: typeof LibraryCollectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library_/favourites': {
+      id: '/library_/favourites'
+      path: '/library/favourites'
+      fullPath: '/library/favourites'
+      preLoaderRoute: typeof LibraryFavouritesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library_/trash': {
+      id: '/library_/trash'
+      path: '/library/trash'
+      fullPath: '/library/trash'
+      preLoaderRoute: typeof LibraryTrashRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library_/updates': {
+      id: '/library_/updates'
+      path: '/library/updates'
+      fullPath: '/library/updates'
+      preLoaderRoute: typeof LibraryUpdatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects/suggested': {
+      id: '/projects/suggested'
+      path: '/projects/suggested'
+      fullPath: '/projects/suggested'
+      preLoaderRoute: typeof ProjectsSuggestedRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -88,7 +438,24 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
+  CollectionRoute: CollectionRoute,
+  FirstRunRoute: FirstRunRoute,
+  InboxRoute: InboxRoute,
   LibraryRoute: LibraryRoute,
+  NamespaceRoute: NamespaceRoute,
+  ProjectRoute: ProjectRoute,
+  SettingsRoute: SettingsRoute,
+  SkillRoute: SkillRoute,
+  ComputerActivityRoute: ComputerActivityRoute,
+  ComputerAgentsRoute: ComputerAgentsRoute,
+  ComputerMcpServersRoute: ComputerMcpServersRoute,
+  GetGithubRoute: GetGithubRoute,
+  GetSkillsShRoute: GetSkillsShRoute,
+  LibraryCollectionsRoute: LibraryCollectionsRoute,
+  LibraryFavouritesRoute: LibraryFavouritesRoute,
+  LibraryTrashRoute: LibraryTrashRoute,
+  LibraryUpdatesRoute: LibraryUpdatesRoute,
+  ProjectsSuggestedRoute: ProjectsSuggestedRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

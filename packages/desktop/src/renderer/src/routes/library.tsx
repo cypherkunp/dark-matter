@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Library } from "lucide-react";
+import { Overview } from "@/components/overview";
 import { PageHead } from "@/components/page-head";
+import { byNamespace, plural, SkillRows } from "@/components/skill-list";
 import { tildify } from "@/lib/paths";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/library")({ component: AllSkills });
-
-const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 function AllSkills() {
   const trpc = useTRPC();
@@ -23,6 +23,7 @@ function AllSkills() {
         summary={`${plural(skills.length, "Skill")} · ${plural(namespaces, "Namespace")}`}
         {...(info.data && { status: `Library at ${tildify(info.data.libraryHome)}` })}
       />
+      <Overview />
       {library.isPending ? null : skills.length === 0 ? (
         <section
           data-testid="library-empty"
@@ -38,14 +39,17 @@ function AllSkills() {
           </p>
         </section>
       ) : (
-        <section className="divide-y rounded-xl border">
-          {skills.map((skill) => (
-            <div key={skill.key} className="flex min-h-16 flex-col justify-center gap-0.5 px-5 py-3">
-              <div className="font-medium">{skill.name}</div>
-              <div className="font-mono text-muted-foreground text-xs">{skill.namespace}</div>
-            </div>
-          ))}
-        </section>
+        byNamespace(skills).map(([namespace, members]) => (
+          <section key={namespace} data-testid="library-namespace" className="flex flex-col gap-3">
+            <h2 className="flex items-center gap-2 font-semibold text-sm">
+              <Link to="/namespace" search={{ name: namespace }} className="font-mono hover:underline">
+                {namespace}
+              </Link>
+              <span className="font-normal text-muted-foreground text-xs tabular-nums">{members.length}</span>
+            </h2>
+            <SkillRows skills={members} />
+          </section>
+        ))
       )}
     </div>
   );

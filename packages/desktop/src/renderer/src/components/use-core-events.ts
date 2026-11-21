@@ -15,6 +15,12 @@ export const useCoreEvents = () => {
         for (const domain of event.domains) {
           void queryClient.invalidateQueries({ queryKey: trpc[domain].pathKey() });
         }
+        // skills.sh results mark "in Library"; the core answers a re-run from its cache.
+        if (event.domains.includes("library")) {
+          void queryClient.invalidateQueries({ queryKey: trpc.skillsSh.search.pathKey() });
+          // The Favourites view lists Library Skills from starred Sources.
+          void queryClient.invalidateQueries({ queryKey: trpc.favourites.pathKey() });
+        }
       },
     }),
   );

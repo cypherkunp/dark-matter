@@ -9,6 +9,8 @@ export interface CoreClientOptions {
    */
   connection: CoreConnection | (() => Promise<CoreConnection>);
   client: ClientKind;
+  /** The Agent behind an `mcp` or `cli` client, recorded with its Requests and in the Activity Log. */
+  agent?: string;
   onOpen?: () => void;
   onClose?: () => void;
 }
@@ -33,6 +35,7 @@ export const createCoreClient = (options: CoreClientOptions): CoreClient => {
     connectionParams: async (): Promise<ConnectionParams> => ({
       token: (await (current ?? resolve())).token,
       client: options.client,
+      ...(options.agent && { agent: options.agent }),
     }),
     ...(options.onOpen && { onOpen: options.onOpen }),
     ...(options.onClose && { onClose: options.onClose }),

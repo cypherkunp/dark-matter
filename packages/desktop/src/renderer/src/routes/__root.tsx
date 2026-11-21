@@ -1,13 +1,30 @@
-import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { createRootRoute, Navigate, Outlet, useLocation } from "@tanstack/react-router";
+import { CommandPalette } from "@/components/command-palette";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
 import { useCoreEvents } from "@/components/use-core-events";
+import { useNativeNavigation } from "@/components/use-native-navigation";
+import { useTRPC } from "@/lib/trpc";
 
 export const Route = createRootRoute({ component: AppShell });
 
 /** The native macOS shell: tinted sidebar tree, breadcrumb header, content pane. */
 function AppShell() {
   const { connected } = useCoreEvents();
+  useNativeNavigation();
+  const trpc = useTRPC();
+  const settings = useQuery(trpc.settings.get.queryOptions());
+  const firstRunRoute = useLocation({ select: (location) => location.pathname === "/first-run" });
+  // The First run (#46) comes before the Library, once: nothing renders until settings.json says whether it's done.
+  if (!settings.data) return <div className="h-full bg-background" />;
+  if (!settings.data.firstRun && !firstRunRoute) return <Navigate to="/first-run" search={{ step: "welcome" }} />;
+  if (firstRunRoute)
+    return (
+      <main className="h-full overflow-y-auto bg-background">
+        <Outlet />
+      </main>
+    );
   return (
     <div className="flex h-full">
       <Sidebar connected={connected} />
@@ -17,6 +34,7 @@ function AppShell() {
           <Outlet />
         </div>
       </main>
+      <CommandPalette />
     </div>
   );
 }

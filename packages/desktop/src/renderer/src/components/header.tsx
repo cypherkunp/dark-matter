@@ -3,6 +3,7 @@ import { useLocation } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
+import { useScan } from "@/components/use-scan";
 import { useTRPC } from "@/lib/trpc";
 import { relativeTime, useNow } from "@/lib/use-now";
 import { breadcrumbFor } from "@/nav";
@@ -11,13 +12,15 @@ export function Header() {
   const trpc = useTRPC();
   const library = useQuery(trpc.library.list.queryOptions());
   const now = useNow();
-  const crumbs = breadcrumbFor(useLocation({ select: (location) => location.pathname }));
+  const { scan, scanning } = useScan();
+  const location = useLocation();
+  const crumbs = breadcrumbFor(location.pathname, location.search);
 
   return (
     <header className="drag-region flex h-[52px] shrink-0 items-center gap-3 border-b px-6">
       <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px]">
         {crumbs.map((crumb, index) => (
-          <Fragment key={crumb}>
+          <Fragment key={`${index}:${crumb}`}>
             {index > 0 && <ChevronRight className="size-3.5 text-muted-foreground" />}
             <span className={index === crumbs.length - 1 ? "font-medium" : "text-muted-foreground"}>{crumb}</span>
           </Fragment>
@@ -27,9 +30,8 @@ export function Header() {
         {library.dataUpdatedAt > 0 && (
           <span className="text-muted-foreground text-xs">Updated {relativeTime(library.dataUpdatedAt, now)}</span>
         )}
-        {/* Scanning arrives with the Scan ticket; the primary action is in place for it. */}
-        <Button size="sm" className="no-drag" disabled>
-          Scan now
+        <Button size="sm" className="no-drag" disabled={scanning} onClick={scan}>
+          {scanning ? "Scanning…" : "Scan now"}
         </Button>
       </div>
     </header>
