@@ -15,6 +15,7 @@ import { managedSkillRef } from "./managed-skills";
 import { type KeyRenameHook, NamespaceRename } from "./namespace-rename";
 import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
+import { ProjectSkillService } from "./project-skills";
 import { projectServices, waitingSuggestions } from "./projects";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
@@ -94,13 +95,14 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     hooks: keyRenameHooks,
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project"] }),
   });
+  const projectSkills = new ProjectSkillService({ home, libraryHome, library, projects, activity, bus });
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
 
   const services: Omit<CoreServices, "events" | "notifications"> = {
     info,
-    library: { list: async () => ({ skills: await library.list() }) },
+    library: { list: async () => ({ skills: await library.list(await projectSkills.usage()) }) },
     settings: {
       get: () => settings.value,
       updatePreferences: (patch, client) =>
@@ -177,7 +179,10 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       undo: (key, client) => adopt.undo(key, client),
     },
     scheduler: { status: () => scheduler.status() },
-    project: projectServices({ env, projects, settings, activity, scans, bus }),
+    project: {
+      ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
+      ...projectSkills.services(),
+    },
     skill: skillServices(library),
     namespace: {
       plan: (input) => namespaceRename.plan(input),

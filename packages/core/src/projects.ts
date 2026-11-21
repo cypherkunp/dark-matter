@@ -12,10 +12,11 @@ import {
   type SuggestedProject,
 } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
-import type { ActivityLog } from "./activity";
+import type { ActivityLog, Wrote } from "./activity";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters } from "./agents";
 import type { EventBus } from "./events";
 import type { OwnedFile } from "./owned-file";
+import type { ProjectSkillProcedures } from "./project-skills";
 import type { Scans } from "./scans";
 
 const isDirectory = (path: string) =>
@@ -92,6 +93,8 @@ export interface ProjectServiceOptions {
   activity: ActivityLog;
   scans: Scans;
   bus: EventBus;
+  /** Re-delivers a Project's Skills for a changed record and saves it (#27). */
+  deliver?: { deliver(path: string, next: ProjectRecord, wrote: Wrote): Promise<unknown> };
 }
 
 /** Suggested Projects waiting on a decision: not confirmed, not dismissed. */
@@ -116,7 +119,8 @@ export const projectServices = ({
   activity,
   scans,
   bus,
-}: ProjectServiceOptions): CoreServices["project"] => {
+  deliver,
+}: ProjectServiceOptions): Omit<CoreServices["project"], keyof ProjectSkillProcedures> => {
   const changed = () => bus.publish({ type: "invalidate", domains: ["project", "inbox"] });
 
   const detectedAgents = async (path: string): Promise<AgentId[]> => {
@@ -186,7 +190,7 @@ export const projectServices = ({
         async (wrote) => {
           if (!(root.path in projects.value.projects)) {
             const chosen = agents ?? (await detectedAgents(root.path));
-            const record: ProjectRecord = { agents: chosen.length > 0 ? chosen : ["agents"] };
+            const record: ProjectRecord = { agents: chosen.length > 0 ? chosen : ["agents"], skills: {} };
             wrote(
               await projects.update((current) => ({
                 ...current,
@@ -220,12 +224,9 @@ export const projectServices = ({
         async (wrote) => {
           const current = record(path);
           const chosen = agentAdapters.map((adapter) => adapter.id).filter((id) => agents.includes(id));
-          wrote(
-            await projects.update((file) => ({
-              ...file,
-              projects: { ...file.projects, [path]: { ...current, agents: chosen } },
-            })),
-          );
+          const next = { ...current, agents: chosen };
+          if (deliver) await deliver.deliver(path, next, wrote);
+          else wrote(await projects.update((file) => ({ ...file, projects: { ...file.projects, [path]: next } })));
           changed();
           return detail(path);
         },

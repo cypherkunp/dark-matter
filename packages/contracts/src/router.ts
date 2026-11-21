@@ -4,6 +4,7 @@ import { isTaggedError } from "./errors";
 import {
   ActivityList,
   ActivityQuery,
+  AddProjectSkills,
   AdoptInput,
   AdoptPlan,
   AgentCard,
@@ -22,6 +23,9 @@ import {
   PreferencesPatch,
   ProjectDetail,
   ProjectPath,
+  ProjectSkill,
+  ProjectSkillRef,
+  ProjectSkills,
   ProjectSummary,
   RenameNamespaceInput,
   RenameNamespacePlan,
@@ -30,6 +34,7 @@ import {
   SchedulerStatus,
   SettingsFile,
   SkillDetail,
+  SkillProjectUse,
   SuggestedProjects,
 } from "./schemas";
 
@@ -120,6 +125,18 @@ export interface CoreServices {
     locate(input: { path: string; newPath: string }, client: ClientKind): Promise<ProjectDetail>;
     /** Forgets a Project. Nothing on disk changes. */
     remove(path: string, client: ClientKind): Promise<void>;
+    /** Its Project Skills, with their delivery status. */
+    skills(path: string): Promise<ProjectSkill[]>;
+    /** Every Project using a Library Skill (the Skill page's Projects tab). */
+    forSkill(key: string): Promise<SkillProjectUse[]>;
+    /** Adds Library Skills to Projects (Link by default) and delivers them On. Re-adding one turns it On. */
+    addSkills(input: AddProjectSkills, client: ClientKind): Promise<ProjectSkills[]>;
+    /** On re-delivers a Project Skill; Off removes its delivery but keeps it in `projects.json`. */
+    setSkillOn(input: ProjectSkillRef & { on: boolean }, client: ClientKind): Promise<ProjectSkills>;
+    /** Removes a Project Skill: its delivery goes and the Project forgets it. */
+    removeSkill(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    /** Resolves a Name Conflict: `key` wins and the other same-name Project Skills are removed. */
+    resolveConflict(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
   };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
@@ -219,6 +236,30 @@ export const createAppRouter = (services: CoreServices) =>
       remove: t.procedure
         .input(ProjectPath)
         .mutation(({ input, ctx }) => services.project.remove(input.path, ctx.client)),
+      skills: t.procedure
+        .input(ProjectPath)
+        .output(ProjectSkill.array())
+        .query(({ input }) => services.project.skills(input.path)),
+      forSkill: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .output(SkillProjectUse.array())
+        .query(({ input }) => services.project.forSkill(input.key)),
+      addSkills: t.procedure
+        .input(AddProjectSkills)
+        .output(ProjectSkills.array())
+        .mutation(({ input, ctx }) => services.project.addSkills(input, ctx.client)),
+      setSkillOn: t.procedure
+        .input(ProjectSkillRef.extend({ on: z.boolean() }))
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.setSkillOn(input, ctx.client)),
+      removeSkill: t.procedure
+        .input(ProjectSkillRef)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.removeSkill(input, ctx.client)),
+      resolveConflict: t.procedure
+        .input(ProjectSkillRef)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.resolveConflict(input, ctx.client)),
     }),
     skill: t.router({
       get: t.procedure
