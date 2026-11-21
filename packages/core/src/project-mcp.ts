@@ -46,7 +46,7 @@ import { WriteQueue } from "./write-queue";
 export interface ProjectMcpOptions {
   /** Where the Agents keep their files (review #15); `{ home }` when left out. */
   env?: AgentPathEnv;
-  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
   writes?: WriteQueue;
   home: string;
   mcp: McpLibrary;

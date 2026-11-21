@@ -190,7 +190,7 @@ const stepKey = (step: PlanStep) => toSortedJson(step);
 export interface McpAdoptOptions {
   /** Where the Agents keep their files (review #15); `{ home }` when left out. */
   env?: AgentPathEnv;
-  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
   writes?: WriteQueue;
   home: string;
   libraryHome: string;

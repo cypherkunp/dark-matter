@@ -40,7 +40,7 @@ import type { Trash } from "./trash";
 import { WriteQueue } from "./write-queue";
 
 export interface UpdatesOptions {
-  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
   writes?: WriteQueue;
   home: string;
   library: Library;

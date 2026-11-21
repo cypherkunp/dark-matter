@@ -252,6 +252,7 @@ export const createServices = async ({
     activity,
     bus,
     importer: () => lockImporter,
+    redeliver: (path, next, wrote) => deliverProject.deliver(path, next, wrote),
   });
   keyRenameHooks.push(projectSkills.keyRenameHook());
   const projectMcp = new ProjectMcpService({

@@ -93,7 +93,7 @@ export interface FetchedSource {
 }
 
 export interface ImporterOptions {
-  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
   writes?: WriteQueue;
   home: string;
   libraryHome: string;

@@ -33,7 +33,7 @@ export interface KeyRenameHook {
 }
 
 export interface NamespaceRenameOptions {
-  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
   writes?: WriteQueue;
   home: string;
   library: Library;

@@ -150,6 +150,11 @@ describe("untracked Project Skills", () => {
 
     expect(await linkAt(join(app, ".claude/skills/pdf"))).toBe(join(libraryHome, "skills/local/pdf"));
     expect((await trpc.project.get.query({ path: app })).agents).toEqual(["claude-code", "codex"]);
+
+    // Undo Adopt puts the Project's Agents back as they were (review #17).
+    await trpc.adopt.undo.mutate({ key: "local/pdf" });
+    expect((await trpc.project.get.query({ path: app })).agents).toEqual(["codex"]);
+    expect(await readFile(join(app, ".claude/skills/pdf/SKILL.md"), "utf8")).toContain("pdf");
   });
 
   test("an untracked Skill identical to a Library Skill merges into it; a symlink out of the Project becomes a Local Source", async () => {

@@ -5,6 +5,7 @@ import {
   type AdoptOutcome,
   type AdoptPlan,
   type AdoptPlanSkill,
+  type AgentId,
   type ClientKind,
   FindingNotFound,
   type GlobalSkill,
@@ -64,11 +65,15 @@ export interface KeepLink {
 /** Adopt & keep Link (#29): Project delivery puts Links back for Adopted untracked Skills. */
 export interface KeepLinks {
   /** The steps and warnings shown in the dry run. Throws `NameConflict` when a Link can't go back. */
-  plan(links: readonly KeepLink[]): Promise<{ steps: PlanStep[]; warnings: string[] }>;
+  plan(
+    links: readonly KeepLink[],
+  ): Promise<{ steps: PlanStep[]; warnings: string[]; addedAgents: { project: string; agent: AgentId }[] }>;
   /** Adds each as a Project Skill (Link, On) and delivers it, after the Adopt's own steps. */
   apply(links: readonly KeepLink[], wrote: Wrote): Promise<void>;
   /** Undo Adopt: the Project forgets the Project Skill and its Links go, before the folder moves back. */
   release(project: string, key: string, wrote: Wrote): Promise<void>;
+  /** Undo Adopt: takes Agents the Adopt added back out of a Project, re-delivering it. */
+  removeAgents(project: string, agents: readonly AgentId[], wrote: Wrote): Promise<void>;
 }
 
 /** A Global Skill or an untracked Project Skill (with its Project), as Adopt plans it. */
@@ -88,7 +93,7 @@ interface Planned {
 }
 
 export interface AdoptOptions {
-  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
   writes?: WriteQueue;
   home: string;
   library: Library;
@@ -201,6 +206,21 @@ export class Adopt {
           for (const project of entry.keptLinks ?? [])
             await this.#options.keepLinks?.release(library.absolute(project), key, wrote);
           await this.#options.release?.(key, wrote);
+          // Agents this Adopt added go, unless another Adopted Skill still needs them there.
+          const others = Object.entries(library.lock.value.skills).filter(([other]) => other !== key);
+          for (const project of new Set((entry.keptAgents ?? []).map((kept) => kept.project))) {
+            const agents = (entry.keptAgents ?? [])
+              .filter((kept) => kept.project === project)
+              .map((kept) => kept.agent as AgentId)
+              .filter(
+                (agent) =>
+                  !others.some(([, other]) =>
+                    (other.keptAgents ?? []).some((kept) => kept.project === project && kept.agent === agent),
+                  ),
+              );
+            if (agents.length > 0)
+              await this.#options.keepLinks?.removeAgents(library.absolute(project), agents, wrote);
+          }
           const rel = (path: string) => homeRelative(this.#options.home, path);
           const folder = rel(library.folder(key));
           const steps: PlanStep[] = [];
@@ -415,7 +435,20 @@ export class Adopt {
     const kept =
       keep.length > 0 && this.#options.keepLinks
         ? await this.#options.keepLinks.plan(keep)
-        : { steps: [] as PlanStep[], warnings: [] as string[] };
+        : { steps: [] as PlanStep[], warnings: [] as string[], addedAgents: [] };
+    // Undo Adopt takes the Agents it added back out of the Project (review #17).
+    for (const link of keep) {
+      const added = kept.addedAgents.filter((agent) => agent.project === link.project);
+      const entry = entries[link.key];
+      if (entry && added.length > 0)
+        entries[link.key] = {
+          ...entry,
+          keptAgents: [
+            ...(entry.keptAgents ?? []),
+            ...added.map(({ agent }) => ({ project: rel(link.project), agent })),
+          ],
+        };
+    }
     const globalKeys = new Set(skills.filter((_, at) => findings[at]?.project === null).map((skill) => skill.key));
     const body = {
       findings: findings.map((finding) => finding.id),

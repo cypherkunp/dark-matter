@@ -47,7 +47,7 @@ import { computeSkillFolderHash, readSkillFiles } from "./skill-hash";
 import { WriteQueue } from "./write-queue";
 
 export interface ProjectSkillOptions {
-  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
   writes?: WriteQueue;
   home: string;
   libraryHome: string;
@@ -57,6 +57,8 @@ export interface ProjectSkillOptions {
   bus: EventBus;
   /** Imports a `skills-lock.json` entry missing from the Library (#30 sets it); null shows NotInLibrary. */
   importer?: () => LockImporter | null;
+  /** Delivers a changed record (e.g. its Agents) for Skills and MCP Servers; Skills only when left out. */
+  redeliver?: (path: string, next: ProjectRecord, wrote: Wrote) => Promise<void>;
 }
 
 /** The `project` procedures for Project Skills. */
@@ -536,9 +538,11 @@ export class ProjectSkillService {
       plan: async (links) => {
         const steps: PlanStep[] = [];
         const warnings: string[] = [];
+        const addedAgents: { project: string; agent: AgentId }[] = [];
         for (const [path, own] of byProject(links)) {
           const { record, added } = next(path, own);
           for (const adapter of added) {
+            addedAgents.push({ project: path, agent: adapter.id });
             warnings.push(
               `Adds ${adapter.name} to ${basename(path)}'s Agents, so ${adapter.skills.deliveryFolder} keeps its Skills.`,
             );
@@ -566,7 +570,7 @@ export class ProjectSkillService {
             change: `add ${[...new Set(links.map((link) => link.key))].sort().join(", ")} as Links, On`,
           });
         }
-        return { steps, warnings };
+        return { steps, warnings, addedAgents };
       },
       apply: async (links, wrote) => {
         try {
@@ -581,6 +585,20 @@ export class ProjectSkillService {
         const { [key]: _gone, ...skills } = record.skills;
         try {
           await this.deliver(path, { ...record, skills }, wrote, [key]);
+        } finally {
+          this.#changed();
+        }
+      },
+      removeAgents: async (path, agents, wrote) => {
+        const record = projects.value.projects[path];
+        if (!record) return;
+        const kept = record.agents.filter((agent) => !agents.includes(agent));
+        // A Project always has an Agent; one the user removed since is already gone.
+        if (kept.length === 0 || kept.length === record.agents.length) return;
+        try {
+          const next = { ...record, agents: kept };
+          if (this.options.redeliver) await this.options.redeliver(path, next, wrote);
+          else await this.deliver(path, next, wrote);
         } finally {
           this.#changed();
         }
