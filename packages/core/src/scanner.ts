@@ -4,6 +4,7 @@ import type {
   AgentScan,
   GlobalMcpServer,
   GlobalSkill,
+  ManagedMcpServer,
   ManagedSkill,
   ProjectScan,
   ProjectSkillEntry,
@@ -92,6 +93,7 @@ export const scan = async (
   globalSkills.sort((a, b) => a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name));
   const managedSkills = await findManagedSkills(env, adapters);
   const mcp = await findGlobalMcpServers(env, adapters);
+  const managedMcpServers = await findManagedMcpServers(env, adapters);
 
   const agents: AgentScan[] = await Promise.all(
     adapters.map(async (adapter) => {
@@ -108,6 +110,7 @@ export const scan = async (
         managedSkillCount: managedSkills.filter((skill) => skill.agent === adapter.id).length,
         mcpConfig: mcp.files.get(adapter.id) ?? null,
         globalMcpServerCount: mcp.servers.filter((server) => server.agent === adapter.id).length,
+        managedMcpServerCount: managedMcpServers.filter((server) => server.agent === adapter.id).length,
       };
     }),
   );
@@ -118,6 +121,7 @@ export const scan = async (
     globalSkills,
     managedSkills,
     globalMcpServers: mcp.servers,
+    managedMcpServers,
     suggestedProjects: await suggestProjects(env, adapters, options.exclude),
     projects: await Promise.all((options.projects ?? []).map((path) => scanProject(path, adapters))),
   };
@@ -218,6 +222,46 @@ const findGlobalMcpServers = async (env: AgentPathEnv, adapters: readonly AgentA
   }
   servers.sort((a, b) => a.name.localeCompare(b.name));
   return { files, servers };
+};
+
+/**
+ * Every Agent's Agent-managed MCP Servers (#40), with whether the Agent's own
+ * settings already turn each off. Inline secrets are masked. Only reads.
+ */
+const findManagedMcpServers = async (
+  env: AgentPathEnv,
+  adapters: readonly AgentAdapter[],
+): Promise<ManagedMcpServer[]> => {
+  const rel = (path: string) => homeRelative(env.home, path);
+  const found: ManagedMcpServer[] = [];
+  for (const adapter of adapters) {
+    const managed = adapter.managedMcp;
+    if (!managed) continue;
+    const { off } = managed;
+    const configFile = off ? off.file(env) : null;
+    const config = configFile ? ((await readConfigText(configFile).catch(() => null)) ?? "") : "";
+    for (const server of await managed.servers(env)) {
+      const scopes = off ? off.scopes(server) : [];
+      found.push({
+        id: `managed-mcp:${adapter.id}:${server.name}`,
+        agent: adapter.id,
+        name: server.name,
+        kind: server.kind,
+        plugin: server.plugin,
+        source: server.source ? rel(server.source) : null,
+        definition: server.definition ? maskSecrets(server.name, server.definition).definition : null,
+        off:
+          server.offByDefault === true ||
+          (off !== null && scopes.length > 0 && isOffOrUnknown(() => off.isOff(config, server))),
+        offSwitches:
+          off && configFile
+            ? scopes.map((scope) => ({ scope, file: rel(configFile), setting: off.setting(server, scope) }))
+            : [],
+        readOnly: scopes.length > 0 ? null : managed.readOnly(server),
+      });
+    }
+  }
+  return found.sort((a, b) => a.agent.localeCompare(b.agent) || a.name.localeCompare(b.name));
 };
 
 /** A config that doesn't parse can't say a Skill is off; turning it off will report the problem. */

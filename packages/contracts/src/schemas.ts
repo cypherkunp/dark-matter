@@ -277,6 +277,8 @@ export const AgentScan = z.object({
   mcpConfig: z.string().nullable().default(null),
   /** Global MCP Servers declared in that file. */
   globalMcpServerCount: z.int().nonnegative().default(0),
+  /** Agent-managed MCP Servers it loads (#40). */
+  managedMcpServerCount: z.int().nonnegative().default(0),
 });
 export type AgentScan = z.infer<typeof AgentScan>;
 
@@ -433,6 +435,58 @@ export const GlobalMcpServer = z.object({
 });
 export type GlobalMcpServer = z.infer<typeof GlobalMcpServer>;
 
+/**
+ * How "Turn off everywhere" reaches an Agent-managed MCP Server (#40): `server`
+ * turns off just this one, `plugin` the plugin it comes with, `connectors`
+ * every claude.ai connector.
+ */
+export const McpOffScope = z.enum(["server", "plugin", "connectors"]);
+export type McpOffScope = z.infer<typeof McpOffScope>;
+
+export const McpOffSwitch = z.object({
+  scope: McpOffScope,
+  /** The config file it writes, home-relative. */
+  file: z.string(),
+  /** The setting it writes, as the user would read it in that file. */
+  setting: z.string(),
+});
+export type McpOffSwitch = z.infer<typeof McpOffSwitch>;
+
+/**
+ * An MCP Server an Agent adds and controls itself (#40): a plugin's, a claude.ai
+ * connector, a built-in, a marketplace or team server, or one from a system,
+ * cloud or MDM config layer. Listed read-only; Dark Matter only ever turns one
+ * off through the Agent's own documented global setting.
+ */
+export const ManagedMcpServer = z.object({
+  /** Stable across Scans: `managed-mcp:<agent>:<name>`. */
+  id: z.string(),
+  agent: AgentId,
+  /** The name the Agent shows, e.g. `plugin:figma:figma`. */
+  name: z.string(),
+  kind: z.enum(["plugin", "connector", "builtin", "marketplace", "team", "system", "managed"]),
+  /** The plugin it comes with, as the Agent names it. */
+  plugin: z.string().nullable(),
+  /** The file that declares it (home-relative when under `$HOME`); null when it isn't in a file. */
+  source: z.string().nullable(),
+  /** Its definition with inline secrets masked; null when the Agent doesn't keep one on disk. */
+  definition: McpDefinition.nullable(),
+  /** Already off: turned off in the Agent's settings, or off until you opt in. */
+  off: z.boolean(),
+  /** Ways to turn it off everywhere, the narrowest first. Empty when it's read-only. */
+  offSwitches: z.array(McpOffSwitch),
+  /** Why it's read-only (and how to turn it off in the Agent), when there's no off switch. */
+  readOnly: z.string().nullable(),
+});
+export type ManagedMcpServer = z.infer<typeof ManagedMcpServer>;
+
+/** One Agent's Agent-managed MCP Servers, for the Inbox. */
+export const InboxManagedMcpGroup = z.object({
+  agent: AgentId,
+  findings: z.array(ManagedMcpServer),
+});
+export type InboxManagedMcpGroup = z.infer<typeof InboxManagedMcpGroup>;
+
 /** Global MCP Servers in one Agent config file, for the Inbox. */
 export const InboxMcpGroup = z.object({
   agent: AgentId,
@@ -452,6 +506,7 @@ export const ScanResult = z.object({
   projects: z.array(ProjectScan).default([]),
   managedSkills: z.array(ManagedSkill).default([]),
   globalMcpServers: z.array(GlobalMcpServer).default([]),
+  managedMcpServers: z.array(ManagedMcpServer).default([]),
 });
 export type ScanResult = z.infer<typeof ScanResult>;
 
@@ -490,6 +545,8 @@ export const Inbox = z.object({
   suggestedProjects: z.int().nonnegative(),
   /** Global MCP Servers, by Agent config file. */
   mcpServers: z.array(InboxMcpGroup).default([]),
+  /** Agent-managed MCP Servers that are still on, by Agent. */
+  managedMcpServers: z.array(InboxManagedMcpGroup).default([]),
 });
 export type Inbox = z.infer<typeof Inbox>;
 
@@ -509,6 +566,10 @@ export const AgentCard = z.object({
   mcpConfig: z.string().nullable().default(null),
   /** Null until the first Scan, or when the Agent has no MCP surface. */
   globalMcpServerCount: z.int().nonnegative().nullable().default(null),
+  /** Agent-managed MCP Servers; null until the first Scan, or when the Agent has no MCP surface. */
+  managedMcpServerCount: z.int().nonnegative().nullable().default(null),
+  /** Agent-managed MCP Servers Dark Matter can't list from disk, and why (e.g. Cursor team servers). */
+  managedMcpNotes: z.array(z.string()).default([]),
 });
 export type AgentCard = z.infer<typeof AgentCard>;
 
