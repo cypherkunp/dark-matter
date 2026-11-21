@@ -6,6 +6,7 @@ const actionLabels: Record<string, string> = {
   "ownedFiles.discard": "Discarded a hand edit",
   "scan.run": "Scanned",
   "inbox.ignore": "Ignored a finding",
+  "inbox.unignore": "Restored an ignored finding",
   "drift.restore": "Restored drifted files",
   "drift.accept": "Accepted drift on disk",
   "project.add": "Added a Project",
