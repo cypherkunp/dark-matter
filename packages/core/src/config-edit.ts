@@ -1,4 +1,5 @@
-import { readFile, realpath, stat } from "node:fs/promises";
+import { mkdir, readFile, realpath, stat } from "node:fs/promises";
+import { dirname } from "node:path";
 import { InvalidAgentConfig } from "@dark-matter/contracts";
 import { parse as parseToml, patch as patchToml } from "@decimalturn/toml-patch";
 import {
@@ -22,26 +23,44 @@ import { toSortedJson } from "./sorted-json";
  * names: comments, ordering, indentation and unknown keys survive.
  */
 
+/** How often an edit is re-applied when the Agent rewrites the file under it. */
+const EDIT_ATTEMPTS = 5;
+
 /**
  * Re-reads `path` (following symlinks to the real file), applies `edit` to its
  * text ("" when missing) and writes the result atomically, keeping the file's
  * mode. Returns the path written, or null when nothing changed.
+ *
+ * Agents rewrite some of these files while they run (Claude Code rewrites
+ * `~/.claude.json` many times a session, by read-modify-write). So just before
+ * the rename the file is read again: if it changed since the edit read it, the
+ * edit is re-applied to the new text (up to 5 times, then `InvalidAgentConfig`).
+ * A write by the Agent between that last read and the rename can still be
+ * lost; the window is one read plus one rename, not a whole edit.
  */
 export const editConfigFile = async (path: string, edit: (text: string) => string): Promise<string | null> => {
   const target = await realpath(path).catch(() => path);
-  const [text, mode] = await Promise.all([
-    readFile(target, "utf8").catch(missingAs("")),
-    stat(target).then((info) => info.mode & 0o777, missingAs(0o644)),
-  ]);
-  let next: string;
-  try {
-    next = edit(text);
-  } catch (error) {
-    throw error instanceof InvalidAgentConfig ? new InvalidAgentConfig(path, error.problem) : error;
+  const readText = () => readFile(target, "utf8").catch(missingAs(""));
+  const mode = await stat(target).then((info) => info.mode & 0o777, missingAs(0o644));
+  let text = await readText();
+  for (let attempt = 0; attempt < EDIT_ATTEMPTS; attempt++) {
+    let next: string;
+    try {
+      next = edit(text);
+    } catch (error) {
+      throw error instanceof InvalidAgentConfig ? new InvalidAgentConfig(path, error.problem) : error;
+    }
+    if (next === text) return null;
+    const now = await readText();
+    if (now !== text) {
+      text = now;
+      continue;
+    }
+    await mkdir(dirname(target), { recursive: true });
+    await writeFileAtomic(target, next, mode);
+    return target;
   }
-  if (next === text) return null;
-  await writeFileAtomic(target, next, mode);
-  return target;
+  throw new InvalidAgentConfig(path, "it kept changing while Dark Matter was editing it; try again");
 };
 
 /** Reads a config file's text, or null when it doesn't exist. */
@@ -87,6 +106,25 @@ export const jsonc = {
     const sliced = removeProperty(text, at);
     if (sliced !== null && toSortedJson(jsonc.read(sliced)) === toSortedJson(expected)) return sliced;
     return applyEdits(text, modify(text, at, undefined, { formattingOptions: formattingOf(text) }));
+  },
+  /**
+   * Sets the property at `at` by splicing text: a new property goes after its
+   * last sibling (or into an empty object) in the file's own indentation, an
+   * existing one has only its value replaced. Unlike `set`, siblings are never
+   * reformatted. Missing parents are created as one nested property. The
+   * result is checked by parsing; an unusual layout falls back to `set`.
+   */
+  put(text: string, at: string[], value: unknown): string {
+    const expected = structuredClone(jsonc.read(text)) as Record<string, unknown>;
+    let parent: Record<string, unknown> = expected;
+    for (const key of at.slice(0, -1)) {
+      if (!isRecord(parent[key])) parent[key] = {};
+      parent = parent[key] as Record<string, unknown>;
+    }
+    parent[String(at.at(-1))] = value;
+    const spliced = text.trim() === "" ? null : putProperty(text, at, value);
+    if (spliced !== null && toSortedJson(jsonc.read(spliced)) === toSortedJson(expected)) return spliced;
+    return jsonc.set(text, at, value);
   },
   /** Appends `value` to the array at `at`, creating it as needed. Refuses text that doesn't parse. */
   append(text: string, at: JSONPath, value: unknown): string {
@@ -148,7 +186,64 @@ const removeProperty = (text: string, at: JSONPath): string | null => {
     return null;
   }
   const cut = text.slice(0, start) + text.slice(end);
+  if (siblings.length === 1) {
+    // The only property: an object left with nothing but whitespace closes up to `{}`, as it was before.
+    const open = property.parent.offset;
+    const close = open + property.parent.length - (end - start) - 1;
+    if (cut[open] === "{" && cut[close] === "}" && cut.slice(open + 1, close).trim() === "")
+      return `${cut.slice(0, open)}{}${cut.slice(close + 1)}`;
+  }
   return cutBefore ? cut.slice(0, cutBefore[0]) + cut.slice(cutBefore[1]) : cut;
+};
+
+/** The leading whitespace of the line `offset` is on. */
+const lineIndent = (text: string, offset: number) => {
+  const start = text.lastIndexOf("\n", offset - 1) + 1;
+  return /^[ \t]*/.exec(text.slice(start))?.[0] ?? "";
+};
+
+/** `text` with the property at `at` spliced in (or its value replaced), or null for a layout it can't place. */
+const putProperty = (text: string, at: readonly string[], value: unknown): string | null => {
+  const tree = parseTree(text, [], { allowTrailingComma: true });
+  if (!tree) return null;
+  const { insertSpaces, tabSize, eol = "\n" } = formattingOf(text);
+  const unit = insertSpaces ? " ".repeat(tabSize ?? 2) : "\t";
+  const render = (inner: unknown, indent: string) =>
+    JSON.stringify(inner, null, unit)
+      .split("\n")
+      .join(eol + indent);
+
+  const existing = findNodeAtLocation(tree, [...at]);
+  if (existing) {
+    const indent = lineIndent(text, existing.parent?.offset ?? existing.offset);
+    return text.slice(0, existing.offset) + render(value, indent) + text.slice(existing.offset + existing.length);
+  }
+  // The deepest object that exists; the rest of the path becomes one nested property in it.
+  let depth = at.length - 1;
+  while (depth > 0 && findNodeAtLocation(tree, at.slice(0, depth))?.type !== "object") depth--;
+  const object = depth === 0 ? tree : findNodeAtLocation(tree, at.slice(0, depth));
+  if (object?.type !== "object") return null;
+  const nested = at.slice(depth + 1).reduceRight<unknown>((inner, key) => ({ [key]: inner }), value);
+  const children = object.children ?? [];
+  const last = children.at(-1);
+  if (!last) {
+    const outer = lineIndent(text, object.offset);
+    const inner = outer + unit;
+    const body = `${eol}${inner}${JSON.stringify(at[depth])}: ${render(nested, inner)}${eol}${outer}`;
+    return `${text.slice(0, object.offset)}{${body}}${text.slice(object.offset + object.length)}`;
+  }
+  const indent = lineIndent(text, last.offset);
+  const property = `${JSON.stringify(at[depth])}: ${render(nested, indent)}`;
+  const end = last.offset + last.length;
+  let after = skipInline(text, end);
+  if (text[after] === ",") {
+    // A trailing comma (JSONC): the new property goes after it, with one of its own.
+    after = skipInline(text, after + 1);
+    if (text.startsWith("//", after))
+      after = text.indexOf("\n", after) === -1 ? text.length : text.indexOf("\n", after);
+    return `${text.slice(0, after)}${eol}${indent}${property},${text.slice(after)}`;
+  }
+  return `${text.slice(0, end)},${eol}${indent}${property}${text.slice(end)}`;
 };
 
 /** The file's own indentation and line endings, so new keys look like their neighbours. */
@@ -218,7 +313,9 @@ export const toml = {
       const nextKeys = next === -1 ? null : headerKeys(lines[index + 1 + next] ?? "");
       if (isComment(line) && nextKeys && !startsWith(nextKeys, table)) kept.push(line);
     }
-    const sliced = kept.join("");
+    let sliced = kept.join("");
+    // A table removed from the end takes the blank line that set it apart, as `setTable` added it.
+    if (removing) sliced = sliced.replace(/(\r?\n)(?:[ \t]*\r?\n)+$/, "$1");
     if (matches(sliced, expected)) return sliced;
     // An implicit parent (`mcp_servers` with no header of its own) goes with its last table.
     const pruned = structuredClone(expected);

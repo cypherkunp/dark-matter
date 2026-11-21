@@ -2,6 +2,7 @@ import type { LibraryMcpServer } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { KeyRound, Server } from "lucide-react";
+import { useState } from "react";
 import { definitionSummary } from "@/components/inbox-mcp";
 import { byAgent, ManagedMcpGroups } from "@/components/managed-mcp";
 import { PageHead } from "@/components/page-head";
@@ -12,6 +13,60 @@ import { useTRPC } from "@/lib/trpc";
 export const Route = createFileRoute("/computer/mcp-servers")({ component: McpServers });
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+/**
+ * One Secret: enter it when it's missing, or rotate it. The value goes straight
+ * to the keychain, and Personal deliveries that use it are rewritten.
+ */
+function SecretField({ name, missing }: { name: string; missing: boolean }) {
+  const trpc = useTRPC();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const save = useMutation(
+    trpc.mcp.setSecret.mutationOptions({
+      onSuccess: () => {
+        setEditing(false);
+        setValue("");
+      },
+    }),
+  );
+  return (
+    <div data-testid="mcp-secret" className="flex items-center gap-2 text-muted-foreground text-xs">
+      <KeyRound className="size-3" />
+      <span className="font-mono">{name}</span>
+      {missing && <span className="text-status-warning">not in the keychain</span>}
+      {editing ? (
+        <form
+          className="flex items-center gap-1.5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (value) save.mutate({ name, value });
+          }}
+        >
+          <input
+            type="password"
+            aria-label={`Value of ${name}`}
+            autoComplete="off"
+            className="h-6 w-48 rounded-md border bg-background px-2 font-mono text-foreground text-xs"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+          />
+          <Button size="sm" type="submit" disabled={!value || save.isPending}>
+            Save
+          </Button>
+          <Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </form>
+      ) : (
+        <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+          {missing ? "Enter" : "Rotate"}
+        </Button>
+      )}
+      {save.error && <span className="text-status-warning">{save.error.message}</span>}
+    </div>
+  );
+}
 
 function ServerRow({ server }: { server: LibraryMcpServer }) {
   const trpc = useTRPC();
@@ -31,12 +86,9 @@ function ServerRow({ server }: { server: LibraryMcpServer }) {
         <div className="truncate font-mono text-muted-foreground text-xs">
           {server.definition ? definitionSummary(server.definition) : server.file}
         </div>
-        {server.secrets.length > 0 && (
-          <div className="flex items-center gap-1 text-muted-foreground text-xs">
-            <KeyRound className="size-3" />
-            <span className="truncate font-mono">{server.secrets.join(", ")}</span>
-          </div>
-        )}
+        {server.secrets.map((secret) => (
+          <SecretField key={secret} name={secret} missing={server.missingSecrets.includes(secret)} />
+        ))}
         {server.problem && <p className="text-status-warning text-xs">{server.problem}</p>}
         {undo.error && <p className="text-status-warning text-xs">{undo.error.message}</p>}
       </div>

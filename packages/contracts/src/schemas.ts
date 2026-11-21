@@ -483,6 +483,8 @@ export const LibraryMcpServer = z.object({
   definition: McpDefinition.nullable(),
   /** Secret names it refers to. */
   secrets: z.array(z.string()),
+  /** Those of its Secrets that aren't in the keychain yet. */
+  missingSecrets: z.array(z.string()).default([]),
   adoptedFrom: z.array(McpAdoptedFrom.pick({ agent: true, file: true })),
   /** The file, home-relative. */
   file: z.string(),
@@ -843,11 +845,39 @@ export const ProjectSkillRecord = z.strictObject({
 });
 export type ProjectSkillRecord = z.infer<typeof ProjectSkillRecord>;
 
+/** How a Project MCP Server reaches the Project's Agents. #39 adds "shared". */
+export const McpDeliveryMode = z.enum(["personal"]);
+export type McpDeliveryMode = z.infer<typeof McpDeliveryMode>;
+
+/** One entry Dark Matter wrote for a Project MCP Server: how it tells its own entries apart. */
+export const McpDelivered = z.strictObject({
+  agent: AgentId,
+  /** The config file, home-relative. */
+  file: z.string(),
+  /** The entry's key path in that file, e.g. `["mcpServers", "github"]`. */
+  at: z.array(z.string()).min(1),
+});
+export type McpDelivered = z.infer<typeof McpDelivered>;
+
+/**
+ * One Project MCP Server in `projects.json`, keyed by Library name. Off keeps
+ * its mode here with nothing delivered; Agents stay Project-level.
+ */
+export const ProjectMcpServerRecord = z.strictObject({
+  mode: McpDeliveryMode,
+  on: z.boolean(),
+  /** The entries written now; empty when Off. */
+  delivered: z.array(McpDelivered).default([]),
+});
+export type ProjectMcpServerRecord = z.infer<typeof ProjectMcpServerRecord>;
+
 export const ProjectRecord = z.strictObject({
   /** The Agents chosen for this Project; they decide which folders get written. */
   agents: z.array(AgentId).default([]),
   /** Project Skills by Library key (#27). */
   skills: z.record(z.string(), ProjectSkillRecord).default({}),
+  /** Project MCP Servers by Library name (#38). Left out while there are none. */
+  mcpServers: z.record(z.string(), ProjectMcpServerRecord).optional(),
 });
 export type ProjectRecord = z.infer<typeof ProjectRecord>;
 
@@ -1028,3 +1058,52 @@ export type FulfilLockInput = z.infer<typeof FulfilLockInput>;
 /** A Copy's files against its Library Skill, as a unified diff (`a` = Library, `b` = the repo). Empty when they match. */
 export const CopyDiff = z.object({ patch: z.string() });
 export type CopyDiff = z.infer<typeof CopyDiff>;
+
+/**
+ * One Agent's delivery of a Project MCP Server: "delivered" (its entry is
+ * written), "off", or "tracked" (its Project config file is committed, so
+ * Personal isn't offered for that Agent).
+ */
+export const McpDeliveryStatus = z.object({
+  agent: AgentId,
+  /** The config file, home-relative. */
+  file: z.string(),
+  status: z.enum(["delivered", "off", "tracked"]),
+});
+export type McpDeliveryStatus = z.infer<typeof McpDeliveryStatus>;
+
+/** A Project MCP Server as the Project page shows it. */
+export const ProjectMcpServer = z.object({
+  name: z.string(),
+  mode: McpDeliveryMode,
+  on: z.boolean(),
+  /** Secret names its definition refers to. */
+  secrets: z.array(z.string()),
+  /** One per chosen Agent with an MCP surface (never `.agents`). */
+  deliveries: z.array(McpDeliveryStatus),
+});
+export type ProjectMcpServer = z.infer<typeof ProjectMcpServer>;
+
+export const ProjectMcpServers = z.object({ path: z.string(), servers: z.array(ProjectMcpServer) });
+export type ProjectMcpServers = z.infer<typeof ProjectMcpServers>;
+
+/** One Project MCP Server to add; `mode` defaults to Personal. */
+export const AddProjectMcpServer = ProjectPath.extend({ name: McpServerName, mode: McpDeliveryMode.optional() });
+export type AddProjectMcpServer = z.infer<typeof AddProjectMcpServer>;
+
+export const AddProjectMcpServers = z.object({ servers: z.array(AddProjectMcpServer).min(1) });
+export type AddProjectMcpServers = z.infer<typeof AddProjectMcpServers>;
+
+export const ProjectMcpServerRef = ProjectPath.extend({ name: McpServerName });
+export type ProjectMcpServerRef = z.infer<typeof ProjectMcpServerRef>;
+
+/** Where Personal would write for each of a Project's Agents, and whether it's offered (not tracked by git). */
+export const McpTarget = z.object({ agent: AgentId, file: z.string(), personal: z.boolean() });
+export type McpTarget = z.infer<typeof McpTarget>;
+
+/** A Secret's new value (entered or rotated). It goes straight into the keychain. */
+export const SetSecretInput = z.object({ name: z.string().min(1), value: z.string().min(1) });
+export type SetSecretInput = z.infer<typeof SetSecretInput>;
+
+export const UpdateMcpDefinitionInput = z.object({ name: McpServerName, definition: McpDefinition });
+export type UpdateMcpDefinitionInput = z.infer<typeof UpdateMcpDefinitionInput>;
