@@ -260,9 +260,10 @@ describe("Requests from a client other than the app (ADR-0006)", () => {
       reasons: ["copy"],
       summary: "Add local/pdf to app as a Copy",
     });
-    expect(
-      await asks(agent.project.addSkills.mutate({ skills: [{ path, key: "local/pdf", mode: "link" }] })),
-    ).toEqual({ reasons: ["copy"], summary: "Switch local/pdf in app from a Copy to a Link" });
+    expect(await asks(agent.project.addSkills.mutate({ skills: [{ path, key: "local/pdf", mode: "link" }] }))).toEqual({
+      reasons: ["copy"],
+      summary: "Switch local/pdf in app from a Copy to a Link",
+    });
     expect((await app.project.skills.query({ path })).find((skill) => skill.key === "local/pdf")).toMatchObject({
       mode: "copy",
       on: false,

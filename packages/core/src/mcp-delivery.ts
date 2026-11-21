@@ -9,8 +9,8 @@ import {
   type McpDeliveryMode,
   type McpDeliveryStatus,
   McpFileShared,
-  McpSecretInShared,
   McpModifiedInRepo,
+  McpSecretInShared,
   McpServerNotFound,
   NameConflict,
   type ProjectMcpServer,
@@ -119,7 +119,8 @@ export const sharedDefinition = (definition: McpDefinition): McpDefinition => {
 };
 
 /** Flag or query-parameter names that carry credentials. */
-const SECRET_NAME = /(token|secret|passw(or)?d|credential|auth|api[_-]?key|access[_-]?key|private[_-]?key|^key$|^pat$|sig(nature)?$)/i;
+const SECRET_NAME =
+  /(token|secret|passw(or)?d|credential|auth|api[_-]?key|access[_-]?key|private[_-]?key|^key$|^pat$|sig(nature)?$)/i;
 /** Well-known token shapes (GitHub, OpenAI/Stripe, Slack, AWS, Google, GitLab, Linear, npm). */
 const TOKEN_SHAPE =
   /(gh[pousr]_|github_pat_|sk-|sk_(live|test)_|rk_(live|test)_|xox[abprs]-|AKIA|AIza|glpat-|lin_api_|npm_)[A-Za-z0-9_-]{8,}/;
@@ -148,7 +149,8 @@ const secretLiteralIn = (definition: McpDefinition): string | null => {
     ["url", definition.url],
     ["working folder", definition.cwd],
   ];
-  for (const [where, text] of strings) if (text !== undefined && (url(text) || looksLikeKey(literal(text)))) return where;
+  for (const [where, text] of strings)
+    if (text !== undefined && (url(text) || looksLikeKey(literal(text)))) return where;
   const args = definition.args ?? [];
   for (const [index, arg] of args.entries()) {
     const flag = /^--?([A-Za-z0-9_-]+)(=(.*))?$/.exec(arg);
