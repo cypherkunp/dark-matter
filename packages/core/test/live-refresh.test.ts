@@ -339,7 +339,8 @@ describe("live refresh", () => {
         },
       )
       .toEqual(["review"]);
-  });
+    // The poll waits up to 5 s, as long as Vitest's default test timeout.
+  }, 15_000);
 
   test("a burst of changes is debounced into a few events", async () => {
     const { trpc, project, drift } = await setup();
