@@ -1049,6 +1049,7 @@ export const Domain = z.enum([
   "importer",
   "favourites",
   "requests",
+  "trash",
 ]);
 export type Domain = z.infer<typeof Domain>;
 
@@ -1614,3 +1615,15 @@ export const StarredSourcesFile = z.strictObject({
   sources: z.record(z.string(), StarredSourceRecord).default({}),
 });
 export type StarredSourcesFile = z.infer<typeof StarredSourcesFile>;
+
+/** A deleted Library Skill waiting in `trash/` until it's purged (story 44). */
+export const TrashedSkill = z.object({
+  /** The folder name under `trash/`. */
+  id: z.string(),
+  key: z.string(),
+  name: z.string(),
+  deletedAt: z.iso.datetime(),
+  /** When the daily run purges it, from the trash retention setting. */
+  purgeAt: z.iso.datetime(),
+});
+export type TrashedSkill = z.infer<typeof TrashedSkill>;

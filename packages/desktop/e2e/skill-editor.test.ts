@@ -8,7 +8,7 @@ const exists = (path: string) =>
     () => false,
   );
 
-test("edit a Skill file and save with ⌘S, see it Modified, then delete it into trash/", async ({
+test("edit a Skill file and save with ⌘S, see it Modified, delete it into trash/, then Restore it", async ({
   launchApp,
   fixtureHome,
 }) => {
@@ -72,4 +72,10 @@ test("edit a Skill file and save with ⌘S, see it Modified, then delete it into
   await dialog.getByRole("button", { name: "Move to trash" }).click();
   await expect.poll(() => exists(saved)).toBe(false);
   await expect.poll(async () => (await readdir(join(libraryHome, "trash")).catch(() => [])).length).toBe(1);
+
+  // Restore from the Trash view (story 44).
+  await sidebar.getByRole("link", { name: /Trash/ }).click();
+  await window.getByTestId("trashed-skill").getByRole("button", { name: "Restore" }).click();
+  await expect(window.getByTestId("trash-empty")).toBeVisible();
+  await expect.poll(() => readFile(saved, "utf8")).toContain("Edited here.");
 });

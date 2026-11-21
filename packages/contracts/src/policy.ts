@@ -87,6 +87,7 @@ export const operationPolicy = {
   "project.setGrant": appOnly,
   "skill.saveFile": appOnly,
   "skill.delete": appOnly,
+  "trash.restore": appOnly,
   "namespace.rename": appOnly,
   "collections.create": appOnly,
   "collections.rename": appOnly,

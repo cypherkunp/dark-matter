@@ -444,3 +444,11 @@ export class RequestDecided extends TaggedError<"RequestDecided"> {
     super(`Request ${id} is already ${status}`);
   }
 }
+
+/** No restorable deleted Skill has this id in `trash/` (it was purged or restored). */
+export class TrashedSkillNotFound extends TaggedError<"TrashedSkillNotFound"> {
+  readonly _tag = "TrashedSkillNotFound";
+  constructor(readonly id: string) {
+    super(`${id} isn't in the trash any more`);
+  }
+}

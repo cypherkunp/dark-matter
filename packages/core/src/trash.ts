@@ -1,11 +1,14 @@
-import { mkdir, readdir, readFile, rename, rm, rmdir } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rename, rm, rmdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
   type ActivityClient,
-  type LibraryLockEntry,
+  LibraryLockEntry,
+  PathTaken,
   type SkillDeleteImpact,
   type SkillDeletePlan,
   SkillNotFound,
+  type TrashedSkill,
+  TrashedSkillNotFound,
 } from "@dark-matter/contracts";
 import { z } from "zod";
 import type { ActivityLog, Wrote } from "./activity";
@@ -18,7 +21,21 @@ import { WriteQueue } from "./write-queue";
 const DAY = 24 * 60 * 60 * 1000;
 
 /** `trash/<id>/trashed.json`: what was deleted and when, so it can be put back or purged. */
-const Trashed = z.object({ key: z.string(), deletedAt: z.iso.datetime(), entry: z.unknown() });
+const Trashed = z.object({
+  key: z.string(),
+  deletedAt: z.iso.datetime(),
+  entry: z.unknown(),
+  /**
+   * "skill": a deleted Library Skill (restorable); "version": your version set
+   * aside by Take upstream; "drift": what a drift Restore moved out of a Project.
+   * Absent means "skill".
+   */
+  kind: z.enum(["skill", "version", "drift"]).optional(),
+});
+
+/** Records what's in a `trash/` folder so the daily purge removes it after the retention (review #14). */
+export const writeTrashed = (into: string, record: z.infer<typeof Trashed>) =>
+  writeFileAtomic(join(into, "trashed.json"), `${JSON.stringify(record, null, 2)}\n`);
 
 /**
  * The Projects a Library Skill's deletion affects. Project delivery (#27/#28)
@@ -94,14 +111,14 @@ export class Trash {
   }
 
   /** Moves a Skill's folder into `trash/` beside a `trashed.json`; the Library Lock is left alone. */
-  private async moveIn(key: string): Promise<{ into: string; trashed: string }> {
+  private async moveIn(key: string, kind: "skill" | "version" = "skill"): Promise<{ into: string; trashed: string }> {
     const entry = this.entry(key);
     const deletedAt = this.options.clock.now().toISOString();
     const id = `${deletedAt.replaceAll(":", "-")}-${key.replaceAll("/", "__")}`;
     const into = join(this.root, id);
     const trashed = join(into, splitKey(key).name);
     await mkdir(into, { recursive: true });
-    await writeFileAtomic(join(into, "trashed.json"), `${JSON.stringify({ key, deletedAt, entry }, null, 2)}\n`);
+    await writeTrashed(into, { key, deletedAt, entry, ...(kind !== "skill" && { kind }) });
     await rename(this.options.library.folder(key), trashed);
     return { into, trashed };
   }
@@ -112,7 +129,7 @@ export class Trash {
    * Returns where it went.
    */
   async keepVersion(key: string): Promise<string> {
-    return (await this.moveIn(key)).trashed;
+    return (await this.moveIn(key, "version")).trashed;
   }
 
   /** Removes Namespace folders the deletion left empty, up to `skills/`. */
@@ -129,20 +146,99 @@ export class Trash {
     }
   }
 
-  /** Purges trash older than the retention; returns the purged Skills' keys. */
-  async purge(client: ActivityClient): Promise<void> {
-    const cutoff = this.options.clock.now().getTime() - this.options.retentionDays() * DAY;
-    const expired: { dir: string; key: string }[] = [];
-    for (const name of await readdir(this.root).catch(() => [])) {
-      const dir = join(this.root, name);
+  /** What's in `trash/`, read from each folder's `trashed.json`. */
+  async #entries(): Promise<{ id: string; dir: string; trashed: z.infer<typeof Trashed> }[]> {
+    const found: { id: string; dir: string; trashed: z.infer<typeof Trashed> }[] = [];
+    for (const id of await readdir(this.root).catch(() => [])) {
+      const dir = join(this.root, id);
       const trashed = await readFile(join(dir, "trashed.json"), "utf8")
         .then((text) => Trashed.parse(JSON.parse(text)))
         .catch(() => null);
-      if (trashed && Date.parse(trashed.deletedAt) <= cutoff) expired.push({ dir, key: trashed.key });
+      if (trashed) found.push({ id, dir, trashed });
     }
+    return found;
+  }
+
+  /** Deleted Library Skills that can be restored, newest first (story 44). */
+  async list(): Promise<TrashedSkill[]> {
+    const days = this.options.retentionDays();
+    return (await this.#entries())
+      .filter(({ trashed }) => (trashed.kind ?? "skill") === "skill")
+      .map(({ id, trashed }) => ({
+        id,
+        key: trashed.key,
+        name: splitKey(trashed.key).name,
+        deletedAt: trashed.deletedAt,
+        purgeAt: new Date(Date.parse(trashed.deletedAt) + days * DAY).toISOString(),
+      }))
+      .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt) || a.id.localeCompare(b.id));
+  }
+
+  /**
+   * Restore (story 44): the Skill's folder goes back to its Library folder and
+   * its Library Lock entry comes back. Refused (`PathTaken`) while another
+   * Skill holds the key; Projects are re-added by hand, as Delete removed them.
+   */
+  restore(id: string, client: ActivityClient): Promise<void> {
+    const writes = this.options.writes ?? new WriteQueue();
+    return writes.run(async () => {
+      const found = (await this.#entries()).find(
+        (candidate) => candidate.id === id && (candidate.trashed.kind ?? "skill") === "skill",
+      );
+      if (!found) throw new TrashedSkillNotFound(id);
+      const { key, entry } = found.trashed;
+      const { library, activity } = this.options;
+      await activity.track(
+        { client, action: "trash.restore", subjects: [{ kind: "skill", id: key }] },
+        async (wrote) => {
+          const folder = library.folder(key);
+          if (
+            library.lock.value.skills[key] ||
+            (await lstat(folder).then(
+              () => true,
+              () => false,
+            ))
+          )
+            throw new PathTaken(folder);
+          await mkdir(dirname(folder), { recursive: true });
+          await rename(join(found.dir, splitKey(key).name), folder);
+          try {
+            wrote(
+              await library.lock.update((current) => ({
+                ...current,
+                skills: { ...current.skills, [key]: LibraryLockEntry.parse(entry) },
+              })),
+            );
+          } catch (error) {
+            await rename(folder, join(found.dir, splitKey(key).name));
+            throw error;
+          }
+          wrote(folder);
+          await rm(found.dir, { recursive: true, force: true });
+          this.options.onChange();
+        },
+      );
+    });
+  }
+
+  /** Purges trash older than the retention; returns the purged Skills' keys. */
+  async purge(client: ActivityClient): Promise<void> {
+    const cutoff = this.options.clock.now().getTime() - this.options.retentionDays() * DAY;
+    const expired = (await this.#entries())
+      .filter(({ trashed }) => Date.parse(trashed.deletedAt) <= cutoff)
+      .map(({ dir, trashed }) => ({ dir, key: trashed.key }));
     if (expired.length === 0) return;
     await this.options.activity.track(
-      { client, action: "trash.purge", subjects: expired.map(({ key }) => ({ kind: "skill", id: key })) },
+      {
+        client,
+        action: "trash.purge",
+        // Drift leftovers aren't Skills: their key names the Project.
+        subjects: expired.map(({ key }) =>
+          key.startsWith("drift:")
+            ? { kind: "project" as const, id: key.slice("drift:".length) }
+            : { kind: "skill" as const, id: key },
+        ),
+      },
       async () => {
         for (const { dir } of expired) await rm(dir, { recursive: true, force: true });
       },

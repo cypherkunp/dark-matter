@@ -96,6 +96,7 @@ import {
   SkillProjectUse,
   SuggestedProjectSkills,
   SuggestedProjects,
+  TrashedSkill,
   UndoAdoptPlan,
   UpdateMcpDefinitionInput,
   UpdateProjectMcpServer,
@@ -247,6 +248,12 @@ export interface CoreServices {
     deletePlan(key: string): Promise<SkillDeletePlan>;
     /** Moves the Skill into `trash/` (purged after the configured days) and drops it from the Library Lock. */
     delete(key: string, client: ClientKind): Promise<void>;
+  };
+  trash: {
+    /** Deleted Library Skills waiting in `trash/`, newest first. */
+    list(): Promise<TrashedSkill[]>;
+    /** Puts a deleted Skill's folder and Library Lock entry back (story 44). */
+    restore(input: { id: string }, client: ClientKind): Promise<void>;
   };
   namespace: {
     /** Rename Namespace's dry run. Writes nothing. */
@@ -632,6 +639,12 @@ export const createAppRouter = (services: CoreServices) => {
         .input(ProjectPath.extend({ grant: z.boolean() }))
         .output(ProjectDetail)
         .mutation(({ input, ctx }) => services.project.setGrant(input, ctx.client)),
+    }),
+    trash: t.router({
+      list: t.procedure.output(TrashedSkill.array()).query(() => services.trash.list()),
+      restore: t.procedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.trash.restore(input, ctx.client)),
     }),
     skill: t.router({
       get: t.procedure

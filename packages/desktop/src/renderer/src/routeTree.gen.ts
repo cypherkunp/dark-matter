@@ -26,6 +26,7 @@ import { Route as GetGithubRouteImport } from './routes/get/github'
 import { Route as GetSkillsShRouteImport } from './routes/get/skills-sh'
 import { Route as LibraryCollectionsRouteImport } from './routes/library_.collections'
 import { Route as LibraryFavouritesRouteImport } from './routes/library_.favourites'
+import { Route as LibraryTrashRouteImport } from './routes/library_.trash'
 import { Route as LibraryUpdatesRouteImport } from './routes/library_.updates'
 import { Route as ProjectsSuggestedRouteImport } from './routes/projects/suggested'
 
@@ -114,6 +115,11 @@ const LibraryFavouritesRoute = LibraryFavouritesRouteImport.update({
   path: '/library/favourites',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LibraryTrashRoute = LibraryTrashRouteImport.update({
+  id: '/library_/trash',
+  path: '/library/trash',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LibraryUpdatesRoute = LibraryUpdatesRouteImport.update({
   id: '/library_/updates',
   path: '/library/updates',
@@ -143,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/get/skills-sh': typeof GetSkillsShRoute
   '/library/collections': typeof LibraryCollectionsRoute
   '/library/favourites': typeof LibraryFavouritesRoute
+  '/library/trash': typeof LibraryTrashRoute
   '/library/updates': typeof LibraryUpdatesRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/get/skills-sh': typeof GetSkillsShRoute
   '/library/collections': typeof LibraryCollectionsRoute
   '/library/favourites': typeof LibraryFavouritesRoute
+  '/library/trash': typeof LibraryTrashRoute
   '/library/updates': typeof LibraryUpdatesRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/get/skills-sh': typeof GetSkillsShRoute
   '/library_/collections': typeof LibraryCollectionsRoute
   '/library_/favourites': typeof LibraryFavouritesRoute
+  '/library_/trash': typeof LibraryTrashRoute
   '/library_/updates': typeof LibraryUpdatesRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/get/skills-sh'
     | '/library/collections'
     | '/library/favourites'
+    | '/library/trash'
     | '/library/updates'
     | '/projects/suggested'
   fileRoutesByTo: FileRoutesByTo
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/get/skills-sh'
     | '/library/collections'
     | '/library/favourites'
+    | '/library/trash'
     | '/library/updates'
     | '/projects/suggested'
   id:
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/get/skills-sh'
     | '/library_/collections'
     | '/library_/favourites'
+    | '/library_/trash'
     | '/library_/updates'
     | '/projects/suggested'
   fileRoutesById: FileRoutesById
@@ -273,6 +285,7 @@ export interface RootRouteChildren {
   GetSkillsShRoute: typeof GetSkillsShRoute
   LibraryCollectionsRoute: typeof LibraryCollectionsRoute
   LibraryFavouritesRoute: typeof LibraryFavouritesRoute
+  LibraryTrashRoute: typeof LibraryTrashRoute
   LibraryUpdatesRoute: typeof LibraryUpdatesRoute
   ProjectsSuggestedRoute: typeof ProjectsSuggestedRoute
 }
@@ -398,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryFavouritesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/library_/trash': {
+      id: '/library_/trash'
+      path: '/library/trash'
+      fullPath: '/library/trash'
+      preLoaderRoute: typeof LibraryTrashRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library_/updates': {
       id: '/library_/updates'
       path: '/library/updates'
@@ -433,6 +453,7 @@ const rootRouteChildren: RootRouteChildren = {
   GetSkillsShRoute: GetSkillsShRoute,
   LibraryCollectionsRoute: LibraryCollectionsRoute,
   LibraryFavouritesRoute: LibraryFavouritesRoute,
+  LibraryTrashRoute: LibraryTrashRoute,
   LibraryUpdatesRoute: LibraryUpdatesRoute,
   ProjectsSuggestedRoute: ProjectsSuggestedRoute,
 }

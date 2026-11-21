@@ -245,3 +245,46 @@ describe("Deleting a Library Skill", () => {
     // The first poll may take its full 5 s, Vitest's default test timeout.
   }, 15_000);
 });
+
+describe("Restore from trash (story 44)", () => {
+  test("a deleted Skill is listed in the trash and Restore puts its folder and Library Lock entry back", async () => {
+    const { libraryHome, trpc, sourcedSkill } = await setup();
+    const { key, folder } = await sourcedSkill();
+    const entry = (await trpc.skill.get.query({ key })).entry;
+    await trpc.skill.delete.mutate({ key });
+
+    const [trashed, ...rest] = await trpc.trash.list.query();
+    expect(rest).toEqual([]);
+    expect(trashed).toMatchObject({
+      key,
+      name: "find-skills",
+      deletedAt: localTime(20, 12).toISOString(),
+      purgeAt: localTime(50, 12).toISOString(),
+    });
+
+    await trpc.trash.restore.mutate({ id: trashed?.id ?? "" });
+
+    expect(await readFile(join(folder, "SKILL.md"), "utf8")).toContain("# Find");
+    expect((await trpc.skill.get.query({ key })).entry).toEqual(entry);
+    expect(await trpc.trash.list.query()).toEqual([]);
+    expect(await readdir(join(libraryHome, "trash"))).toEqual([]);
+    const [restored] = (await trpc.activity.list.query({ actions: ["trash.restore"] })).entries;
+    expect(restored).toMatchObject({ result: "ok", subjects: [{ kind: "skill", id: key }] });
+  });
+
+  test("Restore is refused while another Skill holds the key, and changes nothing", async () => {
+    const { trpc, fixture, adopt } = await setup();
+    await fixture.skill(".claude/skills/pdf", { name: "pdf", description: "PDFs" });
+    await adopt("~/.claude/skills/pdf");
+    await trpc.skill.delete.mutate({ key: "local/pdf" });
+    await fixture.skill(".claude/skills/pdf", { name: "pdf", description: "PDFs, again" });
+    await adopt("~/.claude/skills/pdf");
+    const [trashed] = await trpc.trash.list.query();
+
+    await expect(trpc.trash.restore.mutate({ id: trashed?.id ?? "" })).rejects.toMatchObject({
+      data: { tag: "PathTaken" },
+    });
+    expect(await trpc.trash.list.query()).toHaveLength(1);
+    expect((await trpc.skill.get.query({ key: "local/pdf" })).frontmatter).toContain("PDFs, again");
+  });
+});

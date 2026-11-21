@@ -10,6 +10,7 @@ import {
   Search,
   Server,
   Star,
+  Trash2,
 } from "lucide-react";
 
 /** One row of the sidebar tree. `path` is the route it opens. */
@@ -37,6 +38,7 @@ export const navSections: NavSection[] = [
       { label: "Favourites", path: "/library/favourites", icon: Star },
       { label: "Collections", path: "/library/collections", icon: Layers },
       { label: "Updates", path: "/library/updates", icon: RefreshCw },
+      { label: "Trash", path: "/library/trash", icon: Trash2 },
     ],
     // Then one row per Namespace (the sidebar adds them from the Library).
   },

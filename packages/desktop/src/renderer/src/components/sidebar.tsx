@@ -22,6 +22,7 @@ const builtPaths = new Set([
   "/library/collections",
   "/library/favourites",
   "/library/updates",
+  "/library/trash",
   "/computer/agents",
   "/computer/activity",
   "/computer/mcp-servers",

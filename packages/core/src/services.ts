@@ -311,7 +311,7 @@ export const createServices = async ({
     usage: skillImpact,
     release: (key, wrote) => projectSkills.forgetEverywhere([key], wrote),
     onChange: () =>
-      bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project", "collections"] }),
+      bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project", "collections", "trash"] }),
   });
   dailyJobs.push(trash.job());
   /** Updates for Imported Skills (#33); `sourceChecks` is the per-Source check #35 reuses for starred Sources. */
@@ -614,6 +614,10 @@ export const createServices = async ({
             return withGrant(await projectProcedures.get(path));
           },
         ),
+    },
+    trash: {
+      list: () => trash.list(),
+      restore: ({ id }, client) => trash.restore(id, client),
     },
     collections: collections.services(),
     favourites: {
