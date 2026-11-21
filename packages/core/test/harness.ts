@@ -8,6 +8,7 @@ import {
   type Clock,
   type CoreEnv,
   type CoreNotification,
+  type GitHubOptions,
   type RunningCore,
   type SecretStore,
   startCore,
@@ -25,11 +26,18 @@ export const tempHome = async () => {
 /** Boots a core in-process and stops it when the test finishes. */
 export const bootCore = async (
   env: CoreEnv,
-  fakes: { clock?: Clock; notifier?: { notify(notification: CoreNotification): void }; secrets?: SecretStore } = {},
+  fakes: {
+    clock?: Clock;
+    notifier?: { notify(notification: CoreNotification): void };
+    secrets?: SecretStore;
+    github?: GitHubOptions;
+  } = {},
 ): Promise<RunningCore> => {
-  // Never the real keychain in tests, nor the machine's /etc and /Library.
+  // Never the real keychain, GitHub or `gh` login in tests (an unroutable API unless a test passes the fake),
+  // nor the machine's /etc and /Library.
+  const github: GitHubOptions = { api: "http://127.0.0.1:9", ghToken: async () => null, ...fakes.github };
   const system = env.HOME ? { DARK_MATTER_SYSTEM_ROOT: join(dirname(env.HOME), "system") } : {};
-  const core = await startCore({ env: { DARK_MATTER_SECRETS: "memory", ...system, ...env }, ...fakes });
+  const core = await startCore({ env: { DARK_MATTER_SECRETS: "memory", ...system, ...env }, ...fakes, github });
   onTestFinished(() => core.stop());
   return core;
 };

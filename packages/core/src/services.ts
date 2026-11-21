@@ -13,8 +13,11 @@ import { Adopt } from "./adopt";
 import { agentAdapters } from "./agents";
 import { openCache } from "./cache";
 import type { Clock } from "./clock";
+import { Collections } from "./collections";
 import { editConfigFile } from "./config-edit";
 import type { EventBus } from "./events";
+import { GitHubAccess, type GitHubOptions } from "./github";
+import { Importer, importerServices } from "./importer";
 import { agentCards, inboxFrom } from "./inbox";
 import { Library } from "./library";
 import { log } from "./log";
@@ -48,6 +51,7 @@ export interface ServicesOptions {
   systemRoot?: string;
   notifier: Notifier;
   secrets: SecretStore;
+  github: GitHubOptions;
 }
 
 /** The core's service methods behind the router (ADR-0003): every action is one of these. */
@@ -59,6 +63,7 @@ export const createServices = async ({
   clock,
   notifier,
   secrets,
+  github,
   systemRoot,
 }: ServicesOptions) => {
   const cache = await openCache(libraryHome);
@@ -81,7 +86,10 @@ export const createServices = async ({
   const library = new Library(libraryHome, home, libraryLock);
   const ownedFiles = [settings, projects, libraryLock];
   const ownedFileChanged = () =>
-    bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill"] });
+    bus.publish({
+      type: "invalidate",
+      domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill", "collections"],
+    });
   const env = { home, ...(systemRoot && { systemRoot }) };
   const scans = new Scans({
     env,
@@ -132,7 +140,7 @@ export const createServices = async ({
     library,
     activity,
     hooks: keyRenameHooks,
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project"] }),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project", "collections"] }),
   });
   const skillEditor = new SkillEditor({
     library,
@@ -147,8 +155,16 @@ export const createServices = async ({
       ),
       ...projectSkills.copyFolders(),
     ]);
-  /** Imports a `skills-lock.json` entry missing from the Library while fulfilling it. GitHub Import (#30) sets it. */
-  const lockImporter: LockImporter | null = null;
+  /** GitHub Import (#30); it also Imports `skills-lock.json` entries missing from the Library while fulfilling them. */
+  const importer = new Importer({
+    home,
+    libraryHome,
+    library,
+    activity,
+    github: new GitHubAccess(github, secrets),
+    onChange: (domains) => bus.publish({ type: "invalidate", domains }),
+  });
+  const lockImporter: LockImporter | null = importer.lockImporter();
   const projectSkills = new ProjectSkillService({
     home,
     libraryHome,
@@ -191,9 +207,18 @@ export const createServices = async ({
         mode,
         on,
       })),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project"] }),
+    onChange: () =>
+      bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project", "collections"] }),
   });
   dailyJobs.push(trash.job());
+  const collections = new Collections({
+    settings,
+    library,
+    activity,
+    projectSkills,
+    onChange: () => bus.publish({ type: "invalidate", domains: ["collections", "settings"] }),
+  });
+  keyRenameHooks.push(collections.keyRenameHook(home));
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
@@ -317,6 +342,8 @@ export const createServices = async ({
       ...projectSkills.services(),
       ...projectMcp.services(),
     },
+    collections: collections.services(),
+    importer: importerServices(importer),
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),

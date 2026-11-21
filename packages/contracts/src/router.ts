@@ -2,6 +2,14 @@ import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { isTaggedError } from "./errors";
 import {
+  GitHubAuthStatus,
+  ImportPreview,
+  ImportResult,
+  ImportSkillsInput,
+  ImportSourceInput,
+  SetGitHubTokenInput,
+} from "./importer";
+import {
   ActivityExport,
   ActivityFilter,
   ActivityList,
@@ -12,14 +20,20 @@ import {
   AdoptPlan,
   AgentCard,
   AgentId,
+  AppliedCollection,
   ApplyAdoptInput,
+  ApplyCollectionInput,
   ApplyMcpAdoptInput,
   ApplyRenameNamespaceInput,
   type ClientKind,
+  Collection,
+  CollectionPlan,
+  CollectionPlanInput,
   CopyDiff,
   type CoreEvent,
   CoreInfo,
   type CoreNotification,
+  CreateCollectionInput,
   FulfilLockInput,
   Inbox,
   LibraryList,
@@ -47,6 +61,7 @@ import {
   ProjectSummary,
   PullProjectMcpServer,
   RemoveProjectMcpServer,
+  RenameCollectionInput,
   RenameNamespaceInput,
   RenameNamespacePlan,
   RepoMcpServers,
@@ -56,6 +71,7 @@ import {
   ScanResult,
   ScanStatus,
   SchedulerStatus,
+  SetCollectionItemsInput,
   SetProjectMcpServerMode,
   SetProjectMcpServerOn,
   SetSecretInput,
@@ -176,6 +192,16 @@ export interface CoreServices {
     /** Re-plans, checks the plan id, then moves the folders, re-keys the Library Lock and re-creates Links. */
     rename(input: ApplyRenameNamespaceInput, client: ClientKind): Promise<RenameNamespacePlan>;
   };
+  importer: {
+    /** Finds the Skills in a GitHub Source at its tracked ref's head, for the picker. Writes nothing to the Library. */
+    preview(input: ImportSourceInput): Promise<ImportPreview>;
+    /** Imports the picked Skills at the previewed commit; ones already Imported from the same path get an update check instead. */
+    import(input: ImportSkillsInput, client: ClientKind): Promise<ImportResult>;
+    /** Which GitHub credentials Import uses. */
+    auth(): Promise<GitHubAuthStatus>;
+    /** Stores (or with null removes) the GitHub PAT in the keychain. */
+    setToken(input: SetGitHubTokenInput, client: ClientKind): Promise<GitHubAuthStatus>;
+  };
   /** OS notifications for the app to show, from now on, until `signal` aborts. */
   notifications(signal: AbortSignal): AsyncIterable<CoreNotification>;
   project: {
@@ -238,6 +264,18 @@ export interface CoreServices {
     trustInCodex(path: string, client: ClientKind): Promise<ProjectMcpServers>;
     /** MCP entries in the Project Dark Matter didn't write: Vendored (committed) and untracked (Adoptable). */
     repoMcpServers(path: string): Promise<RepoMcpServers>;
+  };
+  collections: {
+    list(): Promise<Collection[]>;
+    create(input: CreateCollectionInput, client: ClientKind): Promise<Collection>;
+    rename(input: RenameCollectionInput, client: ClientKind): Promise<Collection>;
+    /** Replaces its items. Projects that used it don't change: a Collection is a template. */
+    setItems(input: SetCollectionItemsInput, client: ClientKind): Promise<Collection>;
+    delete(name: string, client: ClientKind): Promise<void>;
+    /** The dry run of adding it to Projects: per item and Project, what would happen. Writes nothing. */
+    plan(input: CollectionPlanInput): Promise<CollectionPlan>;
+    /** Adds the chosen items as ordinary Project Skills; items blocked in a Project are skipped and reported. */
+    apply(input: ApplyCollectionInput, client: ClientKind): Promise<AppliedCollection>;
   };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
@@ -493,6 +531,48 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ApplyRenameNamespaceInput)
         .output(RenameNamespacePlan)
         .mutation(({ input, ctx }) => services.namespace.rename(input, ctx.client)),
+    }),
+    collections: t.router({
+      list: t.procedure.output(Collection.array()).query(() => services.collections.list()),
+      create: t.procedure
+        .input(CreateCollectionInput)
+        .output(Collection)
+        .mutation(({ input, ctx }) => services.collections.create(input, ctx.client)),
+      rename: t.procedure
+        .input(RenameCollectionInput)
+        .output(Collection)
+        .mutation(({ input, ctx }) => services.collections.rename(input, ctx.client)),
+      setItems: t.procedure
+        .input(SetCollectionItemsInput)
+        .output(Collection)
+        .mutation(({ input, ctx }) => services.collections.setItems(input, ctx.client)),
+      delete: t.procedure
+        .input(z.object({ name: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.collections.delete(input.name, ctx.client)),
+      plan: t.procedure
+        .input(CollectionPlanInput)
+        .output(CollectionPlan)
+        .query(({ input }) => services.collections.plan(input)),
+      // `apply` is reserved by tRPC.
+      execute: t.procedure
+        .input(ApplyCollectionInput)
+        .output(AppliedCollection)
+        .mutation(({ input, ctx }) => services.collections.apply(input, ctx.client)),
+    }),
+    importer: t.router({
+      preview: t.procedure
+        .input(ImportSourceInput)
+        .output(ImportPreview)
+        .query(({ input }) => services.importer.preview(input)),
+      import: t.procedure
+        .input(ImportSkillsInput)
+        .output(ImportResult)
+        .mutation(({ input, ctx }) => services.importer.import(input, ctx.client)),
+      auth: t.procedure.output(GitHubAuthStatus).query(() => services.importer.auth()),
+      setToken: t.procedure
+        .input(SetGitHubTokenInput)
+        .output(GitHubAuthStatus)
+        .mutation(({ input, ctx }) => services.importer.setToken(input, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

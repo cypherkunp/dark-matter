@@ -19,10 +19,12 @@ const activeRowClass = "bg-sidebar-accent font-medium hover:bg-sidebar-accent";
 const builtPaths = new Set([
   "/inbox",
   "/library",
+  "/library/collections",
   "/computer/agents",
   "/computer/activity",
   "/computer/mcp-servers",
   "/projects/suggested",
+  "/get/github",
 ] as const);
 type BuiltPath = typeof builtPaths extends Set<infer P> ? P : never;
 const isBuilt = (path: string): path is BuiltPath => builtPaths.has(path as BuiltPath);
@@ -66,12 +68,17 @@ export function Sidebar({ connected }: { connected: boolean }) {
   const nextScan = useQuery(trpc.scheduler.status.queryOptions()).data?.nextRunAt;
   const projects = useQuery(trpc.project.list.queryOptions());
   const suggested = useQuery(trpc.project.suggested.queryOptions());
+  const collections = useQuery(trpc.collections.list.queryOptions());
   const { scanning, lastScanAt } = useScan();
   const now = useNow();
   const [filter, setFilter] = useState("");
 
   const skillCount = library.data?.skills.length;
-  const counts: Record<string, number | undefined> = { "/inbox": inbox.data?.count, "/library": skillCount };
+  const counts: Record<string, number | undefined> = {
+    "/inbox": inbox.data?.count,
+    "/library": skillCount,
+    "/library/collections": collections.data?.length,
+  };
   const sectionCounts: Record<string, number | undefined> = { Library: skillCount, Projects: projects.data?.length };
   const groupCounts: Record<string, number | undefined> = { "/projects/suggested": suggested.data?.suggested.length };
   const matches = (item: { label: string }) => item.label.toLowerCase().includes(filter.trim().toLowerCase());
@@ -110,8 +117,21 @@ export function Sidebar({ connected }: { connected: boolean }) {
               : [];
           const namespaceRows =
             section.title === "Library" ? namespaceCounts(library.data?.skills ?? []).filter(matches) : [];
+          const collectionRows =
+            section.title === "Library"
+              ? (collections.data ?? [])
+                  .map((collection) => ({ ...collection, label: collection.name }))
+                  .filter(matches)
+              : [];
           const group = section.group && matches(section.group) ? section.group : undefined;
-          if (filter && items.length === 0 && projectRows.length === 0 && namespaceRows.length === 0 && !group)
+          if (
+            filter &&
+            items.length === 0 &&
+            projectRows.length === 0 &&
+            namespaceRows.length === 0 &&
+            collectionRows.length === 0 &&
+            !group
+          )
             return null;
           return (
             <div key={section.title ?? "top"} className="flex flex-col gap-px">
@@ -136,6 +156,20 @@ export function Sidebar({ connected }: { connected: boolean }) {
                     item.path in counts && <Count value={counts[item.path]} />
                   )}
                 </NavLink>
+              ))}
+              {collectionRows.map((collection) => (
+                <Link
+                  key={collection.name}
+                  to="/collection"
+                  search={{ name: collection.name }}
+                  data-testid="sidebar-collection"
+                  className={cn(rowClass, "pl-8")}
+                  activeProps={{ className: activeRowClass }}
+                  activeOptions={{ exact: true, includeSearch: true }}
+                >
+                  <span className="truncate">{collection.label}</span>
+                  <Count value={collection.items.length} />
+                </Link>
               ))}
               {namespaceRows.map((namespace) => (
                 <Link

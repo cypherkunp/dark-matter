@@ -105,6 +105,29 @@ export const Preferences = z.strictObject({
 });
 export type Preferences = z.infer<typeof Preferences>;
 
+/** A Collection's name: its key in `settings.json` and how it shows under Library. */
+export const CollectionName = z
+  .string()
+  .trim()
+  .min(1, "Give the Collection a name")
+  .max(80, "Use at most 80 characters")
+  .refine((name) => !name.includes("\n"), "Use one line");
+
+/**
+ * One thing in a Collection: a Library Skill by key. A discriminated union, so
+ * MCP Servers (#41) join as `{ kind: "mcpServer", name }` without a new shape.
+ */
+export const CollectionItem = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("skill"), key: z.string().min(1) }),
+]);
+export type CollectionItem = z.infer<typeof CollectionItem>;
+
+/** A Collection in `settings.json`: a template, flat (no nesting), applied by copying its items into Projects. */
+export const CollectionRecord = z.strictObject({
+  items: z.array(CollectionItem).default([]),
+});
+export type CollectionRecord = z.infer<typeof CollectionRecord>;
+
 /**
  * `~/.dark-matter/settings.json`, owned intent (ADR-0005). Every field has a
  * default, so a missing file is an empty object. Later tickets add Favourites,
@@ -116,6 +139,8 @@ export const SettingsFile = z.strictObject({
   ignoredFindings: z.array(z.string()).default([]),
   /** Suggested Projects you dismissed, by absolute path. Kept sorted. */
   dismissedSuggestedProjects: z.array(z.string()).default([]),
+  /** Collections by name (#36). Items keep their order. */
+  collections: z.record(z.string(), CollectionRecord).default({}),
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 
@@ -153,6 +178,8 @@ export const LibraryLockEntry = z.strictObject({
   localSource: z.string().optional(),
   /** Projects (home-relative) where Adopt & keep Link put a Link back (#29); Undo Adopt removes those Project Skills first. */
   keptLinks: z.array(z.string()).optional(),
+  /** Imported (#30): the GitHub tree SHA of the Skill's folder at `commit`, so update checks compare folders, not commits. */
+  skillFolderHash: z.string().optional(),
 });
 export type LibraryLockEntry = z.infer<typeof LibraryLockEntry>;
 
@@ -239,7 +266,7 @@ export type ActivityClient = z.infer<typeof ActivityClient>;
 
 /** What an Activity entry is about; `id` is a Skill key, Project path, file name… */
 export const ActivitySubject = z.object({
-  kind: z.enum(["settings", "skill", "project", "mcpServer", "source", "finding"]),
+  kind: z.enum(["settings", "skill", "project", "mcpServer", "source", "finding", "collection"]),
   id: z.string(),
 });
 export type ActivitySubject = z.infer<typeof ActivitySubject>;
@@ -822,6 +849,8 @@ export const Domain = z.enum([
   "project",
   "mcp",
   "skill",
+  "collections",
+  "importer",
 ]);
 export type Domain = z.infer<typeof Domain>;
 
@@ -1068,6 +1097,73 @@ export type FulfilLockInput = z.infer<typeof FulfilLockInput>;
 /** A Copy's files against its Library Skill, as a unified diff (`a` = Library, `b` = the repo). Empty when they match. */
 export const CopyDiff = z.object({ patch: z.string() });
 export type CopyDiff = z.infer<typeof CopyDiff>;
+
+/** A Collection item as Collections list it: `missing` when its Library Skill is gone (deleted or never there). */
+export const CollectionItemView = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("skill"), key: z.string(), name: z.string(), missing: z.boolean() }),
+]);
+export type CollectionItemView = z.infer<typeof CollectionItemView>;
+
+export const Collection = z.object({ name: z.string(), items: z.array(CollectionItemView) });
+export type Collection = z.infer<typeof Collection>;
+
+export const CreateCollectionInput = z.object({ name: CollectionName, items: z.array(CollectionItem).default([]) });
+export type CreateCollectionInput = z.infer<typeof CreateCollectionInput>;
+
+export const RenameCollectionInput = z.object({ name: z.string().min(1), newName: CollectionName });
+export type RenameCollectionInput = z.infer<typeof RenameCollectionInput>;
+
+export const SetCollectionItemsInput = z.object({ name: z.string().min(1), items: z.array(CollectionItem) });
+export type SetCollectionItemsInput = z.infer<typeof SetCollectionItemsInput>;
+
+/** Which Projects to add a Collection to, and Link or Copy per Skill (Link when left out). */
+export const CollectionPlanInput = z.object({
+  name: z.string().min(1),
+  projects: z.array(z.string().min(1)).min(1),
+  modes: z.record(z.string(), DeliveryMode).optional(),
+});
+export type CollectionPlanInput = z.infer<typeof CollectionPlanInput>;
+
+/**
+ * What adding one Collection item to one Project does:
+ * - "add": it becomes an ordinary Project Skill, delivered On;
+ * - "present": the Project already has it (left as it is);
+ * - "nameConflict": another Project Skill (or another item) has its name; it's added in a Name Conflict to Resolve;
+ * - "blocked": something Dark Matter didn't put there holds its folder (`path`), so it can't be added;
+ * - "missing": its Library Skill is gone.
+ */
+export const CollectionCellOutcome = z.enum(["add", "present", "nameConflict", "blocked", "missing"]);
+export type CollectionCellOutcome = z.infer<typeof CollectionCellOutcome>;
+
+export const CollectionCell = z.object({
+  path: z.string(),
+  key: z.string(),
+  mode: DeliveryMode,
+  outcome: CollectionCellOutcome,
+  /** For "nameConflict": the other Library keys with the same name. */
+  conflictsWith: z.array(z.string()),
+  /** For "blocked": the Project-relative path in the way. */
+  blockedBy: z.string().nullable(),
+});
+export type CollectionCell = z.infer<typeof CollectionCell>;
+
+export const CollectionPlan = z.object({ name: z.string(), cells: z.array(CollectionCell) });
+export type CollectionPlan = z.infer<typeof CollectionPlan>;
+
+/** Applying a Collection: the cells you ticked, each with Link or Copy. Blocked ones are skipped and reported. */
+export const ApplyCollectionInput = z.object({
+  name: z.string().min(1),
+  skills: z.array(AddProjectSkill).min(1),
+});
+export type ApplyCollectionInput = z.infer<typeof ApplyCollectionInput>;
+
+export const AppliedCollection = z.object({
+  /** Each touched Project's Project Skills afterwards. */
+  projects: z.array(ProjectSkills),
+  /** Per item and Project, what happened. */
+  cells: z.array(CollectionCell),
+});
+export type AppliedCollection = z.infer<typeof AppliedCollection>;
 
 /**
  * One Agent's delivery of a Project MCP Server: "delivered" (its entry is

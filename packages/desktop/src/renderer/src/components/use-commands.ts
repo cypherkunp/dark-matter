@@ -21,6 +21,13 @@ const useActionCommands = (): Command[] => {
   return [
     { id: "action:scan", group: "Actions", label: scanning ? "Scanning…" : "Scan now", run: scan },
     { id: "action:inbox", group: "Actions", label: "Open Inbox", run: () => void navigate({ to: "/inbox" }) },
+    {
+      id: "action:import-github",
+      group: "Actions",
+      label: "Import from GitHub…",
+      hint: "owner/repo or URL",
+      run: () => void navigate({ to: "/get/github" }),
+    },
   ];
 };
 
