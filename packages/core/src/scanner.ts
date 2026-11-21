@@ -5,6 +5,7 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters, type SkillFolder } from "./agents";
 import { homeRelative } from "./home-path";
+import { readGlobalLock } from "./skill-lock";
 
 /**
  * The Scan (#10): a strictly read-only sweep of every Agent's global skill
@@ -13,7 +14,7 @@ import { homeRelative } from "./home-path";
  */
 export const scan = async (env: AgentPathEnv, adapters = agentAdapters, now = new Date()): Promise<ScanResult> => {
   const folders = uniqueFolders(adapters, env);
-  const lock = await readGlobalLock(env);
+  const lock = (await readGlobalLock(env.home))?.entries ?? {};
   const ownRoots = await realPaths([
     ...folders.map((folder) => folder.path),
     ...adapters.map((adapter) => adapter.configDir(env)),
@@ -140,7 +141,7 @@ const Frontmatter = z.looseObject({
 });
 
 /** `name` and `description` from `SKILL.md`'s frontmatter; missing or invalid ones are left out. */
-const readFrontmatter = async (skillDir: string): Promise<z.infer<typeof Frontmatter>> => {
+export const readFrontmatter = async (skillDir: string): Promise<z.infer<typeof Frontmatter>> => {
   try {
     const text = await readFile(join(skillDir, "SKILL.md"), "utf8");
     const block = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1];
@@ -150,28 +151,6 @@ const readFrontmatter = async (skillDir: string): Promise<z.infer<typeof Frontma
   } catch {
     return {};
   }
-};
-
-/** The `skills` CLI's global lock (version 3); only what a Scan needs, read leniently. */
-const GlobalLock = z.object({ skills: z.record(z.string(), z.unknown()) });
-const GlobalLockEntry = z.looseObject({ source: z.string().min(1) });
-
-const readGlobalLock = async ({ home }: AgentPathEnv): Promise<Record<string, { source: string }>> => {
-  for (const path of [join(home, ".agents/.skill-lock.json"), join(home, ".local/state/skills/.skill-lock.json")]) {
-    try {
-      const lock = GlobalLock.safeParse(JSON.parse(await readFile(path, "utf8")));
-      if (!lock.success) continue;
-      return Object.fromEntries(
-        Object.entries(lock.data.skills).flatMap(([name, value]) => {
-          const entry = GlobalLockEntry.safeParse(value);
-          return entry.success ? [[name, entry.data]] : [];
-        }),
-      );
-    } catch {
-      // Missing or unreadable: try the next location.
-    }
-  }
-  return {};
 };
 
 const realOrNull = (path: string) => realpath(path).catch(() => null);

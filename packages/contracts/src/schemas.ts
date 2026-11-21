@@ -42,6 +42,10 @@ export const LibrarySkill = z.object({
   namespace: z.string(),
   name: z.string(),
   description: z.string(),
+  /** The folder a Local Source Skill is authored in, home-relative; null for a Skill the Library holds. */
+  localSource: z.string().nullable(),
+  /** Where Adopt moved it from, home-relative; null if it wasn't Adopted. */
+  adoptedFrom: z.string().nullable(),
 });
 export type LibrarySkill = z.infer<typeof LibrarySkill>;
 
@@ -93,8 +97,46 @@ export type SettingsFile = z.infer<typeof SettingsFile>;
 export const PreferencesPatch = z.strictObject(preferenceFields).partial();
 export type PreferencesPatch = z.infer<typeof PreferencesPatch>;
 
+/** A symlink as it was on disk: `target` is the raw link text, so it can be put back exactly. */
+export const SymlinkRecord = z.object({ path: z.string(), target: z.string() });
+export type SymlinkRecord = z.infer<typeof SymlinkRecord>;
+
+/**
+ * One Library Skill's provenance: a skills-lock v2 entry (`source`, `sourceType`,
+ * `ref`, `commit`, `skillPath`, `computedHash`) plus Dark Matter's fields.
+ * Paths are home-relative (`~/…`).
+ */
+export const LibraryLockEntry = z.strictObject({
+  source: z.string(),
+  sourceType: z.string(),
+  ref: z.string().optional(),
+  commit: z.string().optional(),
+  skillPath: z.string().optional(),
+  computedHash: z.string(),
+  /** The real folder Adopt moved into the Library (or, for a Local Source, the global symlink it replaced). */
+  adoptedFrom: z.string().optional(),
+  /** Global symlinks Adopt removed, put back by Undo Adopt. */
+  adoptedLinks: z.array(SymlinkRecord).optional(),
+  /** Identical global copies (same content) Adopt merged into this Skill, put back by Undo Adopt. */
+  adoptedCopies: z.array(z.string()).optional(),
+  /** Its entry in the `skills` CLI's global lock as Adopt removed it, put back by Undo Adopt. */
+  skillLockEntry: z
+    .strictObject({ path: z.string(), name: z.string(), entry: z.record(z.string(), z.unknown()) })
+    .optional(),
+  /** A Local Source: the folder it's authored in. The Library holds a symlink to it. */
+  localSource: z.string().optional(),
+});
+export type LibraryLockEntry = z.infer<typeof LibraryLockEntry>;
+
+/** `~/.dark-matter/library-lock.json`, the Library Lock, keyed by `<namespace>/<name>` (ADR-0001). */
+export const LibraryLockFile = z.strictObject({
+  version: z.literal(1).default(1),
+  skills: z.record(z.string(), LibraryLockEntry).default({}),
+});
+export type LibraryLockFile = z.infer<typeof LibraryLockFile>;
+
 /** The owned files the core watches and validates. */
-export const OwnedFileName = z.enum(["settings.json"]);
+export const OwnedFileName = z.enum(["settings.json", "library-lock.json"]);
 export type OwnedFileName = z.infer<typeof OwnedFileName>;
 
 /** A hand edit the core is holding because it doesn't validate. */
@@ -236,6 +278,79 @@ export const AgentCard = z.object({
   globalSkillCount: z.int().nonnegative().nullable(),
 });
 export type AgentCard = z.infer<typeof AgentCard>;
+
+/**
+ * One filesystem change in a plan. Every mutation that writes files returns its
+ * plan (a dry run) before it is applied; paths are home-relative.
+ */
+export const PlanStep = z.discriminatedUnion("kind", [
+  /** Move a folder (rename, or copy through `staging/` across devices). */
+  z.object({ kind: z.literal("move"), from: z.string(), to: z.string() }),
+  /** Copy a folder (Undo Adopt putting back a merged identical copy). */
+  z.object({ kind: z.literal("copy"), from: z.string(), to: z.string() }),
+  z.object({ kind: z.literal("createLink"), path: z.string(), target: z.string() }),
+  /** Remove a symlink; its target is untouched. */
+  z.object({ kind: z.literal("removeLink"), path: z.string(), target: z.string() }),
+  /** Remove a copy whose content is identical to `sameAs`, which is kept. */
+  z.object({ kind: z.literal("removeCopy"), path: z.string(), sameAs: z.string() }),
+  /** Rewrite an owned or foreign file, e.g. `library-lock.json` or the `skills` CLI's global lock. */
+  z.object({ kind: z.literal("editFile"), path: z.string(), change: z.string(), backup: z.string().optional() }),
+]);
+export type PlanStep = z.infer<typeof PlanStep>;
+
+/** What every plan carries; a domain's plan adds its own summary fields. */
+export const PlanBase = z.object({
+  /** Changes when anything in the plan would change; apply refuses a stale id (`PlanStale`). */
+  planId: z.string(),
+  steps: z.array(PlanStep),
+  warnings: z.array(z.string()),
+});
+
+/** A diff between two Skills' files, for same-name variants. */
+export const SkillDiff = z.object({
+  /** The Library key or finding the variant differs from. */
+  against: z.string(),
+  /** A unified diff of every changed text file; binary files are named only. */
+  patch: z.string(),
+});
+export type SkillDiff = z.infer<typeof SkillDiff>;
+
+/** What Adopt does with one Skill. */
+export const AdoptOutcome = z.enum([
+  /** Moved into the Library. */
+  "moved",
+  /** Same content as another Skill in this Adopt or the Library: one Library Skill, the copy removed. */
+  "merged",
+  /** Same name, different content: kept side by side under another Namespace or `<name>-<shorthash>`. */
+  "variant",
+  /** Authored outside every Agent folder: the Library refers to it in place. */
+  "localSource",
+]);
+export type AdoptOutcome = z.infer<typeof AdoptOutcome>;
+
+export const AdoptPlanSkill = z.object({
+  finding: z.string(),
+  name: z.string(),
+  /** The Library Lock key it ends up under. */
+  key: z.string(),
+  namespace: z.string(),
+  outcome: AdoptOutcome,
+  computedHash: z.string(),
+  diff: SkillDiff.nullable(),
+});
+export type AdoptPlanSkill = z.infer<typeof AdoptPlanSkill>;
+
+export const AdoptPlan = PlanBase.extend({
+  findings: z.array(z.string()),
+  skills: z.array(AdoptPlanSkill),
+});
+export type AdoptPlan = z.infer<typeof AdoptPlan>;
+
+export const AdoptInput = z.object({ findings: z.array(z.string().min(1)).min(1) });
+export type AdoptInput = z.infer<typeof AdoptInput>;
+
+export const ApplyAdoptInput = AdoptInput.extend({ planId: z.string() });
+export type ApplyAdoptInput = z.infer<typeof ApplyAdoptInput>;
 
 /** Router domains a client caches; an `invalidate` event names the ones that changed. */
 export const Domain = z.enum(["core", "library", "settings", "ownedFiles", "activity", "scan", "inbox", "agents"]);

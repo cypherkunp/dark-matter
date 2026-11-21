@@ -4,7 +4,10 @@ import { isTaggedError } from "./errors";
 import {
   ActivityList,
   ActivityQuery,
+  AdoptInput,
+  AdoptPlan,
   AgentCard,
+  ApplyAdoptInput,
   type ClientKind,
   type CoreEvent,
   CoreInfo,
@@ -59,6 +62,14 @@ export interface CoreServices {
   agents: {
     list(): AgentCard[];
   };
+  adopt: {
+    /** The dry run: what Adopting these findings would do. Writes nothing. */
+    plan(input: AdoptInput): Promise<AdoptPlan>;
+    /** Re-plans, checks the plan id still matches, then applies it. */
+    apply(input: ApplyAdoptInput, client: ClientKind): Promise<AdoptPlan>;
+    /** Undo Adopt: moves the Skill back to where it was Adopted from and puts back what Adopt removed. */
+    undo(key: string, client: ClientKind): Promise<void>;
+  };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
 }
@@ -109,6 +120,20 @@ export const createAppRouter = (services: CoreServices) =>
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+    }),
+    adopt: t.router({
+      plan: t.procedure
+        .input(AdoptInput)
+        .output(AdoptPlan)
+        .mutation(({ input }) => services.adopt.plan(input)),
+      // `apply` is reserved by tRPC, so the procedure that applies a plan is `execute`.
+      execute: t.procedure
+        .input(ApplyAdoptInput)
+        .output(AdoptPlan)
+        .mutation(({ input, ctx }) => services.adopt.apply(input, ctx.client)),
+      undo: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.adopt.undo(input.key, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

@@ -1,10 +1,12 @@
 import { join } from "node:path";
-import { type CoreInfo, SettingsFile } from "@dark-matter/contracts";
+import { type CoreInfo, LibraryLockFile, SettingsFile } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import { ActivityLog } from "./activity";
+import { Adopt } from "./adopt";
 import { openCache } from "./cache";
 import type { EventBus } from "./events";
 import { agentCards, inboxFrom } from "./inbox";
+import { Library } from "./library";
 import { log } from "./log";
 import { OwnedFile } from "./owned-file";
 import { Scans } from "./scans";
@@ -28,8 +30,15 @@ export const createServices = async ({ libraryHome, home, info, bus }: ServicesO
     onRecorded: () => bus.publish({ type: "invalidate", domains: ["activity"] }),
   });
   const settings = await OwnedFile.open("settings.json", join(libraryHome, "settings.json"), SettingsFile);
-  const ownedFiles = [settings];
-  const ownedFileChanged = () => bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox"] });
+  const libraryLock = await OwnedFile.open(
+    "library-lock.json",
+    join(libraryHome, "library-lock.json"),
+    LibraryLockFile,
+  );
+  const library = new Library(libraryHome, home, libraryLock);
+  const ownedFiles = [settings, libraryLock];
+  const ownedFileChanged = () =>
+    bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "library"] });
   const env = { home };
   const scans = new Scans({
     env,
@@ -37,13 +46,21 @@ export const createServices = async ({ libraryHome, home, info, bus }: ServicesO
     activity,
     onChange: () => bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents"] }),
   });
+  const adopt = new Adopt({
+    home,
+    library,
+    activity,
+    latestScan: () => scans.latest,
+    rescan: () => scans.refresh(),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox"] }),
+  });
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
 
   const services: Omit<CoreServices, "events"> = {
     info,
-    library: { list: async () => ({ skills: [] }) },
+    library: { list: async () => ({ skills: await library.list() }) },
     settings: {
       get: () => settings.value,
       updatePreferences: (patch, client) =>
@@ -89,6 +106,11 @@ export const createServices = async ({ libraryHome, home, info, bus }: ServicesO
         }),
     },
     agents: { list: () => agentCards(scans.latest, env) },
+    adopt: {
+      plan: ({ findings }) => adopt.plan(findings),
+      apply: ({ findings, planId }, client) => adopt.apply(findings, planId, client),
+      undo: (key, client) => adopt.undo(key, client),
+    },
   };
   scans.catchUp();
 
