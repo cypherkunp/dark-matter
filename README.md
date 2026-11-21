@@ -40,24 +40,24 @@ Every Skill and server an agent loads costs context. Most of what is loaded is i
 Dark Matter keeps **one Library** of Skills and MCP Servers at `~/.dark-matter`, and delivers to each **Project** only the ones you choose, for only the Agents you choose.
 
 - **No global Skills, no global MCP Servers.** Dark Matter never writes to an agent's global folder or config. An agent sees what its project asks for and nothing else. ([ADR-0002](docs/adr/0002-no-global-skills.md))
-- **Link or Copy.** A *Link* is a personal symlink to the Library, kept out of git. A *Copy* is real files, committed and recorded in `skills-lock.json`, so teammates get it without needing Dark Matter.
-- **Personal or Shared MCP Servers.** *Personal* servers hold your real secrets and are never committed. *Shared* servers are written into the project's committed config with secrets as environment-variable references only.
+- **Link or Copy.** A _Link_ is a personal symlink to the Library, kept out of git. A _Copy_ is real files, committed and recorded in `skills-lock.json`, so teammates get it without needing Dark Matter.
+- **Personal or Shared MCP Servers.** _Personal_ servers hold your real secrets and are never committed. _Shared_ servers are written into the project's committed config with secrets as environment-variable references only.
 - **Secrets live in the OS keychain.** Library definitions refer to a secret by name and never hold the value.
 - **On / Off per project.** Turn a Skill or server off for a project without losing it.
 - **Files are the source of truth.** Everything Dark Matter owns is small, readable JSON under `~/.dark-matter`. SQLite is only a disposable cache: delete it and nothing is lost. ([ADR-0005](docs/adr/0005-files-are-truth-sqlite-is-cache.md))
 
 ## Planned features
 
-| | |
-|---|---|
-| **Scan** | A read-only sweep that shows every Skill and MCP Server each supported agent can currently see, on the whole machine. |
-| **Adopt** | Move what a Scan finds in global folders into the Library, with the original location recorded so it can be undone. |
-| **Import** | Pull Skills from a GitHub repo or a [skills.sh](https://skills.sh) listing, pinned to an exact commit, with update checks. |
-| **Per-project control** | Add, Link, Copy and toggle Skills and MCP Servers per Project and per Agent. |
-| **Collections & Favourites** | Add a whole starter set to a project in one action. |
-| **Inbox & Scheduled Scan** | Everything awaiting your decision in one place, with a daily scan that flags new global Skills. |
-| **Activity Log** | Every change, scan and failure, and which client asked for it. |
-| **Agent control** | Let an agent manage its own project's Skills through a consent-gated MCP server and `dm` CLI. You approve each plan, or grant low-risk changes per project. ([ADR-0006](docs/adr/0006-agent-control-one-surface-consent-as-guardrail.md)) |
+|                              |                                                                                                                                                                                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Scan**                     | A read-only sweep that shows every Skill and MCP Server each supported agent can currently see, on the whole machine.                                                                                                                     |
+| **Adopt**                    | Move what a Scan finds in global folders into the Library, with the original location recorded so it can be undone.                                                                                                                       |
+| **Import**                   | Pull Skills from a GitHub repo or a [skills.sh](https://skills.sh) listing, pinned to an exact commit, with update checks.                                                                                                                |
+| **Per-project control**      | Add, Link, Copy and toggle Skills and MCP Servers per Project and per Agent.                                                                                                                                                              |
+| **Collections & Favourites** | Add a whole starter set to a project in one action.                                                                                                                                                                                       |
+| **Inbox & Scheduled Scan**   | Everything awaiting your decision in one place, with a daily scan that flags new global Skills.                                                                                                                                           |
+| **Activity Log**             | Every change, scan and failure, and which client asked for it.                                                                                                                                                                            |
+| **Agent control**            | Let an agent manage its own project's Skills through a consent-gated MCP server and `dm` CLI. You approve each plan, or grant low-risk changes per project. ([ADR-0006](docs/adr/0006-agent-control-one-surface-consent-as-guardrail.md)) |
 
 Supported agents in v1: **Claude Code, Cursor, OpenCode, Codex** and the generic **`.agents`** convention.
 
@@ -92,11 +92,11 @@ Dark Matter is a **headless Node core** with an **Electron app** as one client o
                                           ~/.dark-matter  (JSON files)  +  SQLite cache
 ```
 
-| Package | Role |
-|---|---|
+| Package                                    | Role                                                        |
+| ------------------------------------------ | ----------------------------------------------------------- |
 | [`packages/contracts`](packages/contracts) | Zod schemas and the tRPC router type shared by every client |
-| [`packages/core`](packages/core) | The headless core, pure Node with no Electron imports |
-| [`packages/desktop`](packages/desktop) | Electron main, preload and the React renderer |
+| [`packages/core`](packages/core)           | The headless core, pure Node with no Electron imports       |
+| [`packages/desktop`](packages/desktop)     | Electron main, preload and the React renderer               |
 
 Stack: TypeScript, Electron, React 19, TanStack Router and Query, Tailwind CSS 4, shadcn/ui on Base UI, Zod 4, tRPC 11 and `node:sqlite` with no ORM, tested with Vitest and Playwright, and linted with Biome and knip.
 
