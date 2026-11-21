@@ -2,6 +2,8 @@ import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { isTaggedError } from "./errors";
 import {
+  ActivityExport,
+  ActivityFilter,
   ActivityList,
   ActivityQuery,
   AddProjectSkills,
@@ -80,6 +82,8 @@ export interface CoreServices {
   };
   activity: {
     list(query: ActivityQuery): ActivityList;
+    /** Every entry matching the filter, for saving as JSON. Not recorded, like any view. */
+    export(filter: ActivityFilter): ActivityExport;
   };
   scan: {
     /** Runs a read-only Scan, or joins the one already running. */
@@ -219,6 +223,10 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ActivityQuery)
         .output(ActivityList)
         .query(({ input }) => services.activity.list(input)),
+      export: t.procedure
+        .input(ActivityFilter)
+        .output(ActivityExport)
+        .query(({ input }) => services.activity.export(input)),
     }),
     scan: t.router({
       run: t.procedure.output(ScanResult).mutation(({ ctx }) => services.scan.run(ctx.client)),

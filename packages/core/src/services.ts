@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { type CoreInfo, LibraryLockFile, ProjectsFile, SettingsFile, UnknownFinding } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
-import { ActivityLog } from "./activity";
+import { ActivityLog, retentionJob } from "./activity";
 import { Adopt } from "./adopt";
 import { agentAdapters } from "./agents";
 import { openCache } from "./cache";
@@ -57,6 +57,8 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     join(libraryHome, "library-lock.json"),
     LibraryLockFile,
   );
+  const activityRetention = () => settings.value.preferences.activityRetention;
+  await activity.prune(activityRetention());
   const library = new Library(libraryHome, home, libraryLock);
   const ownedFiles = [settings, projects, libraryLock];
   const ownedFileChanged = () =>
@@ -71,7 +73,10 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     onChange: () => bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents", "project", "scheduler"] }),
   });
   /** The daily run, in order. Later jobs (update checks, starred Sources) are added here. */
-  const dailyJobs: DailyJob[] = [scanJob(scans, () => settings.value.ignoredFindings)];
+  const dailyJobs: DailyJob[] = [
+    scanJob(scans, () => settings.value.ignoredFindings),
+    retentionJob(activity, activityRetention),
+  ];
   const scheduler = new Scheduler({
     clock,
     notifier,
@@ -166,8 +171,8 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     library: { list: async () => ({ skills: await library.list(await projectSkills.usage()) }) },
     settings: {
       get: () => settings.value,
-      updatePreferences: (patch, client) =>
-        activity.track(
+      updatePreferences: async (patch, client) => {
+        const saved = await activity.track(
           { client, action: "settings.updatePreferences", subjects: [{ kind: "settings", id: "preferences" }] },
           async (wrote) => {
             wrote(
@@ -177,7 +182,10 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
             scheduler.check();
             return settings.value;
           },
-        ),
+        );
+        await activity.prune(activityRetention());
+        return saved;
+      },
     },
     ownedFiles: {
       problems: () => ownedFiles.flatMap((file) => (file.problem ? [file.problem] : [])),
@@ -191,7 +199,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
           },
         ),
     },
-    activity: { list: (query) => activity.list(query) },
+    activity: { list: (query) => activity.list(query), export: (filter) => activity.export(filter) },
     scan: {
       run: (client) => scans.run(client),
       status: () => scans.status(),

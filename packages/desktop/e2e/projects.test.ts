@@ -44,6 +44,7 @@ test("a Suggested Project from Claude Code's history can be managed, given Agent
   await window.getByRole("button", { name: "Locate…" }).click();
 
   await expect(window.getByTestId("project-gone")).toBeHidden();
-  await expect(window.getByText(/~\/work\/app|work\/app/)).toBeVisible();
+  // The first match is the page head; the Project's Activity below names the path too.
+  await expect(window.getByText(/~\/work\/app|work\/app/).first()).toBeVisible();
   await expect(sidebar.getByLabel("Folder gone")).toBeHidden();
 });

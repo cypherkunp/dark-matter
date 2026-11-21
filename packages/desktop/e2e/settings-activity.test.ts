@@ -19,10 +19,10 @@ test("saves a preference from Settings and shows it in the Activity timeline", a
 
   await window.getByTestId("sidebar").getByRole("link", { name: "Activity" }).click();
   await expect(window.getByRole("heading", { name: "Activity" })).toBeVisible();
-  const today = window.getByTestId("activity-day").first();
-  await expect(today.getByRole("heading", { name: "Today" })).toBeVisible();
-  await expect(today.getByTestId("activity-entry").first()).toContainText("Saved preferences");
-  await expect(today.getByTestId("activity-entry").first()).toContainText("app");
+  await expect(window.getByTestId("activity-day").first()).toContainText("Today");
+  const entry = window.getByTestId("activity-entry").first();
+  await expect(entry).toContainText("Saved preferences");
+  await expect(entry).toContainText("app");
 });
 
 test("shows an invalid hand edit to settings.json and discards it", async ({ launchApp, fixtureHome }) => {

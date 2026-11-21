@@ -2,6 +2,7 @@ import type { AgentId, ProjectDetail } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { FolderOpen, TriangleAlert } from "lucide-react";
+import { FilteredActivity } from "@/components/activity-view";
 import { PageHead } from "@/components/page-head";
 import { ProjectSkills } from "@/components/project-skills";
 import { RepoSkills } from "@/components/repo-skills";
@@ -219,6 +220,7 @@ function ProjectPage() {
       {data.exists && <ProjectSkills path={data.path} />}
       {data.exists && <RepoSkills path={data.path} />}
       <FoundSkills project={data} />
+      <FilteredActivity search={{ project: data.path }} exportName={`activity-${data.name}`} />
     </div>
   );
 }
