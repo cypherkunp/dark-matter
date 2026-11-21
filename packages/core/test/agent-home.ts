@@ -1,6 +1,8 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readdir, readFile, readlink, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 /**
  * Builds Agent folders in a test's `$HOME` with real files and symlinks.
@@ -72,3 +74,65 @@ export const snapshotTree = async (root: string, except: string[] = []) => {
   await walk(root);
   return out;
 };
+
+/** A real git repo at `dir` (via `git init`); returns its absolute path. */
+export const gitRepo = async (home: string, dir: string) => {
+  const path = dir.startsWith(sep) ? dir : join(home, dir);
+  await mkdir(path, { recursive: true });
+  execFileSync("git", ["init", "--quiet", path]);
+  return path;
+};
+
+/**
+ * Agent history files in a test's `$HOME`, in the shapes the Agents write them
+ * (Suggested Projects, #10). Where a format isn't documented the fixture follows
+ * what the Agents write today.
+ */
+export const agentHistory = (home: string) => ({
+  /** `~/.claude.json`, whose `projects` map is keyed by absolute folder. */
+  async claudeJson(folders: string[]) {
+    const projects = Object.fromEntries(folders.map((folder) => [folder, { allowedTools: [], mcpServers: {} }]));
+    await writeFile(join(home, ".claude.json"), JSON.stringify({ numStartups: 3, projects }, null, 2));
+  },
+  /** `~/.claude/projects/<slug>/<session>.jsonl`, each line carrying the session's `cwd`. */
+  async claudeSession(folder: string) {
+    const dir = join(home, ".claude/projects", folder.replace(/[^a-zA-Z0-9]/g, "-"));
+    await mkdir(dir, { recursive: true });
+    const lines = [
+      { type: "summary", summary: "Did a thing", leafUuid: "a" },
+      { type: "user", cwd: folder, sessionId: "s1", message: { role: "user", content: "hi" } },
+    ];
+    await writeFile(join(dir, "s1.jsonl"), `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`);
+  },
+  /** Cursor's `workspaceStorage/<hash>/workspace.json` (macOS location), one per folder. */
+  async cursorWorkspaces(uris: string[]) {
+    const storage = join(home, "Library/Application Support/Cursor/User/workspaceStorage");
+    for (const [index, uri] of uris.entries()) {
+      await mkdir(join(storage, `hash${index}`), { recursive: true });
+      const key = uri.endsWith(".code-workspace") ? "workspace" : "folder";
+      await writeFile(join(storage, `hash${index}`, "workspace.json"), JSON.stringify({ [key]: uri }));
+    }
+  },
+  /** OpenCode's `~/.local/share/opencode/opencode.db` with its `project` table. */
+  async opencodeProjects(worktrees: string[]) {
+    const dir = join(home, ".local/share/opencode");
+    await mkdir(dir, { recursive: true });
+    const db = new DatabaseSync(join(dir, "opencode.db"));
+    db.exec("CREATE TABLE project (id TEXT PRIMARY KEY, worktree TEXT NOT NULL, vcs TEXT, time_created INTEGER)");
+    const insert = db.prepare("INSERT INTO project (id, worktree, vcs, time_created) VALUES (?, ?, ?, ?)");
+    for (const [index, worktree] of worktrees.entries()) insert.run(`p${index}`, worktree, "git", 1);
+    db.close();
+  },
+  /** Codex's `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, whose first line is the `session_meta`. */
+  async codexSession(folder: string, name = "rollout-2026-11-20T10-00-00-0001") {
+    const dir = join(home, ".codex/sessions/2026/11/20");
+    await mkdir(dir, { recursive: true });
+    const meta = {
+      timestamp: "2026-11-20T10:00:00.000Z",
+      type: "session_meta",
+      payload: { id: name, timestamp: "2026-11-20T10:00:00.000Z", cwd: folder, originator: "codex_cli_rs" },
+    };
+    const next = { timestamp: "2026-11-20T10:00:01.000Z", type: "turn_context", payload: { cwd: folder } };
+    await writeFile(join(dir, `${name}.jsonl`), `${JSON.stringify(meta)}\n${JSON.stringify(next)}\n`);
+  },
+});

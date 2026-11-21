@@ -1,17 +1,38 @@
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, dirname, join, sep } from "node:path";
-import type { AgentScan, GlobalSkill, ScanResult, SkillLocation } from "@dark-matter/contracts";
+import type {
+  AgentScan,
+  GlobalSkill,
+  ProjectScan,
+  ProjectSkillEntry,
+  ScanResult,
+  SkillLocation,
+} from "@dark-matter/contracts";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters, type SkillFolder } from "./agents";
 import { homeRelative } from "./home-path";
+import { suggestProjects } from "./projects";
+
+export interface ScanOptions {
+  /** Confirmed Projects, by absolute path: their skill folders are read too. */
+  projects?: readonly string[];
+  /** Folders never suggested as Projects (the Library). */
+  exclude?: readonly string[];
+}
 
 /**
  * The Scan (#10): a strictly read-only sweep of every Agent's global skill
- * folders and the `skills` CLI's global lock. It only ever reads; the caller
- * caches what it returns.
+ * folders, the `skills` CLI's global lock, every Agent's history (for
+ * Suggested Projects) and the skill folders of confirmed Projects. It only
+ * ever reads; the caller caches what it returns.
  */
-export const scan = async (env: AgentPathEnv, adapters = agentAdapters, now = new Date()): Promise<ScanResult> => {
+export const scan = async (
+  env: AgentPathEnv,
+  adapters = agentAdapters,
+  now = new Date(),
+  options: ScanOptions = {},
+): Promise<ScanResult> => {
   const folders = uniqueFolders(adapters, env);
   const lock = await readGlobalLock(env);
   const ownRoots = await realPaths([
@@ -80,7 +101,38 @@ export const scan = async (env: AgentPathEnv, adapters = agentAdapters, now = ne
     }),
   );
 
-  return { scannedAt: now.toISOString(), agents, globalSkills };
+  return {
+    scannedAt: now.toISOString(),
+    agents,
+    globalSkills,
+    suggestedProjects: await suggestProjects(env, adapters, options.exclude),
+    projects: await Promise.all((options.projects ?? []).map((path) => scanProject(path, adapters))),
+  };
+};
+
+/**
+ * Reads one confirmed Project's skill folders (every folder any Agent loads).
+ * Entries are listed as found; classifying them (untracked, Vendored, Link,
+ * Copy) is left to the tickets that act on them.
+ */
+const scanProject = async (path: string, adapters: readonly AgentAdapter[]): Promise<ProjectScan> => {
+  const folders = [...new Set(adapters.flatMap((adapter) => adapter.skills.projectFolders))].sort();
+  const skillFolders: ProjectScan["skillFolders"] = [];
+  const skills: ProjectSkillEntry[] = [];
+  for (const folder of folders) {
+    const absolute = join(path, folder);
+    skillFolders.push({ path: folder, exists: await isDirectory(absolute) });
+    for (const entry of await listSkillEntries({ path: absolute })) {
+      const meta = await readFrontmatter(entry.realPath);
+      skills.push({
+        name: meta.name ?? basename(entry.path),
+        description: meta.description ?? "",
+        folder,
+        ...entry,
+      });
+    }
+  }
+  return { path, exists: await isDirectory(path), skillFolders, skills };
 };
 
 interface Entry {

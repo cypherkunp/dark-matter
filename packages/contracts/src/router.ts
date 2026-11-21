@@ -5,6 +5,7 @@ import {
   ActivityList,
   ActivityQuery,
   AgentCard,
+  AgentId,
   type ClientKind,
   type CoreEvent,
   CoreInfo,
@@ -13,9 +14,13 @@ import {
   OwnedFileName,
   OwnedFileProblem,
   PreferencesPatch,
+  ProjectDetail,
+  ProjectPath,
+  ProjectSummary,
   ScanResult,
   ScanStatus,
   SettingsFile,
+  SuggestedProjects,
 } from "./schemas";
 
 /** Per-connection context, built once when a connection authenticates. */
@@ -58,6 +63,23 @@ export interface CoreServices {
   };
   agents: {
     list(): AgentCard[];
+  };
+  project: {
+    /** Suggested Projects from the last Scan, minus confirmed and dismissed ones. */
+    suggested(): SuggestedProjects;
+    list(): Promise<ProjectSummary[]>;
+    get(path: string): Promise<ProjectDetail>;
+    /**
+     * Confirms a Suggested Project or adds a folder by hand: the git toplevel
+     * of `path`, or `path` itself without git. Agents default to the detected ones.
+     */
+    add(input: { path: string; agents?: AgentId[] | undefined }, client: ClientKind): Promise<ProjectDetail>;
+    dismiss(path: string, client: ClientKind): Promise<void>;
+    setAgents(input: { path: string; agents: AgentId[] }, client: ClientKind): Promise<ProjectDetail>;
+    /** Points a Project at the folder it moved to. */
+    locate(input: { path: string; newPath: string }, client: ClientKind): Promise<ProjectDetail>;
+    /** Forgets a Project. Nothing on disk changes. */
+    remove(path: string, client: ClientKind): Promise<void>;
   };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
@@ -109,6 +131,32 @@ export const createAppRouter = (services: CoreServices) =>
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+    }),
+    project: t.router({
+      suggested: t.procedure.output(SuggestedProjects).query(() => services.project.suggested()),
+      list: t.procedure.output(ProjectSummary.array()).query(() => services.project.list()),
+      get: t.procedure
+        .input(ProjectPath)
+        .output(ProjectDetail)
+        .query(({ input }) => services.project.get(input.path)),
+      add: t.procedure
+        .input(ProjectPath.extend({ agents: z.array(AgentId).min(1).optional() }))
+        .output(ProjectDetail)
+        .mutation(({ input, ctx }) => services.project.add(input, ctx.client)),
+      dismiss: t.procedure
+        .input(ProjectPath)
+        .mutation(({ input, ctx }) => services.project.dismiss(input.path, ctx.client)),
+      setAgents: t.procedure
+        .input(ProjectPath.extend({ agents: z.array(AgentId).min(1) }))
+        .output(ProjectDetail)
+        .mutation(({ input, ctx }) => services.project.setAgents(input, ctx.client)),
+      locate: t.procedure
+        .input(ProjectPath.extend({ newPath: z.string().min(1) }))
+        .output(ProjectDetail)
+        .mutation(({ input, ctx }) => services.project.locate(input, ctx.client)),
+      remove: t.procedure
+        .input(ProjectPath)
+        .mutation(({ input, ctx }) => services.project.remove(input.path, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

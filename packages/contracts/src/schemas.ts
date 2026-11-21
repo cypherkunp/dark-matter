@@ -86,6 +86,8 @@ export const SettingsFile = z.strictObject({
   preferences: Preferences.prefault({}),
   /** Inbox findings you chose to leave alone, by finding id. Kept sorted. */
   ignoredFindings: z.array(z.string()).default([]),
+  /** Suggested Projects you dismissed, by absolute path. Kept sorted. */
+  dismissedSuggestedProjects: z.array(z.string()).default([]),
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 
@@ -94,7 +96,7 @@ export const PreferencesPatch = z.strictObject(preferenceFields).partial();
 export type PreferencesPatch = z.infer<typeof PreferencesPatch>;
 
 /** The owned files the core watches and validates. */
-export const OwnedFileName = z.enum(["settings.json"]);
+export const OwnedFileName = z.enum(["settings.json", "projects.json"]);
 export type OwnedFileName = z.infer<typeof OwnedFileName>;
 
 /** A hand edit the core is holding because it doesn't validate. */
@@ -191,11 +193,54 @@ export const AgentScan = z.object({
 });
 export type AgentScan = z.infer<typeof AgentScan>;
 
+/**
+ * A folder some Agent's history shows was worked in (#10), offered as a
+ * Project. Never managed until you confirm it.
+ */
+export const SuggestedProject = z.object({
+  /** Absolute: the git toplevel of the folder worked in, or the folder itself without git. */
+  path: z.string(),
+  name: z.string(),
+  git: z.boolean(),
+  /** The Agents whose history shows it. */
+  agents: z.array(AgentId),
+});
+export type SuggestedProject = z.infer<typeof SuggestedProject>;
+
+/** An entry with a `SKILL.md` in one of a Project's skill folders, as a Scan saw it (unclassified). */
+export const ProjectSkillEntry = z.object({
+  /** Frontmatter `name`, else the folder name. */
+  name: z.string(),
+  description: z.string(),
+  /** The skill folder, relative to the Project, e.g. `.agents/skills`. */
+  folder: z.string(),
+  /** Absolute path of the entry. */
+  path: z.string(),
+  /** Absolute resolved real folder. */
+  realPath: z.string(),
+  symlink: z.boolean(),
+});
+export type ProjectSkillEntry = z.infer<typeof ProjectSkillEntry>;
+
+/** One confirmed Project's skill folders, as a Scan read them. */
+export const ProjectScan = z.object({
+  path: z.string(),
+  exists: z.boolean(),
+  /** Project-relative skill folders any v1 Agent loads, and whether each exists. */
+  skillFolders: z.array(z.object({ path: z.string(), exists: z.boolean() })),
+  skills: z.array(ProjectSkillEntry),
+});
+export type ProjectScan = z.infer<typeof ProjectScan>;
+
 /** Everything one Scan found. Cached in `state/`; rebuilt by scanning again. */
 export const ScanResult = z.object({
   scannedAt: z.iso.datetime(),
   agents: z.array(AgentScan),
   globalSkills: z.array(GlobalSkill),
+  /** Every Project folder some Agent's history shows, confirmed and dismissed ones included. */
+  suggestedProjects: z.array(SuggestedProject).default([]),
+  /** What the Scan read in each confirmed Project's skill folders. */
+  projects: z.array(ProjectScan).default([]),
 });
 export type ScanResult = z.infer<typeof ScanResult>;
 
@@ -221,6 +266,8 @@ export const Inbox = z.object({
   count: z.int().nonnegative(),
   globalSkills: z.array(InboxFolderGroup),
   ignoredCount: z.int().nonnegative(),
+  /** Suggested Projects waiting to be confirmed or dismissed (listed on the Suggested screen). */
+  suggestedProjects: z.int().nonnegative(),
 });
 export type Inbox = z.infer<typeof Inbox>;
 
@@ -238,7 +285,17 @@ export const AgentCard = z.object({
 export type AgentCard = z.infer<typeof AgentCard>;
 
 /** Router domains a client caches; an `invalidate` event names the ones that changed. */
-export const Domain = z.enum(["core", "library", "settings", "ownedFiles", "activity", "scan", "inbox", "agents"]);
+export const Domain = z.enum([
+  "core",
+  "library",
+  "settings",
+  "ownedFiles",
+  "activity",
+  "scan",
+  "inbox",
+  "agents",
+  "project",
+]);
 export type Domain = z.infer<typeof Domain>;
 
 /** Pushed over the `events` subscription to drive TanStack Query invalidation. */
@@ -246,6 +303,63 @@ export const CoreEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("invalidate"), domains: z.array(Domain).min(1) }),
 ]);
 export type CoreEvent = z.infer<typeof CoreEvent>;
+
+/**
+ * One Project in `projects.json`. Owned intent only (ADR-0005): later tickets
+ * add Project Skills (#27), Project MCP Servers (#38) and the Grant as fields
+ * with defaults, so older files stay valid.
+ */
+export const ProjectRecord = z.strictObject({
+  /** The Agents chosen for this Project; they decide which folders get written. */
+  agents: z.array(AgentId).default([]),
+});
+export type ProjectRecord = z.infer<typeof ProjectRecord>;
+
+/** `~/.dark-matter/projects.json`: confirmed Projects keyed by absolute path. */
+export const ProjectsFile = z.strictObject({
+  projects: z.record(z.string(), ProjectRecord).default({}),
+});
+export type ProjectsFile = z.infer<typeof ProjectsFile>;
+
+export const SuggestedProjects = z.object({
+  /** Not confirmed and not dismissed, by name. */
+  suggested: z.array(SuggestedProject),
+  dismissedCount: z.int().nonnegative(),
+});
+export type SuggestedProjects = z.infer<typeof SuggestedProjects>;
+
+/** A confirmed Project, as the sidebar lists it. */
+export const ProjectSummary = z.object({
+  path: z.string(),
+  name: z.string(),
+  /** False when the folder is gone: the Project page offers Locate… or Remove. */
+  exists: z.boolean(),
+  agents: z.array(AgentId),
+});
+export type ProjectSummary = z.infer<typeof ProjectSummary>;
+
+/** One choice in a Project's Agent picker. */
+export const ProjectAgentOption = z.object({
+  id: AgentId,
+  name: z.string(),
+  /** Its history shows this Project, or its marker (e.g. `.claude/`) is in the folder. */
+  detected: z.boolean(),
+  /** The Project folder Project Skills reach this Agent through, e.g. `.agents/skills`. */
+  folder: z.string(),
+});
+export type ProjectAgentOption = z.infer<typeof ProjectAgentOption>;
+
+export const ProjectDetail = ProjectSummary.extend({
+  git: z.boolean(),
+  agentOptions: z.array(ProjectAgentOption),
+  /** The Project-relative folders Dark Matter writes for the chosen Agents. */
+  folders: z.array(z.string()),
+  /** Skills the last Scan saw in its skill folders; null before a Scan has read it. */
+  skills: z.array(ProjectSkillEntry).nullable(),
+});
+export type ProjectDetail = z.infer<typeof ProjectDetail>;
+
+export const ProjectPath = z.object({ path: z.string().min(1) });
 
 /** Exit codes of the core process, so a supervisor can tell why it stopped. */
 export const CoreExitCode = {

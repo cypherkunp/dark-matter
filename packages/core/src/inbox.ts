@@ -2,8 +2,16 @@ import type { AgentCard, Inbox, InboxFolderGroup, ScanResult } from "@dark-matte
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { homeRelative } from "./home-path";
 
-/** The Inbox from the latest Scan: Global Skills grouped by Agent folder, minus ignored ones. */
-export const inboxFrom = (scan: ScanResult | null, ignored: readonly string[], env: AgentPathEnv): Inbox => {
+/**
+ * The Inbox from the latest Scan: Global Skills grouped by Agent folder, minus
+ * ignored ones, plus the number of Suggested Projects waiting.
+ */
+export const inboxFrom = (
+  scan: ScanResult | null,
+  ignored: readonly string[],
+  env: AgentPathEnv,
+  suggestedProjects = 0,
+): Inbox => {
   const skipped = new Set(ignored);
   const all = scan?.globalSkills ?? [];
   const waiting = all.filter((finding) => !skipped.has(finding.id));
@@ -22,9 +30,10 @@ export const inboxFrom = (scan: ScanResult | null, ignored: readonly string[], e
     groups.set(finding.folder, group);
   }
   return {
-    count: waiting.length,
+    count: waiting.length + suggestedProjects,
     globalSkills: [...groups.values()],
     ignoredCount: all.length - waiting.length,
+    suggestedProjects,
   };
 };
 

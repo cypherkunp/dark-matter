@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { type CoreInfo, SettingsFile } from "@dark-matter/contracts";
+import { type CoreInfo, ProjectsFile, SettingsFile } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import { ActivityLog } from "./activity";
 import { openCache } from "./cache";
@@ -7,6 +7,7 @@ import type { EventBus } from "./events";
 import { agentCards, inboxFrom } from "./inbox";
 import { log } from "./log";
 import { OwnedFile } from "./owned-file";
+import { projectServices, waitingSuggestions } from "./projects";
 import { Scans } from "./scans";
 import { watchOwnedFiles } from "./watch-owned";
 
@@ -28,14 +29,18 @@ export const createServices = async ({ libraryHome, home, info, bus }: ServicesO
     onRecorded: () => bus.publish({ type: "invalidate", domains: ["activity"] }),
   });
   const settings = await OwnedFile.open("settings.json", join(libraryHome, "settings.json"), SettingsFile);
-  const ownedFiles = [settings];
-  const ownedFileChanged = () => bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox"] });
+  const projects = await OwnedFile.open("projects.json", join(libraryHome, "projects.json"), ProjectsFile);
+  const ownedFiles = [settings, projects];
+  const ownedFileChanged = () =>
+    bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "project"] });
   const env = { home };
   const scans = new Scans({
     env,
     cache,
     activity,
-    onChange: () => bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents"] }),
+    projectPaths: () => Object.keys(projects.value.projects),
+    exclude: [libraryHome],
+    onChange: () => bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents", "project"] }),
   });
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
@@ -76,7 +81,13 @@ export const createServices = async ({ libraryHome, home, info, bus }: ServicesO
       status: () => scans.status(),
     },
     inbox: {
-      list: () => inboxFrom(scans.latest, settings.value.ignoredFindings, env),
+      list: () =>
+        inboxFrom(
+          scans.latest,
+          settings.value.ignoredFindings,
+          env,
+          waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
+        ),
       ignore: (id, client) =>
         activity.track({ client, action: "inbox.ignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
           wrote(
@@ -89,6 +100,7 @@ export const createServices = async ({ libraryHome, home, info, bus }: ServicesO
         }),
     },
     agents: { list: () => agentCards(scans.latest, env) },
+    project: projectServices({ env, projects, settings, activity, scans, bus }),
   };
   scans.catchUp();
 

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { AgentId } from "@dark-matter/contracts";
+import { claudeHistory, codexHistory, cursorHistory, opencodeHistory } from "./history";
 
 /** Where an adapter resolves its paths from. Grows as adapters need more (e.g. `CODEX_HOME`). */
 export interface AgentPathEnv {
@@ -20,10 +21,9 @@ export interface SkillFolder {
  * Everything Dark Matter knows about one Agent (facts from the Skill discovery
  * research, #2, checked November 2026). Adding an Agent means adding an adapter.
  *
- * Only the skill-folder parts exist so far. Later tickets add sibling sections
- * here rather than new registries: `managed` (Agent-managed Skill locations and
- * "Turn off everywhere"), `history` (sources of Suggested Projects), `mcp`
- * (config locations, formats and translation) and Project skill folders.
+ * Later tickets add sibling sections here rather than new registries:
+ * `managed` (Agent-managed Skill locations and "Turn off everywhere") and
+ * `mcp` (config locations, formats and translation).
  */
 export interface AgentAdapter {
   id: AgentId;
@@ -33,6 +33,24 @@ export interface AgentAdapter {
   skills: {
     /** Global skill folders it loads: its own first, then compatibility folders. */
     globalFolders(env: AgentPathEnv): SkillFolder[];
+    /** Project-relative skill folders it loads, e.g. `.agents/skills`. */
+    projectFolders: readonly string[];
+    /**
+     * The one Project folder Project Skills reach it through (#8): `.agents/skills`
+     * for every Agent except Claude Code, which only reads `.claude/skills`.
+     */
+    deliveryFolder: string;
+  };
+  project: {
+    /** Entries in a Project folder that show the Agent is used there, e.g. `.claude`. */
+    markers: readonly string[];
+  };
+  history: {
+    /**
+     * Absolute folders the Agent's own history shows it worked in, for
+     * Suggested Projects. Read-only and defensive: unknown shapes are skipped.
+     */
+    projectFolders(env: AgentPathEnv): Promise<string[]>;
   };
 }
 
@@ -51,7 +69,13 @@ const claudeCode: AgentAdapter = {
   name: "Claude Code",
   configDir: ({ home }) => join(home, ".claude"),
   // Claude Code alone doesn't read `.agents/skills` (anthropics/claude-code#31005).
-  skills: { globalFolders: (env) => [claudeSkills(env)] },
+  skills: {
+    globalFolders: (env) => [claudeSkills(env)],
+    projectFolders: [".claude/skills"],
+    deliveryFolder: ".claude/skills",
+  },
+  project: { markers: [".claude", "CLAUDE.md"] },
+  history: { projectFolders: claudeHistory },
 };
 
 const cursor: AgentAdapter = {
@@ -61,14 +85,24 @@ const cursor: AgentAdapter = {
   // `~/.cursor/skills-cursor/` holds Cursor's built-ins: Agent-managed, not global.
   skills: {
     globalFolders: (env) => [cursorSkills(env), agentsSkills(env), claudeSkills(env), codexSkills(env)],
+    projectFolders: [".cursor/skills", ".agents/skills", ".claude/skills", ".codex/skills"],
+    deliveryFolder: ".agents/skills",
   },
+  project: { markers: [".cursor"] },
+  history: { projectFolders: cursorHistory },
 };
 
 const opencode: AgentAdapter = {
   id: "opencode",
   name: "OpenCode",
   configDir: ({ home }) => join(home, ".config/opencode"),
-  skills: { globalFolders: (env) => [opencodeSkills(env), claudeSkills(env), agentsSkills(env)] },
+  skills: {
+    globalFolders: (env) => [opencodeSkills(env), claudeSkills(env), agentsSkills(env)],
+    projectFolders: [".opencode/skills", ".claude/skills", ".agents/skills"],
+    deliveryFolder: ".agents/skills",
+  },
+  project: { markers: [".opencode", "opencode.json", "opencode.jsonc"] },
+  history: { projectFolders: opencodeHistory },
 };
 
 const codex: AgentAdapter = {
@@ -77,14 +111,27 @@ const codex: AgentAdapter = {
   configDir: ({ home }) => join(home, ".codex"),
   // `~/.codex/skills` is deprecated but still loaded; its `.system/` (hidden) is Agent-managed.
   // The admin folder `/etc/codex/skills` is outside `$HOME` and not scanned yet.
-  skills: { globalFolders: (env) => [agentsSkills(env), codexSkills(env)] },
+  skills: {
+    globalFolders: (env) => [agentsSkills(env), codexSkills(env)],
+    projectFolders: [".agents/skills"],
+    deliveryFolder: ".agents/skills",
+  },
+  project: { markers: [".codex"] },
+  history: { projectFolders: codexHistory },
 };
 
 const agents: AgentAdapter = {
   id: "agents",
   name: ".agents",
   configDir: ({ home }) => join(home, ".agents"),
-  skills: { globalFolders: (env) => [agentsSkills(env)] },
+  skills: {
+    globalFolders: (env) => [agentsSkills(env)],
+    projectFolders: [".agents/skills"],
+    deliveryFolder: ".agents/skills",
+  },
+  project: { markers: [".agents", "AGENTS.md"] },
+  // The convention has no history of its own.
+  history: { projectFolders: async () => [] },
 };
 
 /** The v1 Agents, in the order screens list them. */
