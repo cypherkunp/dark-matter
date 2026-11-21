@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "package": "electron-builder --publish never"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
@@ -31,6 +32,7 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "electron": "catalog:",
+    "electron-builder": "catalog:",
     "electron-vite": "catalog:",
     "shadcn": "catalog:",
     "tailwindcss": "catalog:",

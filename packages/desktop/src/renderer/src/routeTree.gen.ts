@@ -11,7 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
+import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ComputerActivityRouteImport } from './routes/computer/activity'
+import { Route as ComputerAgentsRouteImport } from './routes/computer/agents'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,40 +27,98 @@ const SplatRoute = SplatRouteImport.update({
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InboxRoute = InboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComputerActivityRoute = ComputerActivityRouteImport.update({
+  id: '/computer/activity',
+  path: '/computer/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComputerAgentsRoute = ComputerAgentsRouteImport.update({
+  id: '/computer/agents',
+  path: '/computer/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
+  '/settings': typeof SettingsRoute
+  '/computer/activity': typeof ComputerActivityRoute
+  '/computer/agents': typeof ComputerAgentsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
+  '/settings': typeof SettingsRoute
+  '/computer/activity': typeof ComputerActivityRoute
+  '/computer/agents': typeof ComputerAgentsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
+  '/settings': typeof SettingsRoute
+  '/computer/activity': typeof ComputerActivityRoute
+  '/computer/agents': typeof ComputerAgentsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$' | '/library'
+  fullPaths:
+    | '/'
+    | '/$'
+    | '/inbox'
+    | '/library'
+    | '/settings'
+    | '/computer/activity'
+    | '/computer/agents'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$' | '/library'
-  id: '__root__' | '/' | '/$' | '/library'
+  to:
+    | '/'
+    | '/$'
+    | '/inbox'
+    | '/library'
+    | '/settings'
+    | '/computer/activity'
+    | '/computer/agents'
+  id:
+    | '__root__'
+    | '/'
+    | '/$'
+    | '/inbox'
+    | '/library'
+    | '/settings'
+    | '/computer/activity'
+    | '/computer/agents'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
+  InboxRoute: typeof InboxRoute
   LibraryRoute: typeof LibraryRoute
+  SettingsRoute: typeof SettingsRoute
+  ComputerActivityRoute: typeof ComputerActivityRoute
+  ComputerAgentsRoute: typeof ComputerAgentsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,11 +137,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/inbox': {
+      id: '/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library': {
       id: '/library'
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/computer/activity': {
+      id: '/computer/activity'
+      path: '/computer/activity'
+      fullPath: '/computer/activity'
+      preLoaderRoute: typeof ComputerActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/computer/agents': {
+      id: '/computer/agents'
+      path: '/computer/agents'
+      fullPath: '/computer/agents'
+      preLoaderRoute: typeof ComputerAgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -88,7 +178,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
+  InboxRoute: InboxRoute,
   LibraryRoute: LibraryRoute,
+  SettingsRoute: SettingsRoute,
+  ComputerActivityRoute: ComputerActivityRoute,
+  ComputerAgentsRoute: ComputerAgentsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

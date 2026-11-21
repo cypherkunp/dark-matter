@@ -50,3 +50,49 @@ jobs:
           name: playwright-report-${{ matrix.os }}
           path: packages/desktop/playwright-report
           retention-days: 7
+
+  # Unsigned release packages, so packaging breaks show up before a tag does.
+  package:
+    name: package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            app: release/mac-arm64/Dark Matter.app/Contents/MacOS/Dark Matter
+          - os: ubuntu-latest
+            app: release/linux-unpacked/dark-matter
+    runs-on: ${{ matrix.os }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Package (unsigned)
+        run: pnpm package
+      - name: Packaged smoke test (macOS)
+        if: runner.os == 'macOS'
+        working-directory: packages/desktop
+        env:
+          DARK_MATTER_PACKAGED_APP: ${{ github.workspace }}/packages/desktop/${{ matrix.app }}
+        run: pnpm exec playwright test e2e/packaged.test.ts
+      - name: Packaged smoke test (Linux)
+        if: runner.os == 'Linux'
+        working-directory: packages/desktop
+        env:
+          DARK_MATTER_PACKAGED_APP: ${{ github.workspace }}/packages/desktop/${{ matrix.app }}
+        run: xvfb-run --auto-servernum -- pnpm exec playwright test e2e/packaged.test.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-${{ matrix.os }}
+          path: |
+            packages/desktop/release/*.dmg
+            packages/desktop/release/*.zip
+            packages/desktop/release/*.AppImage
+            packages/desktop/release/*.deb
+          retention-days: 3

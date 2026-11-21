@@ -2,12 +2,14 @@ import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
 import { useCoreEvents } from "@/components/use-core-events";
+import { useNativeNavigation } from "@/components/use-native-navigation";
 
 export const Route = createRootRoute({ component: AppShell });
 
 /** The native macOS shell: tinted sidebar tree, breadcrumb header, content pane. */
 function AppShell() {
   const { connected } = useCoreEvents();
+  useNativeNavigation();
   return (
     <div className="flex h-full">
       <Sidebar connected={connected} />
