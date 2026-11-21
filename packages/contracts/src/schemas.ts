@@ -935,6 +935,7 @@ export const Domain = z.enum([
   "activity",
   "scan",
   "inbox",
+  "overview",
   "agents",
   "scheduler",
   "project",
@@ -1418,3 +1419,34 @@ export type RepoMcpServer = z.infer<typeof RepoMcpServer>;
 
 export const RepoMcpServers = z.object({ vendored: z.array(RepoMcpServer), untracked: z.array(RepoMcpServer) });
 export type RepoMcpServers = z.infer<typeof RepoMcpServers>;
+
+/** One stat card on an overview screen (#45): its number (null before the first Scan) and the screen that resolves it. */
+export const StatCard = z.object({ count: z.int().nonnegative().nullable(), path: z.string() });
+export type StatCard = z.infer<typeof StatCard>;
+
+/**
+ * One item in the amber alerts panel (#45): an Inbox group or a drift finding,
+ * as a bold subject plus the issue, a detail line, when it was first seen and
+ * the screen that resolves it.
+ */
+export const OverviewAlert = z.object({
+  id: z.string(),
+  subject: z.string(),
+  issue: z.string(),
+  detail: z.string(),
+  firstSeenAt: z.iso.datetime(),
+  path: z.string(),
+});
+export type OverviewAlert = z.infer<typeof OverviewAlert>;
+
+/** The stat-card strip and alerts panel, from one place so every overview screen agrees. */
+export const Overview = z.object({
+  stats: z.object({
+    projectSkillsOn: StatCard,
+    globalSkills: StatCard,
+    outdated: StatCard,
+    nameConflicts: StatCard,
+  }),
+  alerts: z.array(OverviewAlert),
+});
+export type Overview = z.infer<typeof Overview>;

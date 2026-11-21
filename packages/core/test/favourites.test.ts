@@ -116,6 +116,9 @@ describe("Favourites", () => {
     await trpc.inbox.ignore.mutate({ id: "new-skill:acme/skills:skills/pptx" });
     expect(await newSkills()).toEqual([]);
     expect((await trpc.inbox.list.query()).ignoredCount).toBe(1);
+    expect((await trpc.inbox.ignored.query()).newSkills).toMatchObject([
+      { source: "acme/skills", findings: [{ id: "new-skill:acme/skills:skills/pptx" }] },
+    ]);
   });
 
   test("a starred Source with nothing in the Library is checked on its default branch; unstarring hides its item", async () => {

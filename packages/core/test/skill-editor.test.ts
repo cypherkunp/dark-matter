@@ -242,5 +242,6 @@ describe("Deleting a Library Skill", () => {
     await expect
       .poll(async () => (await trpc.activity.list.query({})).entries.find((entry) => entry.action === "trash.purge"))
       .toMatchObject({ client: "scheduled-scan", result: "ok", subjects: [{ kind: "skill", id: key }] });
-  });
+    // The first poll may take its full 5 s, Vitest's default test timeout.
+  }, 15_000);
 });

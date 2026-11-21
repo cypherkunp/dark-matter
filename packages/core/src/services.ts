@@ -20,7 +20,7 @@ import type { EventBus } from "./events";
 import { Favourites } from "./favourites";
 import { GitHubAccess, type GitHubOptions } from "./github";
 import { Importer, importerServices } from "./importer";
-import { agentCards, inboxFrom } from "./inbox";
+import { agentCards, ignoredInbox, inboxFrom } from "./inbox";
 import { Library } from "./library";
 import { startLiveRefresh } from "./live-refresh";
 import { log } from "./log";
@@ -28,6 +28,7 @@ import { managedSkillRef } from "./managed-skills";
 import { McpAdopt, McpLibrary } from "./mcp-library";
 import { type KeyRenameHook, NamespaceRename } from "./namespace-rename";
 import type { Notifier } from "./notifier";
+import { OverviewService } from "./overview";
 import { OwnedFile } from "./owned-file";
 import { ProjectMcpService } from "./project-mcp";
 import { ProjectSkillService } from "./project-skills";
@@ -297,6 +298,26 @@ export const createServices = async ({
     onChange: () => bus.publish({ type: "invalidate", domains: ["collections", "settings"] }),
   });
   keyRenameHooks.push(collections.keyRenameHook(home));
+  const listInbox = async (ignored = settings.value.ignoredFindings) =>
+    inboxFrom(
+      scans.latest,
+      ignored,
+      env,
+      waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
+      findUntracked(),
+      await drift.groups(),
+      favourites.inboxGroups(),
+    );
+  const overview = new OverviewService({
+    home,
+    cache,
+    now: () => clock.now(),
+    latestScan: () => scans.latest,
+    inbox: () => listInbox(),
+    projectPaths: () => Object.keys(projects.value.projects),
+    projectSkills: (path) => projectSkills.services().skills(path),
+    libraryUpdates: async () => (await updates.view()).updates.length,
+  });
 
   const services: Omit<CoreServices, "events" | "notifications"> = {
     info,
@@ -343,20 +364,27 @@ export const createServices = async ({
     },
     activity: { list: (query) => activity.list(query), export: (filter) => activity.export(filter) },
     scan: {
-      run: (client) => scans.run(client),
+      // After the first Scan the Agents' folders are watched before the call returns, so no change is missed.
+      run: async (client) => {
+        const result = await scans.run(client);
+        await liveRefresh?.sync();
+        return result;
+      },
       status: () => scans.status(),
     },
     inbox: {
-      list: async () =>
-        inboxFrom(
-          scans.latest,
-          settings.value.ignoredFindings,
-          env,
-          waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
-          findUntracked(),
-          await drift.groups(),
-          favourites.inboxGroups(),
-        ),
+      list: () => listInbox(),
+      ignored: async () => ignoredInbox(await listInbox([]), settings.value.ignoredFindings),
+      unignore: (id, client) =>
+        activity.track({ client, action: "inbox.unignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
+          wrote(
+            await settings.update((current) => ({
+              ...current,
+              ignoredFindings: current.ignoredFindings.filter((ignored) => ignored !== id),
+            })),
+          );
+          bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
+        }),
       ignore: (id, client) =>
         activity.track({ client, action: "inbox.ignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
           wrote(
@@ -368,6 +396,7 @@ export const createServices = async ({
           bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
         }),
     },
+    overview: { get: () => overview.get() },
     drift: {
       restore: (id, client) => drift.restore(id, client),
       accept: (id, client) => drift.accept(id, client),

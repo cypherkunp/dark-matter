@@ -134,3 +134,30 @@ export const agentCards = (scan: ScanResult | null, env: AgentPathEnv): AgentCar
       managedMcpNotes: [...(adapter.managedMcp?.notes ?? [])],
     };
   });
+
+/**
+ * Only the ignored findings, in the Inbox's shape (for "Show ignored" and
+ * Un-ignore): `all` is the Inbox with nothing ignored. Suggested Projects
+ * aren't ignored but dismissed, so they're left out.
+ */
+export const ignoredInbox = (all: Inbox, ignored: readonly string[]): Inbox => {
+  const wanted = new Set(ignored);
+  const only = <G extends { findings: { id: string }[] }>(groups: G[]): G[] =>
+    groups
+      .map((group) => ({ ...group, findings: group.findings.filter((finding) => wanted.has(finding.id)) }))
+      .filter((group) => group.findings.length > 0);
+  const inbox = {
+    globalSkills: only(all.globalSkills),
+    managedSkills: only(all.managedSkills),
+    untrackedSkills: only(all.untrackedSkills),
+    mcpServers: only(all.mcpServers),
+    drift: only(all.drift),
+    managedMcpServers: only(all.managedMcpServers),
+    newSkills: only(all.newSkills),
+  };
+  const count = Object.values(inbox).reduce(
+    (sum, groups: { findings: unknown[] }[]) => sum + groups.reduce((n, group) => n + group.findings.length, 0),
+    0,
+  );
+  return { ...inbox, count, ignoredCount: 0, suggestedProjects: 0 };
+};
