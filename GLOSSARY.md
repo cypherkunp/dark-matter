@@ -105,8 +105,16 @@ A folder that some Agent's history shows was worked in, which Dark Matter offers
 _Avoid_: Detected project, recent workspace
 
 **Inbox**:
-The screen that collects every Scan finding still waiting on your decision: Global Skills and untracked Project Skills to Adopt, Agent-managed Skills you might turn off, and Suggested Projects.
+The screen that collects everything still waiting on your decision: Scan findings (Global Skills and untracked Project Skills to Adopt, Agent-managed Skills you might turn off, and Suggested Projects) and pending Requests.
 _Avoid_: Notifications, queue, review list
+
+**Request**:
+A change an Agent (over MCP) or the CLI asks Dark Matter to make, shown first as a plan, then approved or denied by you in the app, unless a Grant covers it. A pending Request expires after 24 hours.
+_Avoid_: Proposal, ticket, permission prompt
+
+**Grant**:
+A standing, revocable permission on one Project that lets Requests make low-risk changes there without asking: turning things On or Off, and adding or removing a Link. It never covers a Copy, a Shared or new MCP Server, or an Import.
+_Avoid_: Trust, allowlist, auto-approve
 
 **Favourite**:
 A star you put on a Skill or on a Source. The Favourites view shows starred Skills plus every Library Skill from a starred Source.
