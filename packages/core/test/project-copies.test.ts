@@ -338,12 +338,8 @@ describe("Vendored Skills and an existing skills-lock.json", () => {
     expect(repo.locked).toEqual([
       expect.objectContaining({ name: "missing", key: "acme/skills/missing", present: false, message: null }),
       expect.objectContaining({ name: "pdf", key: "acme/skills/pdf", present: true, message: null }),
-      expect.objectContaining({
-        name: "zip",
-        key: null,
-        present: true,
-        message: expect.stringContaining("isn't in the Library"),
-      }),
+      // Not in the Library, but a GitHub Source: fulfilling it Imports it first (#30).
+      expect.objectContaining({ name: "zip", key: null, present: true, message: null }),
     ]);
     expect(await snapshotTree(app)).toEqual(before);
   });
@@ -373,8 +369,9 @@ describe("Vendored Skills and an existing skills-lock.json", () => {
     expect(lock.skills.zip).toEqual({ source: "someone/else", sourceType: "github", computedHash: "" });
     expect((await trpc.project.repoSkills.query({ path: app })).locked.map((entry) => entry.name)).toEqual(["zip"]);
 
+    // Fulfilling zip Imports it from GitHub (#30), which this test's core can't reach.
     await expect(trpc.project.fulfilLock.mutate({ path: app, names: ["zip"] })).rejects.toMatchObject({
-      data: { tag: "NotInLibrary" },
+      data: { tag: "SourceUnreachable" },
     });
   });
 

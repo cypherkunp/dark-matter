@@ -16,6 +16,8 @@ import type { Clock } from "./clock";
 import { Collections } from "./collections";
 import { editConfigFile } from "./config-edit";
 import type { EventBus } from "./events";
+import { GitHubAccess, type GitHubOptions } from "./github";
+import { Importer, importerServices } from "./importer";
 import { agentCards, inboxFrom } from "./inbox";
 import { Library } from "./library";
 import { log } from "./log";
@@ -49,6 +51,7 @@ export interface ServicesOptions {
   systemRoot?: string;
   notifier: Notifier;
   secrets: SecretStore;
+  github: GitHubOptions;
 }
 
 /** The core's service methods behind the router (ADR-0003): every action is one of these. */
@@ -60,6 +63,7 @@ export const createServices = async ({
   clock,
   notifier,
   secrets,
+  github,
   systemRoot,
 }: ServicesOptions) => {
   const cache = await openCache(libraryHome);
@@ -146,8 +150,16 @@ export const createServices = async ({
       ),
       ...projectSkills.copyFolders(),
     ]);
-  /** Imports a `skills-lock.json` entry missing from the Library while fulfilling it. GitHub Import (#30) sets it. */
-  const lockImporter: LockImporter | null = null;
+  /** GitHub Import (#30); it also Imports `skills-lock.json` entries missing from the Library while fulfilling them. */
+  const importer = new Importer({
+    home,
+    libraryHome,
+    library,
+    activity,
+    github: new GitHubAccess(github, secrets),
+    onChange: (domains) => bus.publish({ type: "invalidate", domains }),
+  });
+  const lockImporter: LockImporter | null = importer.lockImporter();
   const projectSkills = new ProjectSkillService({
     home,
     libraryHome,
@@ -326,6 +338,7 @@ export const createServices = async ({
       ...projectMcp.services(),
     },
     collections: collections.services(),
+    importer: importerServices(importer),
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),

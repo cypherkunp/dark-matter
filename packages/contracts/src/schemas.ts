@@ -178,6 +178,8 @@ export const LibraryLockEntry = z.strictObject({
   localSource: z.string().optional(),
   /** Projects (home-relative) where Adopt & keep Link put a Link back (#29); Undo Adopt removes those Project Skills first. */
   keptLinks: z.array(z.string()).optional(),
+  /** Imported (#30): the GitHub tree SHA of the Skill's folder at `commit`, so update checks compare folders, not commits. */
+  skillFolderHash: z.string().optional(),
 });
 export type LibraryLockEntry = z.infer<typeof LibraryLockEntry>;
 
@@ -846,6 +848,7 @@ export const Domain = z.enum([
   "mcp",
   "skill",
   "collections",
+  "importer",
 ]);
 export type Domain = z.infer<typeof Domain>;
 

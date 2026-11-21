@@ -2,6 +2,7 @@ import type { ActivityRetention, Preferences } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { GitHubSettings } from "@/components/github-settings";
 import { OwnedFileProblems } from "@/components/owned-file-problems";
 import { PageHead } from "@/components/page-head";
 import { Button } from "@/components/ui/button";
@@ -136,6 +137,7 @@ function Settings() {
           </div>
         </form>
       )}
+      <GitHubSettings />
     </div>
   );
 }
