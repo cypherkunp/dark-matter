@@ -38,3 +38,27 @@ export class InvalidOwnedFile extends TaggedError<"InvalidOwnedFile"> {
     super(`${path} has a hand edit that isn't valid: ${problem}. Fix it or discard it first.`);
   }
 }
+
+/** No confirmed Project has this path. */
+export class ProjectNotFound extends TaggedError<"ProjectNotFound"> {
+  readonly _tag = "ProjectNotFound";
+  constructor(readonly path: string) {
+    super(`${path} isn't a Project`);
+  }
+}
+
+/** A folder Dark Matter was asked to use isn't there (any more). */
+export class PathGone extends TaggedError<"PathGone"> {
+  readonly _tag = "PathGone";
+  constructor(readonly path: string) {
+    super(`${path} doesn't exist or isn't a folder`);
+  }
+}
+
+/** Another confirmed Project already has this path. */
+export class ProjectExists extends TaggedError<"ProjectExists"> {
+  readonly _tag = "ProjectExists";
+  constructor(readonly path: string) {
+    super(`${path} is already a Project`);
+  }
+}

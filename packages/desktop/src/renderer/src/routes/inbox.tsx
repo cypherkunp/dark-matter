@@ -1,7 +1,7 @@
 import type { GlobalSkill, InboxFolderGroup } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { Inbox as InboxIcon } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ChevronRight, Inbox as InboxIcon } from "lucide-react";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -102,10 +102,28 @@ function Inbox() {
         </section>
       ) : (
         <>
-          <p className="text-muted-foreground text-sm">
-            Global Skills load in every Project. Adopt them into the Library so each Project asks for only what it
-            needs.
-          </p>
+          {(inbox.data?.suggestedProjects ?? 0) > 0 && (
+            <Link
+              to="/projects/suggested"
+              data-testid="inbox-suggested-projects"
+              className="flex min-h-16 items-center gap-3 rounded-xl border px-5 py-3 hover:bg-muted/50"
+            >
+              <StatusDot tone="warning" />
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="font-medium text-sm">
+                  {plural(inbox.data?.suggestedProjects ?? 0, "Suggested Project")}
+                </span>
+                <span className="text-muted-foreground text-xs">Confirm the folders Dark Matter should manage</span>
+              </div>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </Link>
+          )}
+          {groups.length > 0 && (
+            <p className="text-muted-foreground text-sm">
+              Global Skills load in every Project. Adopt them into the Library so each Project asks for only what it
+              needs.
+            </p>
+          )}
           {groups.map((group) => (
             <FolderGroup key={group.folder} group={group} />
           ))}

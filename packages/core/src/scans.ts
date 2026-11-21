@@ -9,6 +9,10 @@ export interface ScansOptions {
   env: AgentPathEnv;
   cache: DatabaseSync;
   activity: ActivityLog;
+  /** Confirmed Projects by absolute path, read at the start of each Scan. */
+  projectPaths?: () => readonly string[];
+  /** Folders never suggested as Projects (the Library). */
+  exclude?: readonly string[];
   /** Called when a Scan starts and when it finishes. */
   onChange: () => void;
 }
@@ -69,7 +73,10 @@ export class Scans {
   }
 
   async #scan(): Promise<ScanResult> {
-    const result = await scan(this.#options.env, agentAdapters);
+    const result = await scan(this.#options.env, agentAdapters, new Date(), {
+      projects: this.#options.projectPaths?.() ?? [],
+      exclude: this.#options.exclude ?? [],
+    });
     this.#options.cache
       .prepare("INSERT INTO scan (id, result) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET result = excluded.result")
       .run(JSON.stringify(result));

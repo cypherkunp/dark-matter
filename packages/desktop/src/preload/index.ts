@@ -9,6 +9,8 @@ const bridge: DarkMatterBridge = {
     ipcRenderer.on("app:navigate", handler);
     return () => ipcRenderer.off("app:navigate", handler);
   },
+  chooseFolder: (title) => ipcRenderer.invoke("dialog:chooseFolder", title),
+  openFolder: (path) => ipcRenderer.invoke("shell:openFolder", path),
 };
 
 contextBridge.exposeInMainWorld("darkMatter", bridge);

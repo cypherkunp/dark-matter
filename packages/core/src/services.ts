@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { type CoreInfo, SettingsFile } from "@dark-matter/contracts";
+import { type CoreInfo, ProjectsFile, SettingsFile } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import { ActivityLog } from "./activity";
 import { openCache } from "./cache";
@@ -9,6 +9,7 @@ import { agentCards, inboxFrom } from "./inbox";
 import { log } from "./log";
 import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
+import { projectServices, waitingSuggestions } from "./projects";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
@@ -35,14 +36,18 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     now: () => clock.now(),
   });
   const settings = await OwnedFile.open("settings.json", join(libraryHome, "settings.json"), SettingsFile);
-  const ownedFiles = [settings];
-  const ownedFileChanged = () => bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox"] });
+  const projects = await OwnedFile.open("projects.json", join(libraryHome, "projects.json"), ProjectsFile);
+  const ownedFiles = [settings, projects];
+  const ownedFileChanged = () =>
+    bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "project"] });
   const env = { home };
   const scans = new Scans({
     env,
     cache,
     activity,
-    onChange: () => bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents", "scheduler"] }),
+    projectPaths: () => Object.keys(projects.value.projects),
+    exclude: [libraryHome],
+    onChange: () => bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents", "project", "scheduler"] }),
   });
   /** The daily run, in order. Later jobs (update checks, starred Sources) are added here. */
   const dailyJobs: DailyJob[] = [scanJob(scans, () => settings.value.ignoredFindings)];
@@ -99,7 +104,13 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       status: () => scans.status(),
     },
     inbox: {
-      list: () => inboxFrom(scans.latest, settings.value.ignoredFindings, env),
+      list: () =>
+        inboxFrom(
+          scans.latest,
+          settings.value.ignoredFindings,
+          env,
+          waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
+        ),
       ignore: (id, client) =>
         activity.track({ client, action: "inbox.ignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
           wrote(
@@ -113,6 +124,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     },
     agents: { list: () => agentCards(scans.latest, env) },
     scheduler: { status: () => scheduler.status() },
+    project: projectServices({ env, projects, settings, activity, scans, bus }),
   };
   // A missed daily run Scans anyway, so it stands in for the catch-up Scan.
   if (!scheduler.due()) scans.catchUp();

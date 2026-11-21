@@ -1,6 +1,7 @@
+import { stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { corePaths, resolveLibraryHome } from "@dark-matter/contracts/paths";
-import { app, BrowserWindow, ipcMain, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
 import { CoreSupervisor } from "./core-supervisor";
 import { startResidency } from "./residency";
 
@@ -75,6 +76,19 @@ const showWindow = (path?: string) => {
 let residency: ReturnType<typeof startResidency> | undefined;
 
 ipcMain.handle("core:connection", () => supervisor.connection());
+ipcMain.handle("dialog:chooseFolder", async (event, title: unknown) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const options: Electron.OpenDialogOptions = {
+    properties: ["openDirectory"],
+    ...(typeof title === "string" ? { title } : {}),
+  };
+  const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
+  return result.canceled ? null : (result.filePaths[0] ?? null);
+});
+ipcMain.handle("shell:openFolder", async (_event, path: unknown) => {
+  // Folders only: opening a file path would run it.
+  if (typeof path === "string" && (await stat(path).catch(() => null))?.isDirectory()) await shell.openPath(path);
+});
 
 app.whenReady().then(() => {
   supervisor.start();
