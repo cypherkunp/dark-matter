@@ -306,8 +306,22 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
   const trpc = useTRPC();
   const library = useQuery(trpc.mcp.list.queryOptions());
   const targets = useQuery(trpc.project.mcpTargets.queryOptions({ path }));
+  const current = useQuery(trpc.project.mcpServers.queryOptions({ path }));
   const [picked, setPicked] = useState<string[]>([]);
   const [mode, setMode] = useState<McpDeliveryMode>("personal");
+  /**
+   * Cursor, OpenCode and Codex keep Personal and Shared in the same Project file, and a
+   * committed file can't hold Personal entries (McpFileShared): say so before Add fails.
+   */
+  const mixed = (targets.data ?? []).flatMap((target) => {
+    if (target.file !== target.shared) return [];
+    const other = (current.data ?? []).find(
+      (server) =>
+        server.mode !== mode &&
+        server.deliveries.some((delivery) => delivery.agent === target.agent && delivery.file === target.file),
+    );
+    return other ? [{ target, other }] : [];
+  });
   const [reviewing, setReviewing] = useState(false);
   const add = useMutation(trpc.project.addMcpServers.mutationOptions({ onSuccess: onClose }));
   const candidates = (library.data?.servers ?? []).filter(
@@ -351,6 +365,21 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
                 </li>
               ))}
             </ul>
+          )}
+          {mixed.length > 0 && (
+            <div data-testid="mcp-mixed-file">
+              <Warning>
+                {mixed.map(({ target, other }) => (
+                  <p key={target.agent}>
+                    {agentName(target.agent)} keeps Personal and Shared MCP Servers in one file,{" "}
+                    <span className="font-mono">{target.file}</span>, and it already holds {other.name} as{" "}
+                    {modeLabels[other.mode]}. A Project can't mix them there: a Personal entry would be committed, or a
+                    Shared one excluded from git. Make {other.name} {modeLabels[mode]} first, or add these as{" "}
+                    {modeLabels[other.mode]}.
+                  </p>
+                ))}
+              </Warning>
+            </div>
           )}
           {reviewing ? (
             <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
