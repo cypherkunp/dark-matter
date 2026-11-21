@@ -52,6 +52,8 @@ interface Stored {
  */
 export class McpLibrary {
   readonly dir: string;
+  /** Each file's last valid contents: a held hand edit keeps serving it (#42). */
+  readonly #lastGood = new Map<string, McpServerFile>();
 
   constructor(libraryHome: string) {
     this.dir = join(libraryHome, "mcp");
@@ -70,16 +72,17 @@ export class McpLibrary {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw error;
     }
+    const held = (problem: string): Stored => ({ name, path, value: this.#lastGood.get(name) ?? null, problem });
     let json: unknown;
     try {
       json = JSON.parse(text);
     } catch (error) {
-      return { name, path, value: null, problem: `not valid JSON (${(error as Error).message})` };
+      return held(`not valid JSON (${(error as Error).message})`);
     }
     const parsed = McpServerFile.safeParse(json);
-    return parsed.success
-      ? { name, path, value: parsed.data, problem: null }
-      : { name, path, value: null, problem: parsed.error.issues.map((issue) => issue.message).join("; ") };
+    if (!parsed.success) return held(parsed.error.issues.map((issue) => issue.message).join("; "));
+    this.#lastGood.set(name, parsed.data);
+    return { name, path, value: parsed.data, problem: null };
   }
 
   async all(): Promise<Stored[]> {
@@ -106,11 +109,15 @@ export class McpLibrary {
     });
   }
 
-  /** Writes a definition file atomically, keys sorted. */
+  /** Writes a definition file atomically, keys sorted. A held hand edit is never overwritten. */
   async write(name: string, value: McpServerFile): Promise<string> {
+    const current = await this.read(name);
+    if (current?.problem) throw new InvalidOwnedFile(current.path, current.problem);
     await mkdir(this.dir, { recursive: true });
     const path = this.path(name);
-    await writeFileAtomic(path, toSortedJson(McpServerFile.parse(value)));
+    const parsed = McpServerFile.parse(value);
+    await writeFileAtomic(path, toSortedJson(parsed));
+    this.#lastGood.set(name, parsed);
     return path;
   }
 }
@@ -232,7 +239,7 @@ export class McpAdopt {
           const { home, mcp, secrets } = this.#options;
           const stored = await mcp.read(name);
           if (!stored) throw new McpServerNotFound(name);
-          if (!stored.value) throw new InvalidOwnedFile(stored.path, stored.problem ?? "invalid");
+          if (stored.problem || !stored.value) throw new InvalidOwnedFile(stored.path, stored.problem ?? "invalid");
           const from = stored.value.adoptedFrom ?? [];
           if (from.length === 0) throw new NotAdopted(name);
           const steps: PlanStep[] = [];
@@ -314,7 +321,7 @@ export class McpAdopt {
     // Every Library MCP Server, compared by its definition with Secrets filled in.
     const known = new Map<string, Known>();
     for (const stored of await mcp.all()) {
-      if (!stored.value) {
+      if (stored.problem || !stored.value) {
         // A held hand edit still takes its name.
         known.set(stored.name, {
           name: stored.name,

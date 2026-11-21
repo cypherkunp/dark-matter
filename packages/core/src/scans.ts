@@ -25,6 +25,8 @@ export class Scans {
   readonly #options: ScansOptions;
   #latest: ScanResult | null;
   #running: Promise<ScanResult> | null = null;
+  /** The Scan someone asked for, from the moment they asked. */
+  #asked: Promise<ScanResult> | null = null;
 
   constructor(options: ScansOptions) {
     this.#options = options;
@@ -36,15 +38,28 @@ export class Scans {
   }
 
   status(): ScanStatus {
-    return { running: this.#running !== null, lastScanAt: this.#latest?.scannedAt ?? null };
+    return { running: this.#running !== null || this.#asked !== null, lastScanAt: this.#latest?.scannedAt ?? null };
   }
 
-  /** A Scan someone asked for, recorded in the Activity Log. */
+  /**
+   * A Scan someone asked for, recorded in the Activity Log. Asking again while
+   * one runs joins it; an unlogged Scan (catch-up, or a re-Scan after a change
+   * on disk) may have started before what you're looking for, so it's waited
+   * out and a fresh Scan follows.
+   */
   run(client: ActivityClient): Promise<ScanResult> {
-    this.#running ??= this.#start(() =>
-      this.#options.activity.track({ client, action: "scan.run", subjects: [] }, () => this.#scan()),
-    );
-    return this.#running;
+    this.#asked ??= (async () => {
+      try {
+        await this.settle();
+        this.#running = this.#start(() =>
+          this.#options.activity.track({ client, action: "scan.run", subjects: [] }, () => this.#scan()),
+        );
+        return await this.#running;
+      } finally {
+        this.#asked = null;
+      }
+    })();
+    return this.#asked;
   }
 
   /**
@@ -53,7 +68,8 @@ export class Scans {
    * first Scan nothing is read (the First run asks first).
    */
   catchUp(): void {
-    if (this.#running || (this.#latest === null && !this.#options.activity.hasAction("scan.run"))) return;
+    if (this.#running || this.#asked || (this.#latest === null && !this.#options.activity.hasAction("scan.run")))
+      return;
     this.#running = this.#start(() => this.#scan());
     this.#running.catch((error: unknown) => log(`catch-up Scan failed: ${String(error)}`));
   }
@@ -63,6 +79,7 @@ export class Scans {
    * so the cache and the Inbox catch up. Not logged on its own.
    */
   async refresh(): Promise<ScanResult> {
+    if (this.#asked) return this.#asked;
     await this.settle();
     this.#running ??= this.#start(() => this.#scan());
     return this.#running;

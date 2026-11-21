@@ -7,9 +7,11 @@ import { agentAdapters } from "./agents";
 import { openCache } from "./cache";
 import type { Clock } from "./clock";
 import { editConfigFile } from "./config-edit";
+import { Drift } from "./drift";
 import type { EventBus } from "./events";
 import { agentCards, inboxFrom } from "./inbox";
 import { Library } from "./library";
+import { startLiveRefresh } from "./live-refresh";
 import { log } from "./log";
 import { managedSkillRef } from "./managed-skills";
 import { McpAdopt, McpLibrary } from "./mcp-library";
@@ -27,7 +29,6 @@ import { SkillEditor } from "./skill-editor";
 import { skillServices } from "./skill-page";
 import { Trash } from "./trash";
 import { untrackedSkills } from "./untracked";
-import { watchOwnedFiles } from "./watch-owned";
 
 export interface ServicesOptions {
   libraryHome: string;
@@ -70,7 +71,11 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     activity,
     projectPaths: () => Object.keys(projects.value.projects),
     exclude: [libraryHome],
-    onChange: () => bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents", "project", "scheduler"] }),
+    onChange: () => {
+      bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents", "project", "scheduler"] });
+      // After the first Scan, the Agents' folders are watched too.
+      void liveRefresh?.sync();
+    },
   });
   /** The daily run, in order. Later jobs (update checks, starred Sources) are added here. */
   const dailyJobs: DailyJob[] = [
@@ -162,9 +167,36 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project"] }),
   });
   dailyJobs.push(trash.job());
-  const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
-    log(`watching owned files: ${String(error)}`),
-  );
+  const projectProcedures = projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills });
+  const drift = new Drift({
+    home,
+    libraryHome,
+    library,
+    projects,
+    projectSkills,
+    activity,
+    bus,
+    importer: () => lockImporter,
+    removeProject: (path, client) => projectProcedures.remove(path, client),
+    fulfilLock: (input, client) => projectSkills.services().fulfilLock(input, client),
+  });
+  // Live refresh (#42): owned files, MCP definitions, the Library, Projects and Agent folders.
+  await mcpLibrary.all();
+  let liveRefresh: Awaited<ReturnType<typeof startLiveRefresh>> | null = null;
+  liveRefresh = await startLiveRefresh({
+    env,
+    libraryHome,
+    ownedFiles,
+    onOwnedFileChanged: ownedFileChanged,
+    reloadMcp: async () => void (await mcpLibrary.all()),
+    projectPaths: () => Object.keys(projects.value.projects),
+    scanned: () => scans.latest !== null,
+    rescan: () =>
+      void scans.refresh().catch((error: unknown) => log(`re-Scan after a change failed: ${String(error)}`)),
+    bus,
+    clock,
+    onError: (error) => log(`watching folders: ${String(error)}`),
+  });
 
   const services: Omit<CoreServices, "events" | "notifications"> = {
     info,
@@ -205,13 +237,14 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       status: () => scans.status(),
     },
     inbox: {
-      list: () =>
+      list: async () =>
         inboxFrom(
           scans.latest,
           settings.value.ignoredFindings,
           env,
           waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
           findUntracked(),
+          await drift.groups(),
         ),
       ignore: (id, client) =>
         activity.track({ client, action: "inbox.ignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
@@ -223,6 +256,10 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
           );
           bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
         }),
+    },
+    drift: {
+      restore: (id, client) => drift.restore(id, client),
+      accept: (id, client) => drift.accept(id, client),
     },
     agents: { list: () => agentCards(scans.latest, env) },
     managedSkills: {
@@ -264,7 +301,18 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       delete: (key, client) => trash.delete(key, client),
     },
     project: {
-      ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
+      ...projectProcedures,
+      // The new folder is watched before the call returns, so no change to it is missed.
+      add: async (input, client) => {
+        const detail = await projectProcedures.add(input, client);
+        await liveRefresh?.sync();
+        return detail;
+      },
+      locate: async (input, client) => {
+        const detail = await projectProcedures.locate(input, client);
+        await liveRefresh?.sync();
+        return detail;
+      },
       ...projectSkills.services(),
     },
     namespace: {
@@ -279,7 +327,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
   return {
     services,
     close: async () => {
-      stopWatching();
+      await liveRefresh?.close();
       await scheduler.stop();
       await scans.settle();
       cache.close();

@@ -34,7 +34,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # One macOS runner packages arm64 and x64: install both arches' native binaries (the file watcher's).
+      - run: pnpm install --frozen-lockfile ${{ runner.os == 'macOS' && '--cpu=arm64,x64' || '' }}
       - run: pnpm build
       - name: Package
         working-directory: packages/desktop

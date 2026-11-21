@@ -18,6 +18,9 @@ npmRebuild: false
 extraResources:
   - from: ../core/dist/main.mjs
     to: core/main.mjs
+  # The file watcher's native binaries (#42), resolved from main.mjs at runtime.
+  - from: ../core/dist/node_modules
+    to: core/node_modules
 # No auto-update channel: no update metadata, nothing published by the build.
 publish: null
 artifactName: dark-matter-${version}-${arch}.${ext}
