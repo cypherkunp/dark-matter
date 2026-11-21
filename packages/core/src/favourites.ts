@@ -6,6 +6,7 @@ import {
   type FavouritesView,
   type InboxNewSkillsGroup,
   InvalidOwnedFile,
+  type KeyRename,
   type LibraryLockEntry,
   type LibrarySkill,
   type NewSkillFinding,
@@ -20,7 +21,7 @@ import type { Clock } from "./clock";
 import { GitHubNotFound, type GitHubSession } from "./github";
 import { homeRelative } from "./home-path";
 import type { Library } from "./library";
-import type { KeyRename, KeyRenameHook } from "./namespace-rename";
+import type { KeyRenameHook } from "./namespace-rename";
 import type { Notifier } from "./notifier";
 import type { OwnedFile } from "./owned-file";
 import type { SourceChecks } from "./source-check";

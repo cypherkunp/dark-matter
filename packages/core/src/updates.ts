@@ -24,6 +24,7 @@ import {
 } from "@dark-matter/contracts";
 import type { ActivityLog, Wrote } from "./activity";
 import type { Clock } from "./clock";
+import type { StarredSourceCheck } from "./favourites";
 import { GitHubNotFound, type GitHubSession } from "./github";
 import { homeRelative } from "./home-path";
 import { parseImportSource } from "./import-source";
@@ -35,7 +36,6 @@ import type { DailyJob } from "./scheduler";
 import { diffSkillFiles } from "./skill-diff";
 import { computeSkillFolderHash, readSkillFiles } from "./skill-hash";
 import type { SourceChecks, SourceRef } from "./source-check";
-import type { StarredSourceCheck } from "./favourites";
 import type { Trash } from "./trash";
 
 export interface UpdatesOptions {
@@ -114,9 +114,7 @@ export class Updates {
       const { starred } = this.#options;
       const checked = new Set([...groups.values()].map((group) => group.source.toLowerCase()));
       // Check upstream on one Skill looks at its own Source only.
-      const starredSources = (starred?.sources() ?? []).filter(
-        (source) => !keys || checked.has(source.toLowerCase()),
-      );
+      const starredSources = (starred?.sources() ?? []).filter((source) => !keys || checked.has(source.toLowerCase()));
       const subjects = [
         ...new Map(
           [...[...groups.values()].map((group) => group.source), ...starredSources].map((source) => [
@@ -125,34 +123,31 @@ export class Updates {
           ]),
         ).values(),
       ];
-      await activity.track(
-        { client, action: "importer.checkUpdates", subjects },
-        async (wrote) => {
-          const session = await importer.options.github.session();
-          const orphaned = new Map<string, string | null>();
-          const heads = new Map<string, string>();
-          let failure: unknown = null;
-          for (const group of groups.values()) {
-            try {
-              heads.set(sourceId(group), await this.#checkSource(session, group, orphaned));
-            } catch (error) {
-              if (error instanceof GitHubNotFound) {
-                for (const key of group.keys) orphaned.set(key, `${group.source} can't be found on GitHub`);
-                this.#saveUpdates(group, []);
-              } else {
-                failure ??= error;
-                // Every later Source would fail the same way.
-                if (error instanceof RateLimited) break;
-              }
+      await activity.track({ client, action: "importer.checkUpdates", subjects }, async (wrote) => {
+        const session = await importer.options.github.session();
+        const orphaned = new Map<string, string | null>();
+        const heads = new Map<string, string>();
+        let failure: unknown = null;
+        for (const group of groups.values()) {
+          try {
+            heads.set(sourceId(group), await this.#checkSource(session, group, orphaned));
+          } catch (error) {
+            if (error instanceof GitHubNotFound) {
+              for (const key of group.keys) orphaned.set(key, `${group.source} can't be found on GitHub`);
+              this.#saveUpdates(group, []);
+            } else {
+              failure ??= error;
+              // Every later Source would fail the same way.
+              if (error instanceof RateLimited) break;
             }
           }
-          await this.#markOrphaned(orphaned, wrote);
-          if (starred && starredSources.length > 0 && !(failure instanceof RateLimited)) {
-            failure ??= await starred.check(session, heads, keys ? checked : null);
-          }
-          if (failure) throw failure;
-        },
-      );
+        }
+        await this.#markOrphaned(orphaned, wrote);
+        if (starred && starredSources.length > 0 && !(failure instanceof RateLimited)) {
+          failure ??= await starred.check(session, heads, keys ? checked : null);
+        }
+        if (failure) throw failure;
+      });
       this.#options.onChange();
       return this.view();
     });

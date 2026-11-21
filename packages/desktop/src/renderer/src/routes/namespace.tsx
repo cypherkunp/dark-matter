@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { StarSourceButton, sourceOfNamespace } from "@/components/favourites";
 import { PageHead } from "@/components/page-head";
 import { RenameNamespaceDialog } from "@/components/rename-namespace-dialog";
 import { plural, SkillRows } from "@/components/skill-list";
@@ -35,6 +36,7 @@ function NamespaceView() {
             {...(info.data && { status: `${tildify(info.data.libraryHome)}/skills/${name}/` })}
           />
         </div>
+        {sourceOfNamespace(name) && <StarSourceButton source={name} />}
         <Button size="sm" variant="outline" disabled={skills.length === 0} onClick={() => setRenaming(true)}>
           Rename Namespace
         </Button>

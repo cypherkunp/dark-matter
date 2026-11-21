@@ -42,6 +42,8 @@ const actionLabels: Record<string, string> = {
   "skill.saveFile": "Saved a Skill file",
   "skill.delete": "Moved a Skill to the trash",
   "trash.purge": "Emptied expired trash",
+  "favourites.setSkill": "Starred or unstarred a Skill",
+  "favourites.setSource": "Starred or unstarred a Source",
   "collections.create": "Created a Collection",
   "collections.rename": "Renamed a Collection",
   "collections.setItems": "Edited a Collection",

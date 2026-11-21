@@ -5,6 +5,7 @@ import { type FormEvent, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
+import { StarSourceButton } from "@/components/favourites";
 import { markdownComponents } from "@/components/skill-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,7 +136,8 @@ function Picker({ input, preview, project }: { input: string; preview: ImportPre
           ))}
         </ul>
       )}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <StarSourceButton source={preview.source} />
         <Button
           disabled={picked.size === 0 || run.isPending}
           onClick={() => run.mutate({ input, commit: preview.commit, paths: [...picked] })}
