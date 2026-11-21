@@ -24,7 +24,7 @@ export const inboxFrom = (
   suggestedProjects = 0,
   untracked: readonly InboxProjectGroup[] = [],
   driftGroups: readonly InboxDriftGroup[] = [],
-): Inbox => {
+): Omit<Inbox, "requests"> => {
   const skipped = new Set(ignored);
   const all = scan?.globalSkills ?? [];
   const waiting = all.filter((finding) => !skipped.has(finding.id));

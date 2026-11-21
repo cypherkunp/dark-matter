@@ -350,3 +350,57 @@ export class CollectionItemNotFound extends TaggedError<"CollectionItemNotFound"
     super(`${key} isn't in the Collection ${collection}`);
   }
 }
+
+/** A client other than the app asked for a change only the app can make (ADR-0006). */
+export class AppOnly extends TaggedError<"AppOnly"> {
+  readonly _tag = "AppOnly";
+  constructor(readonly operation: string) {
+    super(`${operation} can only be done in the Dark Matter app`);
+  }
+}
+
+/**
+ * A Request is waiting for you to approve or deny it in the app. Not a failure:
+ * the caller gets the Request (its id and plan) in `error.data.request`.
+ */
+export class RequestPending extends TaggedError<"RequestPending"> {
+  readonly _tag = "RequestPending";
+  constructor(readonly request: { id: string; summary: string }) {
+    super(`Waiting for approval in Dark Matter: ${request.summary} (Request ${request.id})`);
+  }
+}
+
+/** You denied the Request. */
+export class RequestDenied extends TaggedError<"RequestDenied"> {
+  readonly _tag = "RequestDenied";
+  constructor(readonly id: string) {
+    super(`Request ${id} was denied`);
+  }
+}
+
+/** The Request waited 24 hours without an answer. */
+export class RequestExpired extends TaggedError<"RequestExpired"> {
+  readonly _tag = "RequestExpired";
+  constructor(readonly id: string) {
+    super(`Request ${id} expired`);
+  }
+}
+
+/** No Request has this id (any more). */
+export class RequestNotFound extends TaggedError<"RequestNotFound"> {
+  readonly _tag = "RequestNotFound";
+  constructor(readonly id: string) {
+    super(`No Request ${id}`);
+  }
+}
+
+/** The Request was already approved or denied. */
+export class RequestDecided extends TaggedError<"RequestDecided"> {
+  readonly _tag = "RequestDecided";
+  constructor(
+    readonly id: string,
+    readonly status: string,
+  ) {
+    super(`Request ${id} is already ${status}`);
+  }
+}

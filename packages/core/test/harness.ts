@@ -28,9 +28,10 @@ export const bootCore = async (
   env: CoreEnv,
   fakes: {
     clock?: Clock;
-    notifier?: { notify(notification: CoreNotification): void };
+    notifier?: { notify(notification: CoreNotification): void; available?(): boolean };
     secrets?: SecretStore;
     github?: GitHubOptions;
+    requestWaitMs?: number;
   } = {},
 ): Promise<RunningCore> => {
   // Never the real keychain, GitHub or `gh` login in tests (an unroutable API unless a test passes the fake),
@@ -45,6 +46,16 @@ export const bootCore = async (
 /** A real contracts client, closed when the test finishes. */
 export const connect = (connection: CoreConnection, hooks: Pick<CoreClientOptions, "onClose"> = {}): CoreClient => {
   const client = createCoreClient({ connection, client: "app", ...hooks });
+  onTestFinished(() => client.close());
+  return client;
+};
+
+/**
+ * A client that isn't the app, like the future MCP shim (ADR-0006): it connects
+ * over the same WebSocket and says who it is.
+ */
+export const connectAgent = (connection: CoreConnection, agent = "claude-code"): CoreClient => {
+  const client = createCoreClient({ connection, client: "mcp", agent });
   onTestFinished(() => client.close());
   return client;
 };

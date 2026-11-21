@@ -4,6 +4,8 @@ import type { CoreNotification } from "@dark-matter/contracts";
 /** Shows OS notifications. The core can't (it has no Electron), so by default it asks the app. */
 export interface Notifier {
   notify(notification: CoreNotification): void;
+  /** Whether anyone is there to see it now (the app); unknown counts as yes. */
+  available?(): boolean;
 }
 
 /**
@@ -15,6 +17,11 @@ export class NotificationBus implements Notifier {
 
   notify(notification: CoreNotification): void {
     this.#emitter.emit("notification", notification);
+  }
+
+  /** The app subscribes while it runs; a headless core has no one to ask. */
+  available(): boolean {
+    return this.#emitter.listenerCount("notification") > 0;
   }
 
   async *subscribe(signal: AbortSignal): AsyncIterable<CoreNotification> {
