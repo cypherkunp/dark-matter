@@ -9,12 +9,18 @@ import { applyWSSHandler, type CreateWSSContextFnOptions } from "@trpc/server/ad
 import { WebSocketServer } from "ws";
 import pkg from "../package.json" with { type: "json" };
 import { writeFileAtomic } from "./atomic";
+import { type Clock, systemClock } from "./clock";
 import { EventBus } from "./events";
 import { acquireCoreLock } from "./lock";
+import { NotificationBus, type Notifier } from "./notifier";
 import { createServices, type Services } from "./services";
 
 export interface StartCoreOptions {
   env: CoreEnv;
+  /** Defaults to the system clock; tests pass a controllable one. */
+  clock?: Clock;
+  /** Defaults to asking the app over the `events` subscription; tests pass a fake. */
+  notifier?: Notifier;
 }
 
 export interface RunningCore {
@@ -33,7 +39,7 @@ const sameToken = (expected: Buffer, given: string) => {
 };
 
 /** Boots the headless core (ADR-0003): serves tRPC on loopback and publishes `core.json`. */
-export const startCore = async ({ env }: StartCoreOptions): Promise<RunningCore> => {
+export const startCore = async ({ env, clock = systemClock, notifier }: StartCoreOptions): Promise<RunningCore> => {
   const libraryHome = resolveLibraryHome(env);
   const home = env.HOME || homedir();
   const paths = corePaths(libraryHome);
@@ -42,14 +48,17 @@ export const startCore = async ({ env }: StartCoreOptions): Promise<RunningCore>
   try {
     const startedAt = new Date().toISOString();
     const bus = new EventBus();
+    const notifications = new NotificationBus();
     const core = await createServices({
       libraryHome,
       home,
       bus,
+      clock,
+      notifier: notifier ?? notifications,
       info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
     });
     try {
-      return await serve(paths, bus, core, async () => {
+      return await serve(paths, bus, notifications, core, async () => {
         await core.close();
         await releaseLock();
       });
@@ -66,13 +75,18 @@ export const startCore = async ({ env }: StartCoreOptions): Promise<RunningCore>
 const serve = async (
   paths: ReturnType<typeof corePaths>,
   bus: EventBus,
+  notifications: NotificationBus,
   core: Services,
   /** Closes the services and releases `core.lock`. */
   release: () => Promise<void>,
 ): Promise<RunningCore> => {
   const token = randomBytes(32).toString("base64url");
   const tokenBytes = Buffer.from(token);
-  const router = createAppRouter({ ...core.services, events: (signal) => bus.subscribe(signal) });
+  const router = createAppRouter({
+    ...core.services,
+    events: (signal) => bus.subscribe(signal),
+    notifications: (signal) => notifications.subscribe(signal),
+  });
 
   const createContext = ({ info }: CreateWSSContextFnOptions): CoreContext => {
     const params = ConnectionParams.safeParse(info.connectionParams);

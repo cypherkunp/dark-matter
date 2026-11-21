@@ -8,6 +8,7 @@ import {
   type ClientKind,
   type CoreEvent,
   CoreInfo,
+  type CoreNotification,
   Inbox,
   LibraryList,
   OwnedFileName,
@@ -15,6 +16,7 @@ import {
   PreferencesPatch,
   ScanResult,
   ScanStatus,
+  SchedulerStatus,
   SettingsFile,
 } from "./schemas";
 
@@ -59,6 +61,11 @@ export interface CoreServices {
   agents: {
     list(): AgentCard[];
   };
+  scheduler: {
+    status(): SchedulerStatus;
+  };
+  /** OS notifications for the app to show, from now on, until `signal` aborts. */
+  notifications(signal: AbortSignal): AsyncIterable<CoreNotification>;
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
 }
@@ -110,8 +117,14 @@ export const createAppRouter = (services: CoreServices) =>
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
     }),
+    scheduler: t.router({
+      status: t.procedure.output(SchedulerStatus).query(() => services.scheduler.status()),
+    }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);
+    }),
+    notifications: t.procedure.subscription(async function* ({ signal }) {
+      yield* services.notifications(signal ?? new AbortController().signal);
     }),
   });
 
