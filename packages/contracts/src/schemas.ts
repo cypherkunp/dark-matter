@@ -68,6 +68,10 @@ export const RequestRecord = z.strictObject({
 });
 export type RequestRecord = z.infer<typeof RequestRecord>;
 
+/** A pending Request as the Inbox lists it: its raw input stays with `requests.get`. */
+export const PendingRequest = RequestRecord.omit({ input: true });
+export type PendingRequest = z.infer<typeof PendingRequest>;
+
 /** `~/.dark-matter/requests.json`: Requests by id. */
 export const RequestsFile = z.strictObject({
   requests: z.record(z.string(), RequestRecord).default({}),
@@ -99,6 +103,8 @@ export const LibrarySkill = z.object({
   projects: z.int().nonnegative(),
   /** It's in a Name Conflict in at least one Project. */
   nameConflict: z.boolean(),
+  /** Its upstream is gone (#33): kept as is until you Detach or re-point it. */
+  orphaned: z.boolean().default(false),
 });
 export type LibrarySkill = z.infer<typeof LibrarySkill>;
 
@@ -186,6 +192,8 @@ export const SettingsFile = z.strictObject({
   dismissedSuggestedProjects: z.array(z.string()).default([]),
   /** Collections by name (#36). Items keep their order. */
   collections: z.record(z.string(), CollectionRecord).default({}),
+  /** Set when the First run is finished or skipped (#46), so it runs once. Absent until then. */
+  firstRun: z.strictObject({ completedAt: z.iso.datetime() }).optional(),
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 
@@ -225,6 +233,14 @@ export const LibraryLockEntry = z.strictObject({
   keptLinks: z.array(z.string()).optional(),
   /** Imported (#30): the GitHub tree SHA of the Skill's folder at `commit`, so update checks compare folders, not commits. */
   skillFolderHash: z.string().optional(),
+  /** Updates (#33): `tag` when `ref` is a tag, so it only moves when re-pointed. Absent = a branch. */
+  refType: z.enum(["branch", "tag"]).optional(),
+  /** Keep mine (#33): the upstream folder tree SHA you skipped; you're asked again only for a newer one. */
+  skippedUpdate: z.string().optional(),
+  /** Orphaned (#33): why the upstream can't be found any more. Cleared when it comes back or is re-pointed. */
+  orphaned: z.string().optional(),
+  /** Detach (#33): where a `local` Skill came from before it was cut off. */
+  detachedFrom: z.strictObject({ key: z.string(), source: z.string(), skillPath: z.string().optional() }).optional(),
 });
 export type LibraryLockEntry = z.infer<typeof LibraryLockEntry>;
 
@@ -472,6 +488,14 @@ export const ProjectScan = z.object({
   skills: z.array(ProjectSkillEntry),
 });
 export type ProjectScan = z.infer<typeof ProjectScan>;
+
+/** The Skills already in a Suggested Project (First run, #46): untracked ones and Vendored (`tracked`) ones. */
+export const SuggestedProjectSkills = z.object({
+  path: z.string(),
+  name: z.string(),
+  skills: z.array(ProjectSkillEntry),
+});
+export type SuggestedProjectSkills = z.infer<typeof SuggestedProjectSkills>;
 
 /**
  * How an Agent-managed Skill can be turned off through its Agent's own global
@@ -772,7 +796,7 @@ export const Inbox = z.object({
   /** Global MCP Servers, by Agent config file. */
   mcpServers: z.array(InboxMcpGroup).default([]),
   /** Pending Requests from Agents and the CLI, oldest first (#44). Counted. */
-  requests: z.array(RequestRecord).default([]),
+  requests: z.array(PendingRequest).default([]),
   /** Drift between `projects.json` and the disk, by Project (#42). */
   drift: z.array(InboxDriftGroup).default([]),
   /** Agent-managed MCP Servers that are still on, by Agent. */
@@ -938,6 +962,7 @@ export const Domain = z.enum([
   "activity",
   "scan",
   "inbox",
+  "overview",
   "agents",
   "scheduler",
   "project",
@@ -1425,3 +1450,34 @@ export type RepoMcpServer = z.infer<typeof RepoMcpServer>;
 
 export const RepoMcpServers = z.object({ vendored: z.array(RepoMcpServer), untracked: z.array(RepoMcpServer) });
 export type RepoMcpServers = z.infer<typeof RepoMcpServers>;
+
+/** One stat card on an overview screen (#45): its number (null before the first Scan) and the screen that resolves it. */
+export const StatCard = z.object({ count: z.int().nonnegative().nullable(), path: z.string() });
+export type StatCard = z.infer<typeof StatCard>;
+
+/**
+ * One item in the amber alerts panel (#45): an Inbox group or a drift finding,
+ * as a bold subject plus the issue, a detail line, when it was first seen and
+ * the screen that resolves it.
+ */
+export const OverviewAlert = z.object({
+  id: z.string(),
+  subject: z.string(),
+  issue: z.string(),
+  detail: z.string(),
+  firstSeenAt: z.iso.datetime(),
+  path: z.string(),
+});
+export type OverviewAlert = z.infer<typeof OverviewAlert>;
+
+/** The stat-card strip and alerts panel, from one place so every overview screen agrees. */
+export const Overview = z.object({
+  stats: z.object({
+    projectSkillsOn: StatCard,
+    globalSkills: StatCard,
+    outdated: StatCard,
+    nameConflicts: StatCard,
+  }),
+  alerts: z.array(OverviewAlert),
+});
+export type Overview = z.infer<typeof Overview>;

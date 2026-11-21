@@ -2,12 +2,20 @@ import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { isTaggedError, RequestPending } from "./errors";
 import {
+  AppliedUpdates,
+  ApplyUpdatesInput,
+  CheckUpdatesInput,
+  DetachResult,
   GitHubAuthStatus,
   ImportPreview,
   ImportResult,
   ImportSkillsInput,
   ImportSourceInput,
+  RepointInput,
   SetGitHubTokenInput,
+  SkillKeyInput,
+  UpdateDiff,
+  UpdatesView,
 } from "./importer";
 import {
   ActivityExport,
@@ -47,6 +55,7 @@ import {
   McpServerName,
   McpTarget,
   OffScope,
+  Overview,
   OwnedFileName,
   OwnedFileProblem,
   PreferencesPatch,
@@ -83,10 +92,12 @@ import {
   SkillFilePath,
   SkillFiles,
   SkillProjectUse,
+  SuggestedProjectSkills,
   SuggestedProjects,
   UpdateMcpDefinitionInput,
   UpdateProjectMcpServer,
 } from "./schemas";
+import { SkillsShGetInput, SkillsShSearch, SkillsShSearchInput } from "./skills-sh";
 
 /** Per-connection context, built once when a connection authenticates. */
 export interface CoreContext {
@@ -132,6 +143,8 @@ export interface CoreServices {
   settings: {
     get(): SettingsFile;
     updatePreferences(patch: PreferencesPatch, client: ClientKind): Promise<SettingsFile>;
+    /** Records that the First run is done (finished or skipped); keeps the first time. */
+    completeFirstRun(client: ClientKind): Promise<SettingsFile>;
   };
   ownedFiles: {
     /** Hand edits the core is holding because they don't validate. */
@@ -153,11 +166,19 @@ export interface CoreServices {
     list(): Promise<Inbox>;
     /** Leaves a finding alone from now on (recorded in `settings.json`). */
     ignore(id: string, client: ClientKind): Promise<void>;
+    /** Only the ignored findings, grouped as in the Inbox. */
+    ignored(): Promise<Inbox>;
+    /** Puts an ignored finding back in the Inbox. */
+    unignore(id: string, client: ClientKind): Promise<void>;
   };
   agents: {
     list(): AgentCard[];
     /** Every Agent-managed MCP Server the latest Scan found, off ones included (#40). */
     managedMcp(): ManagedMcpServer[];
+  };
+  overview: {
+    /** The overview screens' stat cards and alerts (#45), from the latest Scan, the Inbox and drift. */
+    get(): Promise<Overview>;
   };
   drift: {
     /** Re-applies owned intent for a drift finding (#42). */
@@ -234,12 +255,32 @@ export interface CoreServices {
     auth(): Promise<GitHubAuthStatus>;
     /** Stores (or with null removes) the GitHub PAT in the keychain. */
     setToken(input: SetGitHubTokenInput, client: ClientKind): Promise<GitHubAuthStatus>;
+    /** Check for updates (#33): one head call per Source, then folder tree SHAs. Never applies anything. */
+    checkUpdates(input: CheckUpdatesInput, client: ClientKind): Promise<UpdatesView>;
+    /** The Updates list from the last checks, plus Orphaned Skills. */
+    updates(): Promise<UpdatesView>;
+    /** The diff between the Library's folder and the waiting upstream version. */
+    updateDiff(key: string): Promise<UpdateDiff>;
+    /** Applies updates per Skill; a Modified Skill needs a choice. */
+    applyUpdates(input: ApplyUpdatesInput, client: ClientKind): Promise<AppliedUpdates>;
+    /** Detach: the Skill becomes `local/<name>`, its Source is dropped and its Links re-created. */
+    detach(key: string, client: ClientKind): Promise<DetachResult>;
+    /** Points a Skill at another repo, path or tag and takes that version (yours goes to `trash/`). */
+    repoint(input: RepointInput, client: ClientKind): Promise<void>;
+  };
+  skillsSh: {
+    /** Searches skills.sh (debounce in the UI; the core keeps within 30 requests a minute and caches). */
+    search(input: SkillsShSearchInput): Promise<SkillsShSearch>;
+    /** Get: resolves the listing to its repo and Skill folder and Imports it through GitHub Import. */
+    get(input: SkillsShGetInput, client: ClientKind): Promise<ImportResult>;
   };
   /** OS notifications for the app to show, from now on, until `signal` aborts. */
   notifications(signal: AbortSignal): AsyncIterable<CoreNotification>;
   project: {
     /** Suggested Projects from the last Scan, minus confirmed and dismissed ones. */
     suggested(): SuggestedProjects;
+    /** The Skills already in each waiting Suggested Project, read now (First run). Nothing before a Scan. */
+    suggestedSkills(): Promise<SuggestedProjectSkills[]>;
     list(): Promise<ProjectSummary[]>;
     get(path: string): Promise<ProjectDetail>;
     /**
@@ -346,6 +387,9 @@ export const createAppRouter = (services: CoreServices) => {
         .input(PreferencesPatch)
         .output(SettingsFile)
         .mutation(({ input, ctx }) => services.settings.updatePreferences(input, ctx.client)),
+      completeFirstRun: t.procedure
+        .output(SettingsFile)
+        .mutation(({ ctx }) => services.settings.completeFirstRun(ctx.client)),
     }),
     ownedFiles: t.router({
       problems: t.procedure.output(OwnedFileProblem.array()).query(() => services.ownedFiles.problems()),
@@ -372,6 +416,13 @@ export const createAppRouter = (services: CoreServices) => {
       ignore: t.procedure
         .input(z.object({ id: z.string().min(1) }))
         .mutation(({ input, ctx }) => services.inbox.ignore(input.id, ctx.client)),
+      ignored: t.procedure.output(Inbox).query(() => services.inbox.ignored()),
+      unignore: t.procedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.inbox.unignore(input.id, ctx.client)),
+    }),
+    overview: t.router({
+      get: t.procedure.output(Overview).query(() => services.overview.get()),
     }),
     drift: t.router({
       restore: t.procedure
@@ -437,6 +488,9 @@ export const createAppRouter = (services: CoreServices) => {
     }),
     project: t.router({
       suggested: t.procedure.output(SuggestedProjects).query(() => services.project.suggested()),
+      suggestedSkills: t.procedure
+        .output(SuggestedProjectSkills.array())
+        .query(() => services.project.suggestedSkills()),
       list: t.procedure.output(ProjectSummary.array()).query(() => services.project.list()),
       get: t.procedure
         .input(ProjectPath)
@@ -629,6 +683,36 @@ export const createAppRouter = (services: CoreServices) => {
         .input(SetGitHubTokenInput)
         .output(GitHubAuthStatus)
         .mutation(({ input, ctx }) => services.importer.setToken(input, ctx.client)),
+      checkUpdates: t.procedure
+        .input(CheckUpdatesInput)
+        .output(UpdatesView)
+        .mutation(({ input, ctx }) => services.importer.checkUpdates(input, ctx.client)),
+      updates: t.procedure.output(UpdatesView).query(() => services.importer.updates()),
+      updateDiff: t.procedure
+        .input(SkillKeyInput)
+        .output(UpdateDiff)
+        .query(({ input }) => services.importer.updateDiff(input.key)),
+      applyUpdates: t.procedure
+        .input(ApplyUpdatesInput)
+        .output(AppliedUpdates)
+        .mutation(({ input, ctx }) => services.importer.applyUpdates(input, ctx.client)),
+      detach: t.procedure
+        .input(SkillKeyInput)
+        .output(DetachResult)
+        .mutation(({ input, ctx }) => services.importer.detach(input.key, ctx.client)),
+      repoint: t.procedure
+        .input(RepointInput)
+        .mutation(({ input, ctx }) => services.importer.repoint(input, ctx.client)),
+    }),
+    skillsSh: t.router({
+      search: t.procedure
+        .input(SkillsShSearchInput)
+        .output(SkillsShSearch)
+        .query(({ input }) => services.skillsSh.search(input)),
+      get: t.procedure
+        .input(SkillsShGetInput)
+        .output(ImportResult)
+        .mutation(({ input, ctx }) => services.skillsSh.get(input, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

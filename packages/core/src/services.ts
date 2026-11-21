@@ -24,7 +24,7 @@ import { Drift } from "./drift";
 import type { EventBus } from "./events";
 import { GitHubAccess, type GitHubOptions } from "./github";
 import { Importer, importerServices } from "./importer";
-import { agentCards, inboxFrom } from "./inbox";
+import { agentCards, ignoredInbox, inboxFrom } from "./inbox";
 import { Library } from "./library";
 import { startLiveRefresh } from "./live-refresh";
 import { log } from "./log";
@@ -32,6 +32,7 @@ import { managedSkillRef } from "./managed-skills";
 import { McpAdopt, McpLibrary } from "./mcp-library";
 import { type KeyRenameHook, NamespaceRename } from "./namespace-rename";
 import type { Notifier } from "./notifier";
+import { OverviewService } from "./overview";
 import { OwnedFile } from "./owned-file";
 import { ProjectMcpService } from "./project-mcp";
 import { ProjectSkillService } from "./project-skills";
@@ -44,8 +45,11 @@ import { type DailyJob, Scheduler } from "./scheduler";
 import type { SecretStore } from "./secrets";
 import { SkillEditor } from "./skill-editor";
 import { skillServices } from "./skill-page";
+import { SkillsSh, type SkillsShOptions } from "./skills-sh";
+import { SourceChecks } from "./source-check";
 import { Trash } from "./trash";
 import { untrackedSkills } from "./untracked";
+import { Updates } from "./updates";
 
 export interface ServicesOptions {
   libraryHome: string;
@@ -61,12 +65,13 @@ export interface ServicesOptions {
   github: GitHubOptions;
   /** How long an Agent's call waits for Approve or Deny before it's told the Request is pending. */
   requestWaitMs: number;
+  skillsSh: SkillsShOptions;
 }
 
 /** Pending Requests join the Inbox and its count (#44). */
 const withRequests = (inbox: Omit<Inbox, "requests">, pending: RequestRecord[]): Inbox => ({
   ...inbox,
-  requests: pending,
+  requests: pending.map(({ input: _, ...request }) => request),
   count: inbox.count + pending.length,
 });
 
@@ -80,6 +85,7 @@ export const createServices = async ({
   notifier,
   secrets,
   github,
+  skillsSh,
   systemRoot,
   requestWaitMs,
 }: ServicesOptions) => {
@@ -201,6 +207,8 @@ export const createServices = async ({
     onChange: (domains) => bus.publish({ type: "invalidate", domains }),
   });
   const lockImporter: LockImporter | null = importer.lockImporter();
+  /** skills.sh search and Get (#31); Get Imports through `importer`. */
+  const skillsShSearch = new SkillsSh({ ...skillsSh, clock, library, importer });
   const projectSkills = new ProjectSkillService({
     home,
     libraryHome,
@@ -247,6 +255,22 @@ export const createServices = async ({
       bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project", "collections"] }),
   });
   dailyJobs.push(trash.job());
+  /** Updates for Imported Skills (#33); `sourceChecks` is the per-Source check #35 reuses for starred Sources. */
+  const sourceChecks = new SourceChecks(cache, clock);
+  const updates = new Updates({
+    home,
+    library,
+    importer,
+    activity,
+    checks: sourceChecks,
+    cache,
+    clock,
+    trash,
+    hooks: keyRenameHooks,
+    onChange: () =>
+      bus.publish({ type: "invalidate", domains: ["importer", "library", "skill", "project", "collections"] }),
+  });
+  dailyJobs.push(updates.job());
   const projectProcedures = projectServices({ env, projects, settings, activity, scans, bus, deliver: deliverProject });
   const withGrant = (detail: ProjectDetail): ProjectDetail => ({
     ...detail,
@@ -291,6 +315,28 @@ export const createServices = async ({
     onChange: () => bus.publish({ type: "invalidate", domains: ["collections", "settings"] }),
   });
   keyRenameHooks.push(collections.keyRenameHook(home));
+  const listInbox = async (ignored = settings.value.ignoredFindings) =>
+    withRequests(
+      inboxFrom(
+        scans.latest,
+        ignored,
+        env,
+        waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
+        findUntracked(),
+        await drift.groups(),
+      ),
+      requests.pending(),
+    );
+  const overview = new OverviewService({
+    home,
+    cache,
+    now: () => clock.now(),
+    latestScan: () => scans.latest,
+    inbox: () => listInbox(),
+    projectPaths: () => Object.keys(projects.value.projects),
+    projectSkills: (path) => projectSkills.services().skills(path),
+    libraryUpdates: async () => (await updates.view()).updates.length,
+  });
 
   const services: Omit<CoreServices, "events" | "notifications"> = {
     consent: (call, next) => requests.consent(call, next),
@@ -319,6 +365,16 @@ export const createServices = async ({
         await activity.prune(activityRetention());
         return saved;
       },
+      completeFirstRun: (client) =>
+        activity.track(
+          { client, action: "settings.completeFirstRun", subjects: [{ kind: "settings", id: "firstRun" }] },
+          async (wrote) => {
+            const completedAt = clock.now().toISOString();
+            wrote(await settings.update((current) => ({ ...current, firstRun: current.firstRun ?? { completedAt } })));
+            bus.publish({ type: "invalidate", domains: ["settings"] });
+            return settings.value;
+          },
+        ),
     },
     ownedFiles: {
       problems: () => ownedFiles.flatMap((file) => (file.problem ? [file.problem] : [])),
@@ -334,22 +390,27 @@ export const createServices = async ({
     },
     activity: { list: (query) => activity.list(query), export: (filter) => activity.export(filter) },
     scan: {
-      run: (client) => scans.run(client),
+      // After the first Scan the Agents' folders are watched before the call returns, so no change is missed.
+      run: async (client) => {
+        const result = await scans.run(client);
+        await liveRefresh?.sync();
+        return result;
+      },
       status: () => scans.status(),
     },
     inbox: {
-      list: async () =>
-        withRequests(
-          inboxFrom(
-            scans.latest,
-            settings.value.ignoredFindings,
-            env,
-            waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
-            findUntracked(),
-            await drift.groups(),
-          ),
-          requests.pending(),
-        ),
+      list: () => listInbox(),
+      ignored: async () => ignoredInbox(await listInbox([]), settings.value.ignoredFindings),
+      unignore: (id, client) =>
+        activity.track({ client, action: "inbox.unignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
+          wrote(
+            await settings.update((current) => ({
+              ...current,
+              ignoredFindings: current.ignoredFindings.filter((ignored) => ignored !== id),
+            })),
+          );
+          bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
+        }),
       ignore: (id, client) =>
         activity.track({ client, action: "inbox.ignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
           wrote(
@@ -361,6 +422,7 @@ export const createServices = async ({
           bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
         }),
     },
+    overview: { get: () => overview.get() },
     drift: {
       restore: (id, client) => drift.restore(id, client),
       accept: (id, client) => drift.accept(id, client),
@@ -461,7 +523,19 @@ export const createServices = async ({
         ),
     },
     collections: collections.services(),
-    importer: importerServices(importer),
+    importer: {
+      ...importerServices(importer),
+      checkUpdates: (input, client) => updates.check(input, client),
+      updates: () => updates.view(),
+      updateDiff: (key) => updates.diff(key),
+      applyUpdates: (input, client) => updates.apply(input, client),
+      detach: (key, client) => updates.detach(key, client),
+      repoint: (input, client) => updates.repoint(input, client),
+    },
+    skillsSh: {
+      search: ({ query }) => skillsShSearch.search(query),
+      get: ({ id }, client) => skillsShSearch.get(id, client),
+    },
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),

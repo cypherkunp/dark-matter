@@ -28,6 +28,12 @@ const useActionCommands = (): Command[] => {
       hint: "owner/repo or URL",
       run: () => void navigate({ to: "/get/github" }),
     },
+    {
+      id: "action:updates",
+      group: "Actions",
+      label: "Check for updates",
+      run: () => void navigate({ to: "/library/updates" }),
+    },
   ];
 };
 
@@ -92,16 +98,33 @@ const useCollectionCommands = (): Command[] => {
   ]);
 };
 
+/** ⌘K starts a skills.sh search for what's typed (#31). */
+const useSkillsShCommands = (query: string): Command[] => {
+  const navigate = useNavigate();
+  const text = query.trim();
+  return [
+    {
+      id: "action:skills-sh",
+      group: "skills.sh",
+      label: text.length >= 2 ? `Search skills.sh for “${text}”` : "Search skills.sh…",
+      hint: "skills.sh",
+      run: () => void navigate({ to: "/get/skills-sh", search: text.length >= 2 ? { q: text } : {} }),
+    },
+  ];
+};
+
 /**
  * The ⌘K registry: every command source, in the order its group is listed.
  * A ticket adds commands by writing a `use…Commands` hook and one line here.
  */
-export const useCommands = (): Command[] => [
+export const useCommands = (query = ""): Command[] => [
   ...useActionCommands(),
   ...useSkillCommands(),
   ...useNamespaceCommands(),
   ...useCollectionCommands(),
   ...useProjectCommands(),
+  // Last, so Enter still opens a local match first.
+  ...useSkillsShCommands(query),
 ];
 
 /** Commands matching every word of `query` (in label, group or hint), in registry order. */

@@ -105,7 +105,8 @@ describe("Requests from a client other than the app (ADR-0006)", () => {
     };
     expect((await readJson(join(libraryHome, "requests.json"))).requests).toEqual({ [id]: request });
     const inbox = await app.inbox.list.query();
-    expect(inbox.requests).toEqual([request]);
+    const { input: _, ...listed } = request;
+    expect(inbox.requests).toEqual([listed]);
     expect(inbox.count).toBe(1);
     expect(notifier.sent).toEqual([
       { title: "claude-code asks to change app", body: "Add local/pdf to app as a Link", path: "/inbox", request: id },
@@ -232,10 +233,12 @@ describe("Requests from a client other than the app (ADR-0006)", () => {
     expect(
       await asks(agent.importer.import.mutate({ input: "acme/skills", commit: "a".repeat(40), paths: ["skills/pdf"] })),
     ).toEqual(["import"]);
+    expect(await asks(agent.skillsSh.get.mutate({ id: "acme/skills/pdf" }))).toEqual(["import"]);
     expect((await app.inbox.list.query()).requests.map((request) => request.summary).sort()).toEqual([
       "Add local/pdf to app as a Copy",
       "Add the MCP Server github to app as Personal",
       "Add the MCP Server github to app as Shared",
+      "Get acme/skills/pdf from skills.sh",
       "Import 1 Skill from acme/skills",
     ]);
   });

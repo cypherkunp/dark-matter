@@ -59,17 +59,10 @@ export class Trash {
   }
 
   delete(key: string, client: ActivityClient): Promise<void> {
-    const { library, activity, clock } = this.options;
+    const { library, activity } = this.options;
     return activity.track({ client, action: "skill.delete", subjects: [{ kind: "skill", id: key }] }, async (wrote) => {
-      const entry = this.entry(key);
-      const deletedAt = clock.now().toISOString();
-      const id = `${deletedAt.replaceAll(":", "-")}-${key.replaceAll("/", "__")}`;
-      const into = join(this.root, id);
       const folder = library.folder(key);
-      const trashed = join(into, splitKey(key).name);
-      await mkdir(into, { recursive: true });
-      await writeFileAtomic(join(into, "trashed.json"), `${JSON.stringify({ key, deletedAt, entry }, null, 2)}\n`);
-      await rename(folder, trashed);
+      const { into, trashed } = await this.moveIn(key);
       try {
         wrote(
           await library.lock.update((current) => {
@@ -86,6 +79,28 @@ export class Trash {
       await this.pruneEmpty(dirname(folder));
       this.options.onChange();
     });
+  }
+
+  /** Moves a Skill's folder into `trash/` beside a `trashed.json`; the Library Lock is left alone. */
+  private async moveIn(key: string): Promise<{ into: string; trashed: string }> {
+    const entry = this.entry(key);
+    const deletedAt = this.options.clock.now().toISOString();
+    const id = `${deletedAt.replaceAll(":", "-")}-${key.replaceAll("/", "__")}`;
+    const into = join(this.root, id);
+    const trashed = join(into, splitKey(key).name);
+    await mkdir(into, { recursive: true });
+    await writeFileAtomic(join(into, "trashed.json"), `${JSON.stringify({ key, deletedAt, entry }, null, 2)}\n`);
+    await rename(this.options.library.folder(key), trashed);
+    return { into, trashed };
+  }
+
+  /**
+   * Take upstream (#33): your version of a Skill goes to `trash/` (purged like
+   * any deleted Skill) while it stays in the Library Lock for the new one.
+   * Returns where it went.
+   */
+  async keepVersion(key: string): Promise<string> {
+    return (await this.moveIn(key)).trashed;
   }
 
   /** Removes Namespace folders the deletion left empty, up to `skills/`. */

@@ -28,6 +28,7 @@ test("⌘K adds a Collection with a Skill and an MCP Server to a Project: a Link
   await writeFile(
     join(libraryHome, "settings.json"),
     JSON.stringify({
+      firstRun: { completedAt: "2026-11-01T00:00:00.000Z" },
       collections: {
         kit: {
           items: [

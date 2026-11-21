@@ -3,9 +3,11 @@ import type { ActivityClient, ActivityEntry, ActivityFilter, ActivitySubject } f
 /** Human labels for Activity Log actions; unknown actions show as recorded. */
 const actionLabels: Record<string, string> = {
   "settings.updatePreferences": "Saved preferences",
+  "settings.completeFirstRun": "Finished the First run",
   "ownedFiles.discard": "Discarded a hand edit",
   "scan.run": "Scanned",
   "inbox.ignore": "Ignored a finding",
+  "inbox.unignore": "Restored an ignored finding",
   "drift.restore": "Restored drifted files",
   "drift.accept": "Accepted drift on disk",
   "project.add": "Added a Project",
@@ -55,6 +57,11 @@ const actionLabels: Record<string, string> = {
   "request.expire": "A Request expired",
   "project.grant": "Granted a Project to Agents",
   "project.revokeGrant": "Revoked a Project's Grant",
+  "importer.checkUpdates": "Checked for updates",
+  "importer.applyUpdate": "Updated a Skill from its Source",
+  "importer.keepMine": "Kept my version of a Skill",
+  "importer.detach": "Detached a Skill from its Source",
+  "importer.repoint": "Re-pointed a Skill",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;

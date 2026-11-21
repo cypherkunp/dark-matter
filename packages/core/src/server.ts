@@ -17,6 +17,7 @@ import { NotificationBus, type Notifier } from "./notifier";
 import { DEFAULT_REQUEST_WAIT_MS } from "./requests";
 import { defaultSecretStore, type SecretStore } from "./secrets";
 import { createServices, type Services } from "./services";
+import { type SkillsShOptions, skillsShOptionsFrom } from "./skills-sh";
 
 export interface StartCoreOptions {
   env: CoreEnv;
@@ -30,6 +31,8 @@ export interface StartCoreOptions {
   github?: GitHubOptions;
   /** How long an Agent's call waits for Approve or Deny (about a minute); tests shorten it. */
   requestWaitMs?: number;
+  /** Defaults to https://skills.sh (`DARK_MATTER_SKILLS_SH_API` for a fake); tests pass the fake. */
+  skillsSh?: SkillsShOptions;
 }
 
 export interface RunningCore {
@@ -55,6 +58,7 @@ export const startCore = async ({
   secrets,
   github,
   requestWaitMs = DEFAULT_REQUEST_WAIT_MS,
+  skillsSh,
 }: StartCoreOptions): Promise<RunningCore> => {
   const libraryHome = resolveLibraryHome(env);
   const home = env.HOME || homedir();
@@ -74,6 +78,7 @@ export const startCore = async ({
       secrets: secrets ?? defaultSecretStore(env),
       github: github ?? githubOptionsFrom(env),
       requestWaitMs,
+      skillsSh: skillsSh ?? skillsShOptionsFrom(env),
       ...(env.DARK_MATTER_SYSTEM_ROOT && { systemRoot: env.DARK_MATTER_SYSTEM_ROOT }),
       info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
     });

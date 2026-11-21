@@ -18,6 +18,7 @@ import type { EventBus } from "./events";
 import type { OwnedFile } from "./owned-file";
 import type { ProjectMcpProcedures } from "./project-mcp";
 import type { ProjectSkillProcedures } from "./project-skills";
+import { scanProject } from "./scanner";
 import type { Scans } from "./scans";
 
 const isDirectory = (path: string) =>
@@ -176,6 +177,20 @@ export const projectServices = ({
 
   return {
     suggested: () => waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value),
+
+    suggestedSkills: () =>
+      Promise.all(
+        waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.map(
+          async ({ path, name }) => {
+            const { skills } = await scanProject(path, agentAdapters);
+            return {
+              path,
+              name,
+              skills: skills.sort((a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path)),
+            };
+          },
+        ),
+      ),
 
     list: () =>
       Promise.all(

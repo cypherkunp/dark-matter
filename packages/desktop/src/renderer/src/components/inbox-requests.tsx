@@ -1,13 +1,10 @@
-import type { AgentId, RequestReason, RequestRecord } from "@dark-matter/contracts";
+import type { AgentId, PendingRequest, RequestReason } from "@dark-matter/contracts";
 import { useMutation } from "@tanstack/react-query";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
 import { relativeTime, useNow } from "@/lib/use-now";
-
-/** A Request as the Inbox shows it; its input stays in the core. */
-type PendingRequest = Omit<RequestRecord, "input">;
 
 /** Why a Request asks instead of going through on a Grant, in words. */
 const reasonLabels: Record<RequestReason, string> = {

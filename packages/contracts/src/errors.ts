@@ -262,6 +262,22 @@ export class ImportSkillNotFound extends TaggedError<"ImportSkillNotFound"> {
   }
 }
 
+/** An update met a Modified Skill (#33): choose Take upstream, Keep mine or Detach. */
+export class SkillModified extends TaggedError<"SkillModified"> {
+  readonly _tag = "SkillModified";
+  constructor(readonly key: string) {
+    super(`${key} was changed since it was Imported: choose Take upstream, Keep mine or Detach`);
+  }
+}
+
+/** There's no pending update for this Skill (#33): run Check for updates first. */
+export class NoUpdate extends TaggedError<"NoUpdate"> {
+  readonly _tag = "NoUpdate";
+  constructor(readonly key: string) {
+    super(`${key} has no update waiting`);
+  }
+}
+
 /** A Secret a definition refers to isn't in the keychain: enter it first. */
 export class SecretMissing extends TaggedError<"SecretMissing"> {
   readonly _tag = "SecretMissing";

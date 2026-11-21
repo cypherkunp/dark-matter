@@ -391,6 +391,10 @@ export class Requests {
         };
       }
       case "import": {
+        // skills.sh Get is an Import of one listing.
+        if (typeof (input as { id?: unknown }).id === "string") {
+          return { projects: [], summary: `Get ${(input as { id: string }).id} from skills.sh`, reasons: ["import"] };
+        }
         const { input: source, paths } = input as { input: string; paths: string[] };
         return {
           projects: [],

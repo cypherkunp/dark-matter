@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Library } from "lucide-react";
+import { Overview } from "@/components/overview";
 import { PageHead } from "@/components/page-head";
 import { byNamespace, plural, SkillRows } from "@/components/skill-list";
 import { tildify } from "@/lib/paths";
@@ -22,6 +23,7 @@ function AllSkills() {
         summary={`${plural(skills.length, "Skill")} · ${plural(namespaces, "Namespace")}`}
         {...(info.data && { status: `Library at ${tildify(info.data.libraryHome)}` })}
       />
+      <Overview />
       {library.isPending ? null : skills.length === 0 ? (
         <section
           data-testid="library-empty"

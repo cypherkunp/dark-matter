@@ -7,6 +7,7 @@ import {
   RemoveProjectMcpServer,
   SetProjectMcpServerOn,
 } from "./schemas";
+import { SkillsShGetInput } from "./skills-sh";
 
 /**
  * What a requestable change is, for the Grant (ADR-0006): a Grant covers
@@ -54,6 +55,7 @@ export const operationPolicy = {
   "project.removeMcpServer": requestable("mcpServer.remove", RemoveProjectMcpServer),
   "project.setMcpServerOn": requestable("mcpServer.onOff", SetProjectMcpServerOn),
   "importer.import": requestable("import", ImportSkillsInput),
+  "skillsSh.get": requestable("import", SkillsShGetInput),
 
   "settings.updatePreferences": appOnly,
   "ownedFiles.discard": appOnly,
@@ -92,6 +94,13 @@ export const operationPolicy = {
   "collections.delete": appOnly,
   "collections.execute": appOnly,
   "importer.setToken": appOnly,
+  // Update checks spend the GitHub rate limit; applying, Keep mine, Detach and re-pointing are Modified choices.
+  "importer.checkUpdates": appOnly,
+  "importer.applyUpdates": appOnly,
+  "importer.detach": appOnly,
+  "importer.repoint": appOnly,
+  "inbox.unignore": appOnly,
+  "settings.completeFirstRun": appOnly,
   "requests.approve": appOnly,
   "requests.deny": appOnly,
 } satisfies Record<string, OperationPolicy>;

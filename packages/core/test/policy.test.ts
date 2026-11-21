@@ -35,6 +35,7 @@ describe("the policy table (ADR-0006)", () => {
       "project.removeSkill",
       "project.setMcpServerOn",
       "project.setSkillOn",
+      "skillsSh.get",
     ]);
   });
 
