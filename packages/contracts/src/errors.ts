@@ -253,3 +253,30 @@ export class McpNotTranslatable extends TaggedError<"McpNotTranslatable"> {
     super(`Can't write this MCP Server for ${agent}: ${problem}`);
   }
 }
+
+/** No Collection has this name. */
+export class CollectionNotFound extends TaggedError<"CollectionNotFound"> {
+  readonly _tag = "CollectionNotFound";
+  constructor(readonly collection: string) {
+    super(`No Collection named ${collection}`);
+  }
+}
+
+/** Another Collection already has this name. */
+export class CollectionExists extends TaggedError<"CollectionExists"> {
+  readonly _tag = "CollectionExists";
+  constructor(readonly collection: string) {
+    super(`A Collection named ${collection} already exists`);
+  }
+}
+
+/** Applying a Collection named a Skill that isn't one of its items. */
+export class CollectionItemNotFound extends TaggedError<"CollectionItemNotFound"> {
+  readonly _tag = "CollectionItemNotFound";
+  constructor(
+    readonly collection: string,
+    readonly key: string,
+  ) {
+    super(`${key} isn't in the Collection ${collection}`);
+  }
+}
