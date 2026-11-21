@@ -13,13 +13,14 @@ export function Header() {
   const library = useQuery(trpc.library.list.queryOptions());
   const now = useNow();
   const { scan, scanning } = useScan();
-  const crumbs = breadcrumbFor(useLocation({ select: (location) => location.pathname }));
+  const location = useLocation();
+  const crumbs = breadcrumbFor(location.pathname, location.search);
 
   return (
     <header className="drag-region flex h-[52px] shrink-0 items-center gap-3 border-b px-6">
       <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px]">
         {crumbs.map((crumb, index) => (
-          <Fragment key={crumb}>
+          <Fragment key={`${index}:${crumb}`}>
             {index > 0 && <ChevronRight className="size-3.5 text-muted-foreground" />}
             <span className={index === crumbs.length - 1 ? "font-medium" : "text-muted-foreground"}>{crumb}</span>
           </Fragment>

@@ -13,8 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as NamespaceRouteImport } from './routes/namespace'
 import { Route as ProjectRouteImport } from './routes/project'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SkillRouteImport } from './routes/skill'
 import { Route as ComputerActivityRouteImport } from './routes/computer/activity'
 import { Route as ComputerAgentsRouteImport } from './routes/computer/agents'
 import { Route as ProjectsSuggestedRouteImport } from './routes/projects/suggested'
@@ -39,6 +41,11 @@ const LibraryRoute = LibraryRouteImport.update({
   path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NamespaceRoute = NamespaceRouteImport.update({
+  id: '/namespace',
+  path: '/namespace',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectRoute = ProjectRouteImport.update({
   id: '/project',
   path: '/project',
@@ -47,6 +54,11 @@ const ProjectRoute = ProjectRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SkillRoute = SkillRouteImport.update({
+  id: '/skill',
+  path: '/skill',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ComputerActivityRoute = ComputerActivityRouteImport.update({
@@ -70,8 +82,10 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
+  '/namespace': typeof NamespaceRoute
   '/project': typeof ProjectRoute
   '/settings': typeof SettingsRoute
+  '/skill': typeof SkillRoute
   '/computer/activity': typeof ComputerActivityRoute
   '/computer/agents': typeof ComputerAgentsRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
@@ -81,8 +95,10 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
+  '/namespace': typeof NamespaceRoute
   '/project': typeof ProjectRoute
   '/settings': typeof SettingsRoute
+  '/skill': typeof SkillRoute
   '/computer/activity': typeof ComputerActivityRoute
   '/computer/agents': typeof ComputerAgentsRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
@@ -93,8 +109,10 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
+  '/namespace': typeof NamespaceRoute
   '/project': typeof ProjectRoute
   '/settings': typeof SettingsRoute
+  '/skill': typeof SkillRoute
   '/computer/activity': typeof ComputerActivityRoute
   '/computer/agents': typeof ComputerAgentsRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
@@ -106,8 +124,10 @@ export interface FileRouteTypes {
     | '/$'
     | '/inbox'
     | '/library'
+    | '/namespace'
     | '/project'
     | '/settings'
+    | '/skill'
     | '/computer/activity'
     | '/computer/agents'
     | '/projects/suggested'
@@ -117,8 +137,10 @@ export interface FileRouteTypes {
     | '/$'
     | '/inbox'
     | '/library'
+    | '/namespace'
     | '/project'
     | '/settings'
+    | '/skill'
     | '/computer/activity'
     | '/computer/agents'
     | '/projects/suggested'
@@ -128,8 +150,10 @@ export interface FileRouteTypes {
     | '/$'
     | '/inbox'
     | '/library'
+    | '/namespace'
     | '/project'
     | '/settings'
+    | '/skill'
     | '/computer/activity'
     | '/computer/agents'
     | '/projects/suggested'
@@ -140,8 +164,10 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   InboxRoute: typeof InboxRoute
   LibraryRoute: typeof LibraryRoute
+  NamespaceRoute: typeof NamespaceRoute
   ProjectRoute: typeof ProjectRoute
   SettingsRoute: typeof SettingsRoute
+  SkillRoute: typeof SkillRoute
   ComputerActivityRoute: typeof ComputerActivityRoute
   ComputerAgentsRoute: typeof ComputerAgentsRoute
   ProjectsSuggestedRoute: typeof ProjectsSuggestedRoute
@@ -177,6 +203,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/namespace': {
+      id: '/namespace'
+      path: '/namespace'
+      fullPath: '/namespace'
+      preLoaderRoute: typeof NamespaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/project': {
       id: '/project'
       path: '/project'
@@ -189,6 +222,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/skill': {
+      id: '/skill'
+      path: '/skill'
+      fullPath: '/skill'
+      preLoaderRoute: typeof SkillRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/computer/activity': {
@@ -220,8 +260,10 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   InboxRoute: InboxRoute,
   LibraryRoute: LibraryRoute,
+  NamespaceRoute: NamespaceRoute,
   ProjectRoute: ProjectRoute,
   SettingsRoute: SettingsRoute,
+  SkillRoute: SkillRoute,
   ComputerActivityRoute: ComputerActivityRoute,
   ComputerAgentsRoute: ComputerAgentsRoute,
   ProjectsSuggestedRoute: ProjectsSuggestedRoute,
