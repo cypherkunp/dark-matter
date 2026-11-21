@@ -4,7 +4,14 @@ import { join } from "node:path";
 import { type CoreConnection, CoreFile } from "@dark-matter/contracts";
 import { type CoreClient, type CoreClientOptions, createCoreClient } from "@dark-matter/contracts/client";
 import { onTestFinished } from "vitest";
-import { type Clock, type CoreEnv, type CoreNotification, type RunningCore, startCore } from "../src/index";
+import {
+  type Clock,
+  type CoreEnv,
+  type CoreNotification,
+  type RunningCore,
+  type SecretStore,
+  startCore,
+} from "../src/index";
 
 /** A throwaway `$HOME` for one test, removed when the test finishes. */
 export const tempHome = async () => {
@@ -18,9 +25,10 @@ export const tempHome = async () => {
 /** Boots a core in-process and stops it when the test finishes. */
 export const bootCore = async (
   env: CoreEnv,
-  fakes: { clock?: Clock; notifier?: { notify(notification: CoreNotification): void } } = {},
+  fakes: { clock?: Clock; notifier?: { notify(notification: CoreNotification): void }; secrets?: SecretStore } = {},
 ): Promise<RunningCore> => {
-  const core = await startCore({ env, ...fakes });
+  // Never the real keychain in tests.
+  const core = await startCore({ env: { DARK_MATTER_SECRETS: "memory", ...env }, ...fakes });
   onTestFinished(() => core.stop());
   return core;
 };

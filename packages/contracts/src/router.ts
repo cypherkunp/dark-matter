@@ -10,6 +10,7 @@ import {
   AgentCard,
   AgentId,
   ApplyAdoptInput,
+  ApplyMcpAdoptInput,
   ApplyRenameNamespaceInput,
   type ClientKind,
   type CoreEvent,
@@ -17,6 +18,10 @@ import {
   type CoreNotification,
   Inbox,
   LibraryList,
+  LibraryMcpList,
+  McpAdoptInput,
+  McpAdoptPlan,
+  McpServerName,
   OffScope,
   OwnedFileName,
   OwnedFileProblem,
@@ -96,6 +101,16 @@ export interface CoreServices {
   };
   scheduler: {
     status(): SchedulerStatus;
+  };
+  mcp: {
+    /** Library MCP Servers, by name. */
+    list(): Promise<LibraryMcpList>;
+    /** The dry run for Adopting Global MCP Servers. Writes nothing. */
+    adoptPlan(input: McpAdoptInput): Promise<McpAdoptPlan>;
+    /** Re-plans, checks the plan id still matches, then applies it. */
+    adoptExecute(input: ApplyMcpAdoptInput, client: ClientKind): Promise<McpAdoptPlan>;
+    /** Undo Adopt: puts every entry it came from back into its Agent config and removes it from the Library. */
+    undoAdopt(name: string, client: ClientKind): Promise<void>;
   };
   skill: {
     /** A Library Skill's page: SKILL.md split into frontmatter and body, warnings and its Library Lock entry. */
@@ -207,6 +222,20 @@ export const createAppRouter = (services: CoreServices) =>
       undo: t.procedure
         .input(z.object({ key: z.string().min(1) }))
         .mutation(({ input, ctx }) => services.adopt.undo(input.key, ctx.client)),
+    }),
+    mcp: t.router({
+      list: t.procedure.output(LibraryMcpList).query(() => services.mcp.list()),
+      adoptPlan: t.procedure
+        .input(McpAdoptInput)
+        .output(McpAdoptPlan)
+        .query(({ input }) => services.mcp.adoptPlan(input)),
+      adoptExecute: t.procedure
+        .input(ApplyMcpAdoptInput)
+        .output(McpAdoptPlan)
+        .mutation(({ input, ctx }) => services.mcp.adoptExecute(input, ctx.client)),
+      undoAdopt: t.procedure
+        .input(z.object({ name: McpServerName }))
+        .mutation(({ input, ctx }) => services.mcp.undoAdopt(input.name, ctx.client)),
     }),
     scheduler: t.router({
       status: t.procedure.output(SchedulerStatus).query(() => services.scheduler.status()),

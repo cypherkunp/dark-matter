@@ -9,6 +9,7 @@ import {
   noManaged,
   opencodeManaged,
 } from "./managed-skills";
+import { type AgentMcp, claudeMcp, codexMcp, cursorMcp, opencodeMcp } from "./mcp-agents";
 
 /** Where an adapter resolves its paths from. Grows as adapters need more (e.g. `CODEX_HOME`). */
 export interface AgentPathEnv {
@@ -29,8 +30,7 @@ export interface SkillFolder {
  * Everything Dark Matter knows about one Agent (facts from the Skill discovery
  * research, #2, checked November 2026). Adding an Agent means adding an adapter.
  *
- * Later tickets add sibling sections here rather than new registries:
- * `mcp` (config locations, formats and translation).
+ * Later tickets add sibling sections here rather than new registries.
  */
 export interface AgentAdapter {
   id: AgentId;
@@ -61,6 +61,8 @@ export interface AgentAdapter {
   };
   /** Agent-managed Skill locations (read-only) and "Turn off everywhere" (managed-skills.ts). */
   managed: AgentManagedSkills;
+  /** MCP config locations, format and reading (mcp-agents.ts); null for an Agent with no MCP surface. */
+  mcp: AgentMcp | null;
 }
 
 const claudeSkills = ({ home }: AgentPathEnv): SkillFolder => ({
@@ -86,6 +88,7 @@ const claudeCode: AgentAdapter = {
   project: { markers: [".claude", "CLAUDE.md"] },
   history: { projectFolders: claudeHistory },
   managed: claudeManaged,
+  mcp: claudeMcp,
 };
 
 const cursor: AgentAdapter = {
@@ -101,6 +104,7 @@ const cursor: AgentAdapter = {
   project: { markers: [".cursor"] },
   history: { projectFolders: cursorHistory },
   managed: cursorManaged,
+  mcp: cursorMcp,
 };
 
 const opencode: AgentAdapter = {
@@ -115,6 +119,7 @@ const opencode: AgentAdapter = {
   project: { markers: [".opencode", "opencode.json", "opencode.jsonc"] },
   history: { projectFolders: opencodeHistory },
   managed: opencodeManaged,
+  mcp: opencodeMcp,
 };
 
 const codex: AgentAdapter = {
@@ -131,6 +136,7 @@ const codex: AgentAdapter = {
   project: { markers: [".codex"] },
   history: { projectFolders: codexHistory },
   managed: codexManaged,
+  mcp: codexMcp,
 };
 
 const agents: AgentAdapter = {
@@ -146,6 +152,8 @@ const agents: AgentAdapter = {
   // The convention has no history of its own.
   history: { projectFolders: async () => [] },
   managed: noManaged,
+  // There is no `.agents` convention for MCP Servers (#3).
+  mcp: null,
 };
 
 /** The v1 Agents, in the order screens list them. */

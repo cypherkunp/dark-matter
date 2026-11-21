@@ -3,6 +3,7 @@ import type {
   Inbox,
   InboxFolderGroup,
   InboxManagedGroup,
+  InboxMcpGroup,
   InboxProjectGroup,
   ScanResult,
 } from "@dark-matter/contracts";
@@ -51,14 +52,29 @@ export const inboxFrom = (
     .filter((group) => group.findings.length > 0);
   const untrackedAll = untracked.reduce((sum, group) => sum + group.findings.length, 0);
   const untrackedWaiting = untrackedSkills.reduce((sum, group) => sum + group.findings.length, 0);
+  const mcp = scan?.globalMcpServers ?? [];
+  const mcpWaiting = mcp.filter((finding) => !skipped.has(finding.id));
+  const mcpServers: InboxMcpGroup[] = agentAdapters.flatMap((adapter) => {
+    const findings = mcpWaiting.filter((finding) => finding.agent === adapter.id);
+    const first = findings[0];
+    return first ? [{ agent: adapter.id, file: first.file, findings }] : [];
+  });
   return {
-    count: waiting.length + managedWaiting.length + untrackedWaiting + suggestedProjects,
+    count: waiting.length + managedWaiting.length + mcpWaiting.length + untrackedWaiting + suggestedProjects,
     untrackedSkills,
     globalSkills: [...groups.values()],
     managedSkills,
     ignoredCount:
-      all.length - waiting.length + managed.length - managedWaiting.length + untrackedAll - untrackedWaiting,
+      all.length -
+      waiting.length +
+      managed.length -
+      managedWaiting.length +
+      mcp.length -
+      mcpWaiting.length +
+      untrackedAll -
+      untrackedWaiting,
     suggestedProjects,
+    mcpServers,
   };
 };
 
@@ -74,5 +90,7 @@ export const agentCards = (scan: ScanResult | null, env: AgentPathEnv): AgentCar
       globalSkillFolder: own ? homeRelative(env.home, own.path) : "",
       globalSkillCount: seen?.globalSkillCount ?? null,
       managedSkillCount: seen?.managedSkillCount ?? null,
+      mcpConfig: seen?.mcpConfig ?? null,
+      globalMcpServerCount: adapter.mcp ? (seen?.globalMcpServerCount ?? null) : null,
     };
   });

@@ -40,7 +40,14 @@ export const test = base.extend<{
     await use({
       home,
       libraryHome,
-      env: { ...process.env, HOME: home, DARK_MATTER_HOME: libraryHome, DARK_MATTER_CORE_ENTRY: coreEntry },
+      env: {
+        ...process.env,
+        HOME: home,
+        DARK_MATTER_HOME: libraryHome,
+        DARK_MATTER_CORE_ENTRY: coreEntry,
+        // Never the real keychain in e2e tests.
+        DARK_MATTER_SECRETS: "memory",
+      },
       readCoreFile: async () => {
         try {
           return CoreFile.parse(JSON.parse(await readFile(join(libraryHome, "core.json"), "utf8")));

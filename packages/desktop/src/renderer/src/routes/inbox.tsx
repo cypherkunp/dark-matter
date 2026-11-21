@@ -14,6 +14,7 @@ import { ChevronRight, Inbox as InboxIcon } from "lucide-react";
 import { useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { AdoptDialog } from "@/components/adopt-dialog";
+import { InboxMcpServers } from "@/components/inbox-mcp";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -318,6 +319,7 @@ function Inbox() {
               ))}
             </>
           )}
+          <InboxMcpServers groups={inbox.data?.mcpServers ?? []} />
         </>
       )}
       <AdoptDialog findings={adopting} onClose={() => setAdopting(null)} onAdopted={adopted} />
