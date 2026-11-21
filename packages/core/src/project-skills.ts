@@ -310,37 +310,33 @@ export class ProjectSkillService {
     return items.flatMap(({ key }) => cells.get(key) ?? []);
   }
 
-  /** Applies a Collection (#36): adds what each Project can take and reports every item's outcome. */
-  applyCollection(name: string, skills: readonly AddProjectSkill[], client: ClientKind) {
+  /**
+   * Applies a Collection's Skills (#36): adds what each Project can take and
+   * reports every item's outcome. The caller records the Activity entry.
+   */
+  applyCollection(skills: readonly AddProjectSkill[], wrote: Wrote) {
     const paths = [...new Set(skills.map((skill) => skill.path))];
-    const subjects: ActivitySubject[] = [
-      { kind: "collection", id: name },
-      ...paths.map((id) => ({ kind: "project" as const, id })),
-      ...[...new Set(skills.map((skill) => skill.key))].map((id) => ({ kind: "skill" as const, id })),
-    ];
-    return this.#serial(() =>
-      this.options.activity.track({ client, action: "collections.apply", subjects }, async (wrote) => {
-        try {
-          const cells: CollectionCell[] = [];
-          for (const path of paths) {
-            const own = skills.filter((skill) => skill.path === path);
-            cells.push(
-              ...(await this.preview(
-                path,
-                own.map(({ key, mode }) => ({ key, mode: mode ?? "link" })),
-              )),
-            );
-          }
-          const adding = cells
-            .filter((cell) => cell.outcome === "add" || cell.outcome === "nameConflict")
-            .map(({ path, key, mode }) => ({ path, key, mode }));
-          const projects = adding.length > 0 ? await this.#add(adding, wrote) : [];
-          return { projects, cells };
-        } finally {
-          this.#changed();
+    return this.#serial(async () => {
+      try {
+        const cells: CollectionCell[] = [];
+        for (const path of paths) {
+          const own = skills.filter((skill) => skill.path === path);
+          cells.push(
+            ...(await this.preview(
+              path,
+              own.map(({ key, mode }) => ({ key, mode: mode ?? "link" })),
+            )),
+          );
         }
-      }),
-    );
+        const adding = cells
+          .filter((cell) => cell.outcome === "add" || cell.outcome === "nameConflict")
+          .map(({ path, key, mode }) => ({ path, key, mode }));
+        const projects = adding.length > 0 ? await this.#add(adding, wrote) : [];
+        return { projects, cells };
+      } finally {
+        this.#changed();
+      }
+    });
   }
 
   async usage(): Promise<Map<string, SkillUsage>> {

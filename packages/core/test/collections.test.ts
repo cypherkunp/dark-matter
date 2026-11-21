@@ -77,7 +77,10 @@ describe("Collections", () => {
       items: [skill("local/docx"), skill("local/pdf"), skill("local/docx")],
     });
 
-    expect(edited.items.map((item) => item.key)).toEqual(["local/docx", "local/pdf"]);
+    expect(edited.items.map((item) => (item.kind === "skill" ? item.key : item.name))).toEqual([
+      "local/docx",
+      "local/pdf",
+    ]);
     expect((await settings()).collections).toEqual({
       "docs kit": { items: [skill("local/docx"), skill("local/pdf")] },
       other: { items: [] },
