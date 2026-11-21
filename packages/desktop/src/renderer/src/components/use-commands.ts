@@ -62,6 +62,29 @@ const useProjectCommands = (): Command[] => {
   }));
 };
 
+/** Collections (#36, #41): open one, or add it to Projects (opens its Add to Projects grid). */
+const useCollectionCommands = (): Command[] => {
+  const trpc = useTRPC();
+  const navigate = useNavigate();
+  const collections = useQuery(trpc.collections.list.queryOptions()).data ?? [];
+  return collections.flatMap((collection) => [
+    {
+      id: `collection:${collection.name}`,
+      group: "Collections",
+      label: collection.name,
+      hint: "Collection",
+      run: () => void navigate({ to: "/collection", search: { name: collection.name } }),
+    },
+    {
+      id: `collection-add:${collection.name}`,
+      group: "Collections",
+      label: `Add ${collection.name} to Projects…`,
+      hint: "Collection",
+      run: () => void navigate({ to: "/collection", search: { name: collection.name, add: true } }),
+    },
+  ]);
+};
+
 /**
  * The ⌘K registry: every command source, in the order its group is listed.
  * A ticket adds commands by writing a `use…Commands` hook and one line here.
@@ -70,6 +93,7 @@ export const useCommands = (): Command[] => [
   ...useActionCommands(),
   ...useSkillCommands(),
   ...useNamespaceCommands(),
+  ...useCollectionCommands(),
   ...useProjectCommands(),
 ];
 
