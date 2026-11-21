@@ -1,6 +1,7 @@
 import type { LibrarySkill } from "@dark-matter/contracts";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
+import { ModifiedBadge } from "./modified-badge";
 
 export const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
@@ -27,6 +28,7 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
               Local Source
             </span>
           )}
+          {skill.modified && <ModifiedBadge />}
         </div>
         {skill.description && <p className="truncate text-muted-foreground text-xs">{skill.description}</p>}
         <div className="truncate font-mono text-muted-foreground text-xs">

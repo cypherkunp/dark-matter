@@ -20,7 +20,10 @@ const setup = async (clock = fakeClock(localTime(20, 12))) => {
     await fixture.file(".agents/skills/find-skills/scripts/run.sh", "echo hi\n");
     await fixture.globalLock({ "find-skills": { source: "vercel-labs/skills" } });
     await adopt("~/.agents/skills/find-skills");
-    return { key: "vercel-labs/skills/find-skills", folder: join(libraryHome, "skills/vercel-labs/skills/find-skills") };
+    return {
+      key: "vercel-labs/skills/find-skills",
+      folder: join(libraryHome, "skills/vercel-labs/skills/find-skills"),
+    };
   };
   return { home, libraryHome, trpc, fixture, adopt, sourcedSkill, clock };
 };
@@ -88,7 +91,10 @@ describe("Saving a Skill file", () => {
   test("an edit to a Linked Skill shows in every Project at once", async () => {
     const { home, trpc, fixture, sourcedSkill } = await setup();
     const { key, folder } = await sourcedSkill();
-    const links = [join(home, "code/app/.agents/skills/find-skills"), join(home, "code/api/.claude/skills/find-skills")];
+    const links = [
+      join(home, "code/app/.agents/skills/find-skills"),
+      join(home, "code/api/.claude/skills/find-skills"),
+    ];
     for (const link of links) {
       await fixture.file(join(link, "..", ".keep"), "");
       await symlink(folder, link, "dir");
@@ -202,9 +208,7 @@ describe("Deleting a Library Skill", () => {
     // 1 December (Nov 31) at 09:00: the first is 30 days old, the second 21.
     clock.set(localTime(31, 9));
 
-    await expect
-      .poll(async () => (await readdir(join(libraryHome, "trash"))).length, { timeout: 5000 })
-      .toBe(1);
+    await expect.poll(async () => (await readdir(join(libraryHome, "trash"))).length, { timeout: 5000 }).toBe(1);
     const [left] = await readdir(join(libraryHome, "trash"));
     expect(left).toContain("local");
     await expect
@@ -212,4 +216,3 @@ describe("Deleting a Library Skill", () => {
       .toMatchObject({ client: "scheduled-scan", result: "ok", subjects: [{ kind: "skill", id: key }] });
   });
 });
-

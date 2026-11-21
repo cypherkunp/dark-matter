@@ -92,7 +92,13 @@ export class Trash {
   private async pruneEmpty(dir: string) {
     const skills = join(this.options.library.libraryHome, "skills");
     for (let at = dir; at.startsWith(`${skills}/`); at = dirname(at)) {
-      if (!(await rmdir(at).then(() => true, () => false))) return;
+      if (
+        !(await rmdir(at).then(
+          () => true,
+          () => false,
+        ))
+      )
+        return;
     }
   }
 
