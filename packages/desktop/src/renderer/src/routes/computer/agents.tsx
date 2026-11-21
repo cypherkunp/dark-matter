@@ -33,6 +33,17 @@ function Card({ agent }: { agent: AgentCard }) {
             </Link>
           )}
         </dd>
+        <dt className="text-muted-foreground">Agent-managed Skills</dt>
+        <dd data-testid="agent-managed-count">
+          {agent.managedSkillCount === null ? (
+            "–"
+          ) : (
+            <Link to="/inbox" className="inline-flex items-center gap-0.5 tabular-nums hover:underline">
+              {agent.managedSkillCount}
+              <ChevronRight className="size-3" />
+            </Link>
+          )}
+        </dd>
       </dl>
     </div>
   );

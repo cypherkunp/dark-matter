@@ -6,6 +6,7 @@ const actionLabels: Record<string, string> = {
   "ownedFiles.discard": "Discarded a hand edit",
   "scan.run": "Scanned",
   "inbox.ignore": "Ignored a finding",
+  "managedSkills.turnOff": "Turned off an Agent-managed Skill",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;

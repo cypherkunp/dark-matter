@@ -1,4 +1,4 @@
-import type { GlobalSkill, InboxFolderGroup } from "@dark-matter/contracts";
+import type { GlobalSkill, InboxFolderGroup, InboxManagedGroup, ManagedSkill, OffSwitch } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Inbox as InboxIcon } from "lucide-react";
@@ -67,12 +67,78 @@ function FolderGroup({ group }: { group: InboxFolderGroup }) {
   );
 }
 
+const offLabel: Record<OffSwitch["scope"], string> = {
+  skill: "Turn off everywhere",
+  plugin: "Turn off plugin everywhere",
+  bundled: "Turn off all bundled",
+};
+
+function ManagedFinding({ finding }: { finding: ManagedSkill }) {
+  const trpc = useTRPC();
+  const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
+  const turnOff = useMutation(trpc.managedSkills.turnOff.mutationOptions());
+  const busy = ignore.isPending || turnOff.isPending;
+  return (
+    <div data-testid="inbox-managed-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
+      <StatusDot tone="on" />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-sm">{finding.name}</span>
+          <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+            {finding.plugin ?? finding.kind}
+          </span>
+        </div>
+        {finding.description && <p className="truncate text-muted-foreground text-xs">{finding.description}</p>}
+        <div className="truncate font-mono text-muted-foreground text-xs">{finding.path}</div>
+        {finding.offSwitches.length === 0 && (
+          <p className="text-muted-foreground text-xs">
+            {agentName(finding.agent)} has no off switch for its own Skills, so Dark Matter only lists it.
+          </p>
+        )}
+        {turnOff.error && <p className="text-status-warning text-xs">{turnOff.error.message}</p>}
+      </div>
+      {finding.offSwitches.map((offSwitch) => (
+        <Button
+          key={offSwitch.scope}
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          title={`Writes ${offSwitch.setting} in ${offSwitch.file}`}
+          onClick={() => turnOff.mutate({ id: finding.id, scope: offSwitch.scope })}
+        >
+          {offLabel[offSwitch.scope]}
+        </Button>
+      ))}
+      <Button size="sm" variant="ghost" disabled={busy} onClick={() => ignore.mutate({ id: finding.id })}>
+        Ignore
+      </Button>
+    </div>
+  );
+}
+
+function ManagedGroup({ group }: { group: InboxManagedGroup }) {
+  return (
+    <section data-testid="inbox-managed-group" className="flex flex-col gap-3">
+      <h2 className="flex items-center gap-2 font-semibold text-sm">
+        <span>{agentName(group.agent)}</span>
+        <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+      </h2>
+      <div className="divide-y rounded-xl border">
+        {group.findings.map((finding) => (
+          <ManagedFinding key={finding.id} finding={finding} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Inbox() {
   const trpc = useTRPC();
   const inbox = useQuery(trpc.inbox.list.queryOptions());
   const { scan, scanning, lastScanAt } = useScan();
   const now = useNow();
   const groups = inbox.data?.globalSkills ?? [];
+  const managed = inbox.data?.managedSkills ?? [];
   const count = inbox.data?.count ?? 0;
   const ignored = inbox.data?.ignoredCount ?? 0;
 
@@ -102,13 +168,29 @@ function Inbox() {
         </section>
       ) : (
         <>
-          <p className="text-muted-foreground text-sm">
-            Global Skills load in every Project. Adopt them into the Library so each Project asks for only what it
-            needs.
-          </p>
+          {groups.length > 0 && (
+            <p className="text-muted-foreground text-sm">
+              Global Skills load in every Project. Adopt them into the Library so each Project asks for only what it
+              needs.
+            </p>
+          )}
           {groups.map((group) => (
             <FolderGroup key={group.folder} group={group} />
           ))}
+          {managed.length > 0 && (
+            <>
+              <div className="flex flex-col gap-1 pt-2">
+                <h2 className="font-semibold text-base">Agent-managed Skills</h2>
+                <p className="text-muted-foreground text-sm">
+                  Plugins, built-ins and bundled Skills each Agent installs itself. Dark Matter can't move them, but can
+                  turn them off through the Agent's own settings.
+                </p>
+              </div>
+              {managed.map((group) => (
+                <ManagedGroup key={group.agent} group={group} />
+              ))}
+            </>
+          )}
         </>
       )}
     </div>
