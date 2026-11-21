@@ -17,6 +17,7 @@ import { Route as ProjectRouteImport } from './routes/project'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ComputerActivityRouteImport } from './routes/computer/activity'
 import { Route as ComputerAgentsRouteImport } from './routes/computer/agents'
+import { Route as ComputerMcpServersRouteImport } from './routes/computer/mcp-servers'
 import { Route as ProjectsSuggestedRouteImport } from './routes/projects/suggested'
 
 const IndexRoute = IndexRouteImport.update({
@@ -59,6 +60,11 @@ const ComputerAgentsRoute = ComputerAgentsRouteImport.update({
   path: '/computer/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ComputerMcpServersRoute = ComputerMcpServersRouteImport.update({
+  id: '/computer/mcp-servers',
+  path: '/computer/mcp-servers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProjectsSuggestedRoute = ProjectsSuggestedRouteImport.update({
   id: '/projects/suggested',
   path: '/projects/suggested',
@@ -74,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/computer/activity': typeof ComputerActivityRoute
   '/computer/agents': typeof ComputerAgentsRoute
+  '/computer/mcp-servers': typeof ComputerMcpServersRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRoutesByTo {
@@ -85,6 +92,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/computer/activity': typeof ComputerActivityRoute
   '/computer/agents': typeof ComputerAgentsRoute
+  '/computer/mcp-servers': typeof ComputerMcpServersRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRoutesById {
@@ -97,6 +105,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/computer/activity': typeof ComputerActivityRoute
   '/computer/agents': typeof ComputerAgentsRoute
+  '/computer/mcp-servers': typeof ComputerMcpServersRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
 export interface FileRouteTypes {
@@ -110,6 +119,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/computer/activity'
     | '/computer/agents'
+    | '/computer/mcp-servers'
     | '/projects/suggested'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -121,6 +131,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/computer/activity'
     | '/computer/agents'
+    | '/computer/mcp-servers'
     | '/projects/suggested'
   id:
     | '__root__'
@@ -132,6 +143,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/computer/activity'
     | '/computer/agents'
+    | '/computer/mcp-servers'
     | '/projects/suggested'
   fileRoutesById: FileRoutesById
 }
@@ -144,6 +156,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   ComputerActivityRoute: typeof ComputerActivityRoute
   ComputerAgentsRoute: typeof ComputerAgentsRoute
+  ComputerMcpServersRoute: typeof ComputerMcpServersRoute
   ProjectsSuggestedRoute: typeof ProjectsSuggestedRoute
 }
 
@@ -205,6 +218,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ComputerAgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/computer/mcp-servers': {
+      id: '/computer/mcp-servers'
+      path: '/computer/mcp-servers'
+      fullPath: '/computer/mcp-servers'
+      preLoaderRoute: typeof ComputerMcpServersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/projects/suggested': {
       id: '/projects/suggested'
       path: '/projects/suggested'
@@ -224,6 +244,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   ComputerActivityRoute: ComputerActivityRoute,
   ComputerAgentsRoute: ComputerAgentsRoute,
+  ComputerMcpServersRoute: ComputerMcpServersRoute,
   ProjectsSuggestedRoute: ProjectsSuggestedRoute,
 }
 export const routeTree = rootRouteImport
