@@ -25,6 +25,9 @@ const actionLabels: Record<string, string> = {
   "skill.saveFile": "Saved a Skill file",
   "skill.delete": "Moved a Skill to the trash",
   "trash.purge": "Emptied expired trash",
+  "importer.import": "Imported Skills from GitHub",
+  "importer.setToken": "Saved the GitHub token",
+  "importer.removeToken": "Removed the GitHub token",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;
