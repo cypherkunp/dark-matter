@@ -105,6 +105,29 @@ export const Preferences = z.strictObject({
 });
 export type Preferences = z.infer<typeof Preferences>;
 
+/** A Collection's name: its key in `settings.json` and how it shows under Library. */
+export const CollectionName = z
+  .string()
+  .trim()
+  .min(1, "Give the Collection a name")
+  .max(80, "Use at most 80 characters")
+  .refine((name) => !name.includes("\n"), "Use one line");
+
+/**
+ * One thing in a Collection: a Library Skill by key. A discriminated union, so
+ * MCP Servers (#41) join as `{ kind: "mcpServer", name }` without a new shape.
+ */
+export const CollectionItem = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("skill"), key: z.string().min(1) }),
+]);
+export type CollectionItem = z.infer<typeof CollectionItem>;
+
+/** A Collection in `settings.json`: a template, flat (no nesting), applied by copying its items into Projects. */
+export const CollectionRecord = z.strictObject({
+  items: z.array(CollectionItem).default([]),
+});
+export type CollectionRecord = z.infer<typeof CollectionRecord>;
+
 /**
  * `~/.dark-matter/settings.json`, owned intent (ADR-0005). Every field has a
  * default, so a missing file is an empty object. Later tickets add Favourites,
@@ -116,6 +139,8 @@ export const SettingsFile = z.strictObject({
   ignoredFindings: z.array(z.string()).default([]),
   /** Suggested Projects you dismissed, by absolute path. Kept sorted. */
   dismissedSuggestedProjects: z.array(z.string()).default([]),
+  /** Collections by name (#36). Items keep their order. */
+  collections: z.record(z.string(), CollectionRecord).default({}),
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 
@@ -153,6 +178,8 @@ export const LibraryLockEntry = z.strictObject({
   localSource: z.string().optional(),
   /** Projects (home-relative) where Adopt & keep Link put a Link back (#29); Undo Adopt removes those Project Skills first. */
   keptLinks: z.array(z.string()).optional(),
+  /** Imported (#30): the GitHub tree SHA of the Skill's folder at `commit`, so update checks compare folders, not commits. */
+  skillFolderHash: z.string().optional(),
 });
 export type LibraryLockEntry = z.infer<typeof LibraryLockEntry>;
 
@@ -239,7 +266,7 @@ export type ActivityClient = z.infer<typeof ActivityClient>;
 
 /** What an Activity entry is about; `id` is a Skill key, Project path, file name… */
 export const ActivitySubject = z.object({
-  kind: z.enum(["settings", "skill", "project", "mcpServer", "source", "finding"]),
+  kind: z.enum(["settings", "skill", "project", "mcpServer", "source", "finding", "collection"]),
   id: z.string(),
 });
 export type ActivitySubject = z.infer<typeof ActivitySubject>;
@@ -351,6 +378,8 @@ export const AgentScan = z.object({
   mcpConfig: z.string().nullable().default(null),
   /** Global MCP Servers declared in that file. */
   globalMcpServerCount: z.int().nonnegative().default(0),
+  /** Agent-managed MCP Servers it loads (#40). */
+  managedMcpServerCount: z.int().nonnegative().default(0),
 });
 export type AgentScan = z.infer<typeof AgentScan>;
 
@@ -481,6 +510,8 @@ export const LibraryMcpServer = z.object({
   definition: McpDefinition.nullable(),
   /** Secret names it refers to. */
   secrets: z.array(z.string()),
+  /** Those of its Secrets that aren't in the keychain yet. */
+  missingSecrets: z.array(z.string()).default([]),
   adoptedFrom: z.array(McpAdoptedFrom.pick({ agent: true, file: true })),
   /** The file, home-relative. */
   file: z.string(),
@@ -509,6 +540,58 @@ export const GlobalMcpServer = z.object({
 });
 export type GlobalMcpServer = z.infer<typeof GlobalMcpServer>;
 
+/**
+ * How "Turn off everywhere" reaches an Agent-managed MCP Server (#40): `server`
+ * turns off just this one, `plugin` the plugin it comes with, `connectors`
+ * every claude.ai connector.
+ */
+export const McpOffScope = z.enum(["server", "plugin", "connectors"]);
+export type McpOffScope = z.infer<typeof McpOffScope>;
+
+export const McpOffSwitch = z.object({
+  scope: McpOffScope,
+  /** The config file it writes, home-relative. */
+  file: z.string(),
+  /** The setting it writes, as the user would read it in that file. */
+  setting: z.string(),
+});
+export type McpOffSwitch = z.infer<typeof McpOffSwitch>;
+
+/**
+ * An MCP Server an Agent adds and controls itself (#40): a plugin's, a claude.ai
+ * connector, a built-in, a marketplace or team server, or one from a system,
+ * cloud or MDM config layer. Listed read-only; Dark Matter only ever turns one
+ * off through the Agent's own documented global setting.
+ */
+export const ManagedMcpServer = z.object({
+  /** Stable across Scans: `managed-mcp:<agent>:<name>`. */
+  id: z.string(),
+  agent: AgentId,
+  /** The name the Agent shows, e.g. `plugin:figma:figma`. */
+  name: z.string(),
+  kind: z.enum(["plugin", "connector", "builtin", "marketplace", "team", "system", "managed"]),
+  /** The plugin it comes with, as the Agent names it. */
+  plugin: z.string().nullable(),
+  /** The file that declares it (home-relative when under `$HOME`); null when it isn't in a file. */
+  source: z.string().nullable(),
+  /** Its definition with inline secrets masked; null when the Agent doesn't keep one on disk. */
+  definition: McpDefinition.nullable(),
+  /** Already off: turned off in the Agent's settings, or off until you opt in. */
+  off: z.boolean(),
+  /** Ways to turn it off everywhere, the narrowest first. Empty when it's read-only. */
+  offSwitches: z.array(McpOffSwitch),
+  /** Why it's read-only (and how to turn it off in the Agent), when there's no off switch. */
+  readOnly: z.string().nullable(),
+});
+export type ManagedMcpServer = z.infer<typeof ManagedMcpServer>;
+
+/** One Agent's Agent-managed MCP Servers, for the Inbox. */
+export const InboxManagedMcpGroup = z.object({
+  agent: AgentId,
+  findings: z.array(ManagedMcpServer),
+});
+export type InboxManagedMcpGroup = z.infer<typeof InboxManagedMcpGroup>;
+
 /** Global MCP Servers in one Agent config file, for the Inbox. */
 export const InboxMcpGroup = z.object({
   agent: AgentId,
@@ -528,6 +611,7 @@ export const ScanResult = z.object({
   projects: z.array(ProjectScan).default([]),
   managedSkills: z.array(ManagedSkill).default([]),
   globalMcpServers: z.array(GlobalMcpServer).default([]),
+  managedMcpServers: z.array(ManagedMcpServer).default([]),
 });
 export type ScanResult = z.infer<typeof ScanResult>;
 
@@ -638,6 +722,8 @@ export const Inbox = z.object({
   mcpServers: z.array(InboxMcpGroup).default([]),
   /** Drift between `projects.json` and the disk, by Project (#42). */
   drift: z.array(InboxDriftGroup).default([]),
+  /** Agent-managed MCP Servers that are still on, by Agent. */
+  managedMcpServers: z.array(InboxManagedMcpGroup).default([]),
 });
 export type Inbox = z.infer<typeof Inbox>;
 
@@ -657,6 +743,10 @@ export const AgentCard = z.object({
   mcpConfig: z.string().nullable().default(null),
   /** Null until the first Scan, or when the Agent has no MCP surface. */
   globalMcpServerCount: z.int().nonnegative().nullable().default(null),
+  /** Agent-managed MCP Servers; null until the first Scan, or when the Agent has no MCP surface. */
+  managedMcpServerCount: z.int().nonnegative().nullable().default(null),
+  /** Agent-managed MCP Servers Dark Matter can't list from disk, and why (e.g. Cursor team servers). */
+  managedMcpNotes: z.array(z.string()).default([]),
 });
 export type AgentCard = z.infer<typeof AgentCard>;
 
@@ -798,6 +888,8 @@ export const Domain = z.enum([
   "project",
   "mcp",
   "skill",
+  "collections",
+  "importer",
 ]);
 export type Domain = z.infer<typeof Domain>;
 
@@ -823,11 +915,39 @@ export const ProjectSkillRecord = z.strictObject({
 });
 export type ProjectSkillRecord = z.infer<typeof ProjectSkillRecord>;
 
+/** How a Project MCP Server reaches the Project's Agents. #39 adds "shared". */
+export const McpDeliveryMode = z.enum(["personal"]);
+export type McpDeliveryMode = z.infer<typeof McpDeliveryMode>;
+
+/** One entry Dark Matter wrote for a Project MCP Server: how it tells its own entries apart. */
+export const McpDelivered = z.strictObject({
+  agent: AgentId,
+  /** The config file, home-relative. */
+  file: z.string(),
+  /** The entry's key path in that file, e.g. `["mcpServers", "github"]`. */
+  at: z.array(z.string()).min(1),
+});
+export type McpDelivered = z.infer<typeof McpDelivered>;
+
+/**
+ * One Project MCP Server in `projects.json`, keyed by Library name. Off keeps
+ * its mode here with nothing delivered; Agents stay Project-level.
+ */
+export const ProjectMcpServerRecord = z.strictObject({
+  mode: McpDeliveryMode,
+  on: z.boolean(),
+  /** The entries written now; empty when Off. */
+  delivered: z.array(McpDelivered).default([]),
+});
+export type ProjectMcpServerRecord = z.infer<typeof ProjectMcpServerRecord>;
+
 export const ProjectRecord = z.strictObject({
   /** The Agents chosen for this Project; they decide which folders get written. */
   agents: z.array(AgentId).default([]),
   /** Project Skills by Library key (#27). */
   skills: z.record(z.string(), ProjectSkillRecord).default({}),
+  /** Project MCP Servers by Library name (#38). Left out while there are none. */
+  mcpServers: z.record(z.string(), ProjectMcpServerRecord).optional(),
 });
 export type ProjectRecord = z.infer<typeof ProjectRecord>;
 
@@ -1008,3 +1128,119 @@ export type FulfilLockInput = z.infer<typeof FulfilLockInput>;
 /** A Copy's files against its Library Skill, as a unified diff (`a` = Library, `b` = the repo). Empty when they match. */
 export const CopyDiff = z.object({ patch: z.string() });
 export type CopyDiff = z.infer<typeof CopyDiff>;
+
+/** A Collection item as Collections list it: `missing` when its Library Skill is gone (deleted or never there). */
+export const CollectionItemView = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("skill"), key: z.string(), name: z.string(), missing: z.boolean() }),
+]);
+export type CollectionItemView = z.infer<typeof CollectionItemView>;
+
+export const Collection = z.object({ name: z.string(), items: z.array(CollectionItemView) });
+export type Collection = z.infer<typeof Collection>;
+
+export const CreateCollectionInput = z.object({ name: CollectionName, items: z.array(CollectionItem).default([]) });
+export type CreateCollectionInput = z.infer<typeof CreateCollectionInput>;
+
+export const RenameCollectionInput = z.object({ name: z.string().min(1), newName: CollectionName });
+export type RenameCollectionInput = z.infer<typeof RenameCollectionInput>;
+
+export const SetCollectionItemsInput = z.object({ name: z.string().min(1), items: z.array(CollectionItem) });
+export type SetCollectionItemsInput = z.infer<typeof SetCollectionItemsInput>;
+
+/** Which Projects to add a Collection to, and Link or Copy per Skill (Link when left out). */
+export const CollectionPlanInput = z.object({
+  name: z.string().min(1),
+  projects: z.array(z.string().min(1)).min(1),
+  modes: z.record(z.string(), DeliveryMode).optional(),
+});
+export type CollectionPlanInput = z.infer<typeof CollectionPlanInput>;
+
+/**
+ * What adding one Collection item to one Project does:
+ * - "add": it becomes an ordinary Project Skill, delivered On;
+ * - "present": the Project already has it (left as it is);
+ * - "nameConflict": another Project Skill (or another item) has its name; it's added in a Name Conflict to Resolve;
+ * - "blocked": something Dark Matter didn't put there holds its folder (`path`), so it can't be added;
+ * - "missing": its Library Skill is gone.
+ */
+export const CollectionCellOutcome = z.enum(["add", "present", "nameConflict", "blocked", "missing"]);
+export type CollectionCellOutcome = z.infer<typeof CollectionCellOutcome>;
+
+export const CollectionCell = z.object({
+  path: z.string(),
+  key: z.string(),
+  mode: DeliveryMode,
+  outcome: CollectionCellOutcome,
+  /** For "nameConflict": the other Library keys with the same name. */
+  conflictsWith: z.array(z.string()),
+  /** For "blocked": the Project-relative path in the way. */
+  blockedBy: z.string().nullable(),
+});
+export type CollectionCell = z.infer<typeof CollectionCell>;
+
+export const CollectionPlan = z.object({ name: z.string(), cells: z.array(CollectionCell) });
+export type CollectionPlan = z.infer<typeof CollectionPlan>;
+
+/** Applying a Collection: the cells you ticked, each with Link or Copy. Blocked ones are skipped and reported. */
+export const ApplyCollectionInput = z.object({
+  name: z.string().min(1),
+  skills: z.array(AddProjectSkill).min(1),
+});
+export type ApplyCollectionInput = z.infer<typeof ApplyCollectionInput>;
+
+export const AppliedCollection = z.object({
+  /** Each touched Project's Project Skills afterwards. */
+  projects: z.array(ProjectSkills),
+  /** Per item and Project, what happened. */
+  cells: z.array(CollectionCell),
+});
+export type AppliedCollection = z.infer<typeof AppliedCollection>;
+
+/**
+ * One Agent's delivery of a Project MCP Server: "delivered" (its entry is
+ * written), "off", or "tracked" (its Project config file is committed, so
+ * Personal isn't offered for that Agent).
+ */
+export const McpDeliveryStatus = z.object({
+  agent: AgentId,
+  /** The config file, home-relative. */
+  file: z.string(),
+  status: z.enum(["delivered", "off", "tracked"]),
+});
+export type McpDeliveryStatus = z.infer<typeof McpDeliveryStatus>;
+
+/** A Project MCP Server as the Project page shows it. */
+export const ProjectMcpServer = z.object({
+  name: z.string(),
+  mode: McpDeliveryMode,
+  on: z.boolean(),
+  /** Secret names its definition refers to. */
+  secrets: z.array(z.string()),
+  /** One per chosen Agent with an MCP surface (never `.agents`). */
+  deliveries: z.array(McpDeliveryStatus),
+});
+export type ProjectMcpServer = z.infer<typeof ProjectMcpServer>;
+
+export const ProjectMcpServers = z.object({ path: z.string(), servers: z.array(ProjectMcpServer) });
+export type ProjectMcpServers = z.infer<typeof ProjectMcpServers>;
+
+/** One Project MCP Server to add; `mode` defaults to Personal. */
+export const AddProjectMcpServer = ProjectPath.extend({ name: McpServerName, mode: McpDeliveryMode.optional() });
+export type AddProjectMcpServer = z.infer<typeof AddProjectMcpServer>;
+
+export const AddProjectMcpServers = z.object({ servers: z.array(AddProjectMcpServer).min(1) });
+export type AddProjectMcpServers = z.infer<typeof AddProjectMcpServers>;
+
+export const ProjectMcpServerRef = ProjectPath.extend({ name: McpServerName });
+export type ProjectMcpServerRef = z.infer<typeof ProjectMcpServerRef>;
+
+/** Where Personal would write for each of a Project's Agents, and whether it's offered (not tracked by git). */
+export const McpTarget = z.object({ agent: AgentId, file: z.string(), personal: z.boolean() });
+export type McpTarget = z.infer<typeof McpTarget>;
+
+/** A Secret's new value (entered or rotated). It goes straight into the keychain. */
+export const SetSecretInput = z.object({ name: z.string().min(1), value: z.string().min(1) });
+export type SetSecretInput = z.infer<typeof SetSecretInput>;
+
+export const UpdateMcpDefinitionInput = z.object({ name: McpServerName, definition: McpDefinition });
+export type UpdateMcpDefinitionInput = z.infer<typeof UpdateMcpDefinitionInput>;

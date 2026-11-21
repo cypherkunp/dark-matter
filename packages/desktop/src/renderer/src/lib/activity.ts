@@ -26,10 +26,24 @@ const actionLabels: Record<string, string> = {
   "adopt.undo": "Undid an Adopt",
   "mcp.adopt": "Adopted MCP Servers",
   "mcp.undoAdopt": "Undid an MCP Server Adopt",
+  "mcp.setSecret": "Entered a Secret",
+  "mcp.updateDefinition": "Edited an MCP Server",
+  "project.addMcpServers": "Added Project MCP Servers",
+  "project.mcpServerOn": "Turned a Project MCP Server On",
+  "project.mcpServerOff": "Turned a Project MCP Server Off",
+  "project.removeMcpServer": "Removed a Project MCP Server",
   "namespace.rename": "Renamed a Namespace",
   "skill.saveFile": "Saved a Skill file",
   "skill.delete": "Moved a Skill to the trash",
   "trash.purge": "Emptied expired trash",
+  "collections.create": "Created a Collection",
+  "collections.rename": "Renamed a Collection",
+  "collections.setItems": "Edited a Collection",
+  "collections.delete": "Deleted a Collection",
+  "collections.apply": "Added a Collection to Projects",
+  "importer.import": "Imported Skills from GitHub",
+  "importer.setToken": "Saved the GitHub token",
+  "importer.removeToken": "Removed the GitHub token",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;
@@ -140,6 +154,8 @@ export const subjectLink = (subject: ActivitySubject) => {
       return { to: "/inbox" } as const;
     case "settings":
       return { to: "/settings" } as const;
+    case "collection":
+      return { to: "/collection", search: { name: subject.id } } as const;
     default:
       return null;
   }

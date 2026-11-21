@@ -2,41 +2,63 @@ import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { isTaggedError } from "./errors";
 import {
+  GitHubAuthStatus,
+  ImportPreview,
+  ImportResult,
+  ImportSkillsInput,
+  ImportSourceInput,
+  SetGitHubTokenInput,
+} from "./importer";
+import {
   ActivityExport,
   ActivityFilter,
   ActivityList,
   ActivityQuery,
+  AddProjectMcpServers,
   AddProjectSkills,
   AdoptInput,
   AdoptPlan,
   AgentCard,
   AgentId,
+  AppliedCollection,
   ApplyAdoptInput,
+  ApplyCollectionInput,
   ApplyMcpAdoptInput,
   ApplyRenameNamespaceInput,
   type ClientKind,
+  Collection,
+  CollectionPlan,
+  CollectionPlanInput,
   CopyDiff,
   type CoreEvent,
   CoreInfo,
   type CoreNotification,
+  CreateCollectionInput,
   FulfilLockInput,
   Inbox,
   LibraryList,
   LibraryMcpList,
+  ManagedMcpServer,
   McpAdoptInput,
   McpAdoptPlan,
+  McpOffScope,
   McpServerName,
+  McpTarget,
   OffScope,
   OwnedFileName,
   OwnedFileProblem,
   PreferencesPatch,
   ProjectDetail,
+  ProjectMcpServer,
+  ProjectMcpServerRef,
+  ProjectMcpServers,
   ProjectPath,
   ProjectSkill,
   ProjectSkillChange,
   ProjectSkillRef,
   ProjectSkills,
   ProjectSummary,
+  RenameCollectionInput,
   RenameNamespaceInput,
   RenameNamespacePlan,
   RepoSkills,
@@ -45,6 +67,8 @@ import {
   ScanResult,
   ScanStatus,
   SchedulerStatus,
+  SetCollectionItemsInput,
+  SetSecretInput,
   SettingsFile,
   SkillDeletePlan,
   SkillDetail,
@@ -53,6 +77,7 @@ import {
   SkillFiles,
   SkillProjectUse,
   SuggestedProjects,
+  UpdateMcpDefinitionInput,
 } from "./schemas";
 
 /** Per-connection context, built once when a connection authenticates. */
@@ -97,6 +122,8 @@ export interface CoreServices {
   };
   agents: {
     list(): AgentCard[];
+    /** Every Agent-managed MCP Server the latest Scan found, off ones included (#40). */
+    managedMcp(): ManagedMcpServer[];
   };
   drift: {
     /** Re-applies owned intent for a drift finding (#42). */
@@ -110,6 +137,13 @@ export interface CoreServices {
      * own global settings, with a targeted, format-preserving edit.
      */
     turnOff(input: { id: string; scope: OffScope }, client: ClientKind): Promise<void>;
+  };
+  managedMcp: {
+    /**
+     * "Turn off everywhere" for an Agent-managed MCP Server, through its Agent's
+     * own documented global setting, with a targeted, format-preserving edit.
+     */
+    turnOff(input: { id: string; scope: McpOffScope }, client: ClientKind): Promise<void>;
   };
   adopt: {
     /** The dry run: what Adopting these findings would do. Writes nothing. */
@@ -131,6 +165,10 @@ export interface CoreServices {
     adoptExecute(input: ApplyMcpAdoptInput, client: ClientKind): Promise<McpAdoptPlan>;
     /** Undo Adopt: puts every entry it came from back into its Agent config and removes it from the Library. */
     undoAdopt(name: string, client: ClientKind): Promise<void>;
+    /** Stores or rotates a Secret in the keychain, then rewrites the Personal deliveries that use it. */
+    setSecret(input: SetSecretInput, client: ClientKind): Promise<void>;
+    /** Replaces a Library MCP Server's definition, then rewrites its Personal deliveries. */
+    updateDefinition(input: UpdateMcpDefinitionInput, client: ClientKind): Promise<void>;
   };
   skill: {
     /** A Library Skill's page: SKILL.md split into frontmatter and body, warnings and its Library Lock entry. */
@@ -150,6 +188,16 @@ export interface CoreServices {
     plan(input: RenameNamespaceInput): Promise<RenameNamespacePlan>;
     /** Re-plans, checks the plan id, then moves the folders, re-keys the Library Lock and re-creates Links. */
     rename(input: ApplyRenameNamespaceInput, client: ClientKind): Promise<RenameNamespacePlan>;
+  };
+  importer: {
+    /** Finds the Skills in a GitHub Source at its tracked ref's head, for the picker. Writes nothing to the Library. */
+    preview(input: ImportSourceInput): Promise<ImportPreview>;
+    /** Imports the picked Skills at the previewed commit; ones already Imported from the same path get an update check instead. */
+    import(input: ImportSkillsInput, client: ClientKind): Promise<ImportResult>;
+    /** Which GitHub credentials Import uses. */
+    auth(): Promise<GitHubAuthStatus>;
+    /** Stores (or with null removes) the GitHub PAT in the keychain. */
+    setToken(input: SetGitHubTokenInput, client: ClientKind): Promise<GitHubAuthStatus>;
   };
   /** OS notifications for the app to show, from now on, until `signal` aborts. */
   notifications(signal: AbortSignal): AsyncIterable<CoreNotification>;
@@ -191,6 +239,28 @@ export interface CoreServices {
     fulfilLock(input: FulfilLockInput, client: ClientKind): Promise<ProjectSkills>;
     /** Resolves a Name Conflict: `key` wins and the other same-name Project Skills are removed. */
     resolveConflict(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    /** Its Project MCP Servers, with each Agent's delivery (#38). */
+    mcpServers(path: string): Promise<ProjectMcpServer[]>;
+    /** Where Personal would write for each of its Agents, and whether it's offered there. */
+    mcpTargets(path: string): Promise<McpTarget[]>;
+    /** Adds Library MCP Servers to Projects (Personal by default) and delivers them On. Re-adding one turns it On. */
+    addMcpServers(input: AddProjectMcpServers, client: ClientKind): Promise<ProjectMcpServers[]>;
+    /** On writes its entries back; Off removes them but keeps it (mode included) in `projects.json`. */
+    setMcpServerOn(input: ProjectMcpServerRef & { on: boolean }, client: ClientKind): Promise<ProjectMcpServers>;
+    /** Removes a Project MCP Server: its entries go and the Project forgets it. */
+    removeMcpServer(input: ProjectMcpServerRef, client: ClientKind): Promise<ProjectMcpServers>;
+  };
+  collections: {
+    list(): Promise<Collection[]>;
+    create(input: CreateCollectionInput, client: ClientKind): Promise<Collection>;
+    rename(input: RenameCollectionInput, client: ClientKind): Promise<Collection>;
+    /** Replaces its items. Projects that used it don't change: a Collection is a template. */
+    setItems(input: SetCollectionItemsInput, client: ClientKind): Promise<Collection>;
+    delete(name: string, client: ClientKind): Promise<void>;
+    /** The dry run of adding it to Projects: per item and Project, what would happen. Writes nothing. */
+    plan(input: CollectionPlanInput): Promise<CollectionPlan>;
+    /** Adds the chosen items as ordinary Project Skills; items blocked in a Project are skipped and reported. */
+    apply(input: ApplyCollectionInput, client: ClientKind): Promise<AppliedCollection>;
   };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
@@ -254,11 +324,17 @@ export const createAppRouter = (services: CoreServices) =>
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+      managedMcp: t.procedure.output(ManagedMcpServer.array()).query(() => services.agents.managedMcp()),
     }),
     managedSkills: t.router({
       turnOff: t.procedure
         .input(z.object({ id: z.string().min(1), scope: OffScope }))
         .mutation(({ input, ctx }) => services.managedSkills.turnOff(input, ctx.client)),
+    }),
+    managedMcp: t.router({
+      turnOff: t.procedure
+        .input(z.object({ id: z.string().min(1), scope: McpOffScope }))
+        .mutation(({ input, ctx }) => services.managedMcp.turnOff(input, ctx.client)),
     }),
     adopt: t.router({
       plan: t.procedure
@@ -287,6 +363,12 @@ export const createAppRouter = (services: CoreServices) =>
       undoAdopt: t.procedure
         .input(z.object({ name: McpServerName }))
         .mutation(({ input, ctx }) => services.mcp.undoAdopt(input.name, ctx.client)),
+      setSecret: t.procedure
+        .input(SetSecretInput)
+        .mutation(({ input, ctx }) => services.mcp.setSecret(input, ctx.client)),
+      updateDefinition: t.procedure
+        .input(UpdateMcpDefinitionInput)
+        .mutation(({ input, ctx }) => services.mcp.updateDefinition(input, ctx.client)),
     }),
     scheduler: t.router({
       status: t.procedure.output(SchedulerStatus).query(() => services.scheduler.status()),
@@ -360,6 +442,26 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ProjectSkillRef)
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.resolveConflict(input, ctx.client)),
+      mcpServers: t.procedure
+        .input(ProjectPath)
+        .output(ProjectMcpServer.array())
+        .query(({ input }) => services.project.mcpServers(input.path)),
+      mcpTargets: t.procedure
+        .input(ProjectPath)
+        .output(McpTarget.array())
+        .query(({ input }) => services.project.mcpTargets(input.path)),
+      addMcpServers: t.procedure
+        .input(AddProjectMcpServers)
+        .output(ProjectMcpServers.array())
+        .mutation(({ input, ctx }) => services.project.addMcpServers(input, ctx.client)),
+      setMcpServerOn: t.procedure
+        .input(ProjectMcpServerRef.extend({ on: z.boolean() }))
+        .output(ProjectMcpServers)
+        .mutation(({ input, ctx }) => services.project.setMcpServerOn(input, ctx.client)),
+      removeMcpServer: t.procedure
+        .input(ProjectMcpServerRef)
+        .output(ProjectMcpServers)
+        .mutation(({ input, ctx }) => services.project.removeMcpServer(input, ctx.client)),
     }),
     skill: t.router({
       get: t.procedure
@@ -395,6 +497,48 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ApplyRenameNamespaceInput)
         .output(RenameNamespacePlan)
         .mutation(({ input, ctx }) => services.namespace.rename(input, ctx.client)),
+    }),
+    collections: t.router({
+      list: t.procedure.output(Collection.array()).query(() => services.collections.list()),
+      create: t.procedure
+        .input(CreateCollectionInput)
+        .output(Collection)
+        .mutation(({ input, ctx }) => services.collections.create(input, ctx.client)),
+      rename: t.procedure
+        .input(RenameCollectionInput)
+        .output(Collection)
+        .mutation(({ input, ctx }) => services.collections.rename(input, ctx.client)),
+      setItems: t.procedure
+        .input(SetCollectionItemsInput)
+        .output(Collection)
+        .mutation(({ input, ctx }) => services.collections.setItems(input, ctx.client)),
+      delete: t.procedure
+        .input(z.object({ name: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.collections.delete(input.name, ctx.client)),
+      plan: t.procedure
+        .input(CollectionPlanInput)
+        .output(CollectionPlan)
+        .query(({ input }) => services.collections.plan(input)),
+      // `apply` is reserved by tRPC.
+      execute: t.procedure
+        .input(ApplyCollectionInput)
+        .output(AppliedCollection)
+        .mutation(({ input, ctx }) => services.collections.apply(input, ctx.client)),
+    }),
+    importer: t.router({
+      preview: t.procedure
+        .input(ImportSourceInput)
+        .output(ImportPreview)
+        .query(({ input }) => services.importer.preview(input)),
+      import: t.procedure
+        .input(ImportSkillsInput)
+        .output(ImportResult)
+        .mutation(({ input, ctx }) => services.importer.import(input, ctx.client)),
+      auth: t.procedure.output(GitHubAuthStatus).query(() => services.importer.auth()),
+      setToken: t.procedure
+        .input(SetGitHubTokenInput)
+        .output(GitHubAuthStatus)
+        .mutation(({ input, ctx }) => services.importer.setToken(input, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

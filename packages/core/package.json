@@ -15,6 +15,8 @@
     "@parcel/watcher": "catalog:",
     "@trpc/server": "catalog:",
     "jsonc-parser": "catalog:",
+    "skills": "catalog:",
+    "tar": "catalog:",
     "ws": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:"

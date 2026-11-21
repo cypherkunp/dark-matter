@@ -11,6 +11,10 @@ export interface CoreEnv {
   DARK_MATTER_HOME?: string | undefined;
   /** `memory` keeps Secrets in memory instead of the OS keychain, for development and e2e tests. */
   DARK_MATTER_SECRETS?: string | undefined;
+  /** A GitHub API base URL instead of https://api.github.com, for e2e tests; the `gh` CLI's token is then never used. */
+  DARK_MATTER_GITHUB_API?: string | undefined;
+  /** Where system-wide Agent config (`/etc`, `/Library`) is read from; `/` unless a test points it at a fixture. */
+  DARK_MATTER_SYSTEM_ROOT?: string | undefined;
 }
 
 /** The Library location: `DARK_MATTER_HOME`, else `$HOME/.dark-matter`. */

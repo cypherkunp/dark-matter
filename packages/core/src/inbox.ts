@@ -4,6 +4,7 @@ import type {
   InboxDriftGroup,
   InboxFolderGroup,
   InboxManagedGroup,
+  InboxManagedMcpGroup,
   InboxMcpGroup,
   InboxProjectGroup,
   ScanResult,
@@ -66,9 +67,21 @@ export const inboxFrom = (
     .filter((group) => group.findings.length > 0);
   const driftAll = driftGroups.reduce((sum, group) => sum + group.findings.length, 0);
   const driftWaiting = drift.reduce((sum, group) => sum + group.findings.length, 0);
+  const managedMcp = (scan?.managedMcpServers ?? []).filter((finding) => !finding.off);
+  const managedMcpWaiting = managedMcp.filter((finding) => !skipped.has(finding.id));
+  const managedMcpServers: InboxManagedMcpGroup[] = agentAdapters.flatMap((adapter) => {
+    const findings = managedMcpWaiting.filter((finding) => finding.agent === adapter.id);
+    return findings.length > 0 ? [{ agent: adapter.id, findings }] : [];
+  });
   return {
     count:
-      waiting.length + managedWaiting.length + mcpWaiting.length + untrackedWaiting + driftWaiting + suggestedProjects,
+      waiting.length +
+      managedWaiting.length +
+      mcpWaiting.length +
+      untrackedWaiting +
+      managedMcpWaiting.length +
+      driftWaiting +
+      suggestedProjects,
     drift,
     untrackedSkills,
     globalSkills: [...groups.values()],
@@ -82,10 +95,13 @@ export const inboxFrom = (
       mcpWaiting.length +
       untrackedAll -
       untrackedWaiting +
+      managedMcp.length -
+      managedMcpWaiting.length +
       driftAll -
       driftWaiting,
     suggestedProjects,
     mcpServers,
+    managedMcpServers,
   };
 };
 
@@ -103,5 +119,7 @@ export const agentCards = (scan: ScanResult | null, env: AgentPathEnv): AgentCar
       managedSkillCount: seen?.managedSkillCount ?? null,
       mcpConfig: seen?.mcpConfig ?? null,
       globalMcpServerCount: adapter.mcp ? (seen?.globalMcpServerCount ?? null) : null,
+      managedMcpServerCount: adapter.managedMcp ? (seen?.managedMcpServerCount ?? null) : null,
+      managedMcpNotes: [...(adapter.managedMcp?.notes ?? [])],
     };
   });

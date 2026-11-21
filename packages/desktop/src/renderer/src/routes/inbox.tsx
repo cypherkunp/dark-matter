@@ -16,6 +16,7 @@ import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { AdoptDialog } from "@/components/adopt-dialog";
 import { InboxDrift } from "@/components/inbox-drift";
 import { InboxMcpServers } from "@/components/inbox-mcp";
+import { ManagedMcpGroups } from "@/components/managed-mcp";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -322,6 +323,7 @@ function Inbox() {
             </>
           )}
           <InboxMcpServers groups={inbox.data?.mcpServers ?? []} />
+          <ManagedMcpGroups groups={inbox.data?.managedMcpServers ?? []} inInbox />
         </>
       )}
       <AdoptDialog findings={adopting} onClose={() => setAdopting(null)} onAdopted={adopted} />
