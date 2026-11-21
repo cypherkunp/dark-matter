@@ -1,7 +1,5 @@
-import { execFile } from "node:child_process";
 import { lstat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { promisify } from "node:util";
 import { type LockedSkill, NotInLibrary, type ProjectRecord, type RepoSkills } from "@dark-matter/contracts";
 import { agentAdapters } from "./agents";
 import { deliveredName } from "./delivery";
@@ -19,20 +17,6 @@ import { scanProject } from "./scanner";
 export interface LockImporter {
   importEntry(name: string, entry: ProjectLockEntry): Promise<string>;
 }
-
-const run = promisify(execFile);
-
-/** Paths git tracks under `folders` (Project-relative, `/`-separated), or null without git. */
-export const gitTrackedPaths = async (project: string, folders: readonly string[]): Promise<Set<string> | null> => {
-  try {
-    const { stdout } = await run("git", ["-C", project, "ls-files", "-z", "--", ...folders], {
-      maxBuffer: 64 * 1024 * 1024,
-    });
-    return new Set(stdout.split("\0").filter(Boolean));
-  } catch {
-    return null;
-  }
-};
 
 const isLocalEntry = (entry: ProjectLockEntry) => entry.sourceType === "local" || entry.source.startsWith(".");
 
@@ -108,18 +92,8 @@ export const repoSkills = async (
   const ours = await copyNames(library, record);
   const lockedNames = new Set(locked.map(({ skill }) => skill.name));
   const libraryRoot = join(library.libraryHome, "skills") + sep;
-  const { skills: entries, skillFolders } = await scanProject(project, agentAdapters);
-  const tracked = await gitTrackedPaths(
-    project,
-    skillFolders.filter((folder) => folder.exists).map((folder) => folder.path),
-  );
-  const isTracked = (path: string) => {
-    const rel = relative(project, path).split(sep).join("/");
-    if (!tracked) return false;
-    if (tracked.has(rel)) return true;
-    for (const file of tracked) if (file.startsWith(`${rel}/`)) return true;
-    return false;
-  };
+  // `tracked` (#29): git tracks the entry or its real folder, i.e. it's committed.
+  const { skills: entries } = await scanProject(project, agentAdapters);
   const groups = new Map<string, typeof entries>();
   for (const entry of entries) groups.set(entry.realPath, [...(groups.get(entry.realPath) ?? []), entry]);
   const vendored: RepoSkills["vendored"] = [];
@@ -128,7 +102,7 @@ export const repoSkills = async (
     if (!first || realPath.startsWith(libraryRoot)) continue;
     const copyName = relative(join(project, COPY_FOLDER), realPath);
     if (ours.has(copyName) || lockedNames.has(copyName)) continue;
-    if (!group.some((entry) => isTracked(entry.path))) continue;
+    if (!group.some((entry) => entry.tracked)) continue;
     vendored.push({
       name: first.name,
       description: first.description,

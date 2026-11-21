@@ -235,6 +235,8 @@ describe("the Agents screen", () => {
         globalSkillFolder: "~/.claude/skills",
         globalSkillCount: 1,
         managedSkillCount: 0,
+        mcpConfig: "~/.claude.json",
+        globalMcpServerCount: 0,
       },
       {
         id: "cursor",
@@ -243,6 +245,8 @@ describe("the Agents screen", () => {
         globalSkillFolder: "~/.cursor/skills",
         globalSkillCount: 2,
         managedSkillCount: 0,
+        mcpConfig: "~/.cursor/mcp.json",
+        globalMcpServerCount: 0,
       },
       {
         id: "opencode",
@@ -251,6 +255,8 @@ describe("the Agents screen", () => {
         globalSkillFolder: "~/.config/opencode/skills",
         globalSkillCount: 2,
         managedSkillCount: 0,
+        mcpConfig: "~/.config/opencode/opencode.json",
+        globalMcpServerCount: 0,
       },
       {
         id: "codex",
@@ -259,6 +265,8 @@ describe("the Agents screen", () => {
         globalSkillFolder: "~/.agents/skills",
         globalSkillCount: 2,
         managedSkillCount: 0,
+        mcpConfig: "~/.codex/config.toml",
+        globalMcpServerCount: 0,
       },
       {
         id: "agents",
@@ -267,6 +275,8 @@ describe("the Agents screen", () => {
         globalSkillFolder: "~/.agents/skills",
         globalSkillCount: 2,
         managedSkillCount: 0,
+        mcpConfig: null,
+        globalMcpServerCount: null,
       },
     ]);
   });

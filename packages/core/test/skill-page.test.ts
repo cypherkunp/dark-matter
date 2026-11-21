@@ -40,6 +40,7 @@ describe("Skill page", () => {
         skillPath: "skills/find-skills/SKILL.md",
         adoptedFrom: "~/.agents/skills/find-skills",
       }),
+      modified: false,
     });
   });
 

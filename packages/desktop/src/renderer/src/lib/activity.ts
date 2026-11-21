@@ -22,7 +22,12 @@ const actionLabels: Record<string, string> = {
   "managedSkills.turnOff": "Turned off an Agent-managed Skill",
   "adopt.apply": "Adopted Skills",
   "adopt.undo": "Undid an Adopt",
+  "mcp.adopt": "Adopted MCP Servers",
+  "mcp.undoAdopt": "Undid an MCP Server Adopt",
   "namespace.rename": "Renamed a Namespace",
+  "skill.saveFile": "Saved a Skill file",
+  "skill.delete": "Moved a Skill to the trash",
+  "trash.purge": "Emptied expired trash",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;

@@ -2,6 +2,7 @@ import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, dirname, join, sep } from "node:path";
 import type {
   AgentScan,
+  GlobalMcpServer,
   GlobalSkill,
   ManagedSkill,
   ProjectScan,
@@ -13,8 +14,11 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters, type SkillFolder } from "./agents";
 import { readConfigText } from "./config-edit";
+import { gitTrackedPaths } from "./git-tracked";
 import { homeRelative } from "./home-path";
 import { managedSkillRef } from "./managed-skills";
+import { readGlobalMcp } from "./mcp-agents";
+import { maskSecrets } from "./mcp-secrets";
 import { suggestProjects } from "./projects";
 import { readGlobalLock } from "./skill-lock";
 
@@ -88,6 +92,7 @@ export const scan = async (
   }
   globalSkills.sort((a, b) => a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name));
   const managedSkills = await findManagedSkills(env, adapters);
+  const mcp = await findGlobalMcpServers(env, adapters);
 
   const agents: AgentScan[] = await Promise.all(
     adapters.map(async (adapter) => {
@@ -102,6 +107,8 @@ export const scan = async (
           found.entries.some((entry) => own.includes(entry.folder)),
         ).length,
         managedSkillCount: managedSkills.filter((skill) => skill.agent === adapter.id).length,
+        mcpConfig: mcp.files.get(adapter.id) ?? null,
+        globalMcpServerCount: mcp.servers.filter((server) => server.agent === adapter.id).length,
       };
     }),
   );
@@ -111,6 +118,7 @@ export const scan = async (
     agents,
     globalSkills,
     managedSkills,
+    globalMcpServers: mcp.servers,
     suggestedProjects: await suggestProjects(env, adapters, options.exclude),
     projects: await Promise.all((options.projects ?? []).map((path) => scanProject(path, adapters))),
   };
@@ -124,7 +132,7 @@ export const scan = async (
 export const scanProject = async (path: string, adapters: readonly AgentAdapter[]): Promise<ProjectScan> => {
   const folders = [...new Set(adapters.flatMap((adapter) => adapter.skills.projectFolders))].sort();
   const skillFolders: ProjectScan["skillFolders"] = [];
-  const skills: ProjectSkillEntry[] = [];
+  const skills: Omit<ProjectSkillEntry, "tracked">[] = [];
   for (const folder of folders) {
     const absolute = join(path, folder);
     skillFolders.push({ path: folder, exists: await isDirectory(absolute) });
@@ -138,7 +146,14 @@ export const scanProject = async (path: string, adapters: readonly AgentAdapter[
       });
     }
   }
-  return { path, exists: await isDirectory(path), skillFolders, skills };
+  // Git-tracked entries (or real folders) are Vendored (#10 point 7): one `git ls-files` per Project.
+  const tracked = await gitTrackedPaths(path, [...new Set(skills.flatMap((skill) => [skill.path, skill.realPath]))]);
+  return {
+    path,
+    exists: await isDirectory(path),
+    skillFolders,
+    skills: skills.map((skill) => ({ ...skill, tracked: tracked.has(skill.path) || tracked.has(skill.realPath) })),
+  };
 };
 
 /**
@@ -182,6 +197,35 @@ const findManagedSkills = async (env: AgentPathEnv, adapters: readonly AgentAdap
   return found.sort(
     (a, b) => a.agent.localeCompare(b.agent) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
   );
+};
+
+/**
+ * Every Agent's Global MCP Servers, from its global MCP config. Inline
+ * secrets are masked as Secret references here, so their values never reach
+ * the cache or a client. Only reads.
+ */
+const findGlobalMcpServers = async (env: AgentPathEnv, adapters: readonly AgentAdapter[]) => {
+  const files = new Map<string, string>();
+  const servers: GlobalMcpServer[] = [];
+  for (const adapter of adapters) {
+    if (!adapter.mcp) continue;
+    const config = await readGlobalMcp(adapter.mcp, env);
+    const file = homeRelative(env.home, config.file);
+    files.set(adapter.id, file);
+    for (const entry of config.entries) {
+      const masked = maskSecrets(entry.name, entry.definition);
+      servers.push({
+        id: `global-mcp:${adapter.id}:${entry.name}`,
+        agent: adapter.id,
+        name: entry.name,
+        file,
+        definition: masked.definition,
+        inlineSecrets: masked.secrets.map((secret) => secret.key),
+      });
+    }
+  }
+  servers.sort((a, b) => a.name.localeCompare(b.name));
+  return { files, servers };
 };
 
 /** A config that doesn't parse can't say a Skill is off; turning it off will report the problem. */

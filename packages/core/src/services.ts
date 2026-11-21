@@ -12,6 +12,7 @@ import { agentCards, inboxFrom } from "./inbox";
 import { Library } from "./library";
 import { log } from "./log";
 import { managedSkillRef } from "./managed-skills";
+import { McpAdopt, McpLibrary } from "./mcp-library";
 import { type KeyRenameHook, NamespaceRename } from "./namespace-rename";
 import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
@@ -21,7 +22,11 @@ import type { LockImporter } from "./repo-skills";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
+import type { SecretStore } from "./secrets";
+import { SkillEditor } from "./skill-editor";
 import { skillServices } from "./skill-page";
+import { Trash } from "./trash";
+import { untrackedSkills } from "./untracked";
 import { watchOwnedFiles } from "./watch-owned";
 
 export interface ServicesOptions {
@@ -32,10 +37,11 @@ export interface ServicesOptions {
   bus: EventBus;
   clock: Clock;
   notifier: Notifier;
+  secrets: SecretStore;
 }
 
 /** The core's service methods behind the router (ADR-0003): every action is one of these. */
-export const createServices = async ({ libraryHome, home, info, bus, clock, notifier }: ServicesOptions) => {
+export const createServices = async ({ libraryHome, home, info, bus, clock, notifier, secrets }: ServicesOptions) => {
   const cache = await openCache(libraryHome);
   const activity = await ActivityLog.open({
     libraryHome,
@@ -79,13 +85,16 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     },
     onChange: () => bus.publish({ type: "invalidate", domains: ["scheduler"] }),
   });
-  const adopt = new Adopt({
+  const mcpLibrary = new McpLibrary(libraryHome);
+  const mcpAdopt = new McpAdopt({
     home,
-    library,
+    libraryHome,
+    mcp: mcpLibrary,
+    secrets,
     activity,
     latestScan: () => scans.latest,
     rescan: () => scans.refresh(),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["mcp", "inbox"] }),
   });
   /** What follows a Library Skill to a new key. Project Skills (Links and Copies) push their hook below. */
   const keyRenameHooks: KeyRenameHook[] = [];
@@ -96,6 +105,19 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     hooks: keyRenameHooks,
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project"] }),
   });
+  const skillEditor = new SkillEditor({
+    library,
+    activity,
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill"] }),
+  });
+  /** Untracked Project Skills (#29) from the latest Scan; a Copy (#28) not yet committed isn't one. */
+  const findUntracked = () =>
+    untrackedSkills(scans.latest, env, libraryHome, [
+      ...Object.values(libraryLock.value.skills).flatMap((entry) =>
+        entry.localSource ? [library.absolute(entry.localSource)] : [],
+      ),
+      ...projectSkills.copyFolders(),
+    ]);
   /** Imports a `skills-lock.json` entry missing from the Library while fulfilling it. GitHub Import (#30) sets it. */
   const lockImporter: LockImporter | null = null;
   const projectSkills = new ProjectSkillService({
@@ -108,6 +130,33 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     importer: () => lockImporter,
   });
   keyRenameHooks.push(projectSkills.keyRenameHook());
+  // Learns where Copies are, so untracked Skills (#29) leave them out.
+  void projectSkills.usage().catch(() => {});
+  const adopt = new Adopt({
+    home,
+    library,
+    activity,
+    latestScan: () => scans.latest,
+    rescan: () => scans.refresh(),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
+    untracked: () => findUntracked().flatMap((group) => group.findings),
+    keepLinks: projectSkills.keepLinks(),
+  });
+  const trash = new Trash({
+    library,
+    activity,
+    clock,
+    retentionDays: () => settings.value.preferences.trashRetentionDays,
+    usage: async (key) =>
+      (await projectSkills.services().forSkill(key)).map(({ path, projectName, mode, on }) => ({
+        path,
+        projectName,
+        mode,
+        on,
+      })),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project"] }),
+  });
+  dailyJobs.push(trash.job());
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
@@ -154,6 +203,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
           settings.value.ignoredFindings,
           env,
           waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
+          findUntracked(),
         ),
       ignore: (id, client) =>
         activity.track({ client, action: "inbox.ignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
@@ -190,12 +240,25 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       apply: ({ findings, planId }, client) => adopt.apply(findings, planId, client),
       undo: (key, client) => adopt.undo(key, client),
     },
+    mcp: {
+      list: async () => ({ servers: await mcpLibrary.list(home) }),
+      adoptPlan: ({ findings, names }) => mcpAdopt.plan(findings, names),
+      adoptExecute: ({ findings, names, planId }, client) => mcpAdopt.apply(findings, names, planId, client),
+      undoAdopt: (name, client) => mcpAdopt.undo(name, client),
+    },
     scheduler: { status: () => scheduler.status() },
+    skill: {
+      ...skillServices(library),
+      files: (key) => skillEditor.files(key),
+      readFile: (input) => skillEditor.readFile(input),
+      saveFile: (input, client) => skillEditor.saveFile(input, client),
+      deletePlan: (key) => trash.plan(key),
+      delete: (key, client) => trash.delete(key, client),
+    },
     project: {
       ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
       ...projectSkills.services(),
     },
-    skill: skillServices(library),
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),

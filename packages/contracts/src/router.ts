@@ -10,6 +10,7 @@ import {
   AgentCard,
   AgentId,
   ApplyAdoptInput,
+  ApplyMcpAdoptInput,
   ApplyRenameNamespaceInput,
   type ClientKind,
   CopyDiff,
@@ -19,6 +20,10 @@ import {
   FulfilLockInput,
   Inbox,
   LibraryList,
+  LibraryMcpList,
+  McpAdoptInput,
+  McpAdoptPlan,
+  McpServerName,
   OffScope,
   OwnedFileName,
   OwnedFileProblem,
@@ -33,11 +38,17 @@ import {
   RenameNamespaceInput,
   RenameNamespacePlan,
   RepoSkills,
+  SavedSkillFile,
+  SaveSkillFileInput,
   ScanResult,
   ScanStatus,
   SchedulerStatus,
   SettingsFile,
+  SkillDeletePlan,
   SkillDetail,
+  SkillFileContent,
+  SkillFilePath,
+  SkillFiles,
   SkillProjectUse,
   SuggestedProjects,
 } from "./schemas";
@@ -101,9 +112,28 @@ export interface CoreServices {
   scheduler: {
     status(): SchedulerStatus;
   };
+  mcp: {
+    /** Library MCP Servers, by name. */
+    list(): Promise<LibraryMcpList>;
+    /** The dry run for Adopting Global MCP Servers. Writes nothing. */
+    adoptPlan(input: McpAdoptInput): Promise<McpAdoptPlan>;
+    /** Re-plans, checks the plan id still matches, then applies it. */
+    adoptExecute(input: ApplyMcpAdoptInput, client: ClientKind): Promise<McpAdoptPlan>;
+    /** Undo Adopt: puts every entry it came from back into its Agent config and removes it from the Library. */
+    undoAdopt(name: string, client: ClientKind): Promise<void>;
+  };
   skill: {
     /** A Library Skill's page: SKILL.md split into frontmatter and body, warnings and its Library Lock entry. */
     get(key: string): Promise<SkillDetail>;
+    /** The Skill's file tree for the Files tab. */
+    files(key: string): Promise<SkillFiles>;
+    readFile(input: SkillFilePath): Promise<SkillFileContent>;
+    /** Saves one file atomically, exactly as given (SKILL.md is never rewritten). Frontmatter problems are warnings. */
+    saveFile(input: SaveSkillFileInput, client: ClientKind): Promise<SavedSkillFile>;
+    /** Deleting's dry run: the trash retention and the Projects whose Links would break or Copies stay behind. */
+    deletePlan(key: string): Promise<SkillDeletePlan>;
+    /** Moves the Skill into `trash/` (purged after the configured days) and drops it from the Library Lock. */
+    delete(key: string, client: ClientKind): Promise<void>;
   };
   namespace: {
     /** Rename Namespace's dry run. Writes nothing. */
@@ -222,6 +252,20 @@ export const createAppRouter = (services: CoreServices) =>
         .input(z.object({ key: z.string().min(1) }))
         .mutation(({ input, ctx }) => services.adopt.undo(input.key, ctx.client)),
     }),
+    mcp: t.router({
+      list: t.procedure.output(LibraryMcpList).query(() => services.mcp.list()),
+      adoptPlan: t.procedure
+        .input(McpAdoptInput)
+        .output(McpAdoptPlan)
+        .query(({ input }) => services.mcp.adoptPlan(input)),
+      adoptExecute: t.procedure
+        .input(ApplyMcpAdoptInput)
+        .output(McpAdoptPlan)
+        .mutation(({ input, ctx }) => services.mcp.adoptExecute(input, ctx.client)),
+      undoAdopt: t.procedure
+        .input(z.object({ name: McpServerName }))
+        .mutation(({ input, ctx }) => services.mcp.undoAdopt(input.name, ctx.client)),
+    }),
     scheduler: t.router({
       status: t.procedure.output(SchedulerStatus).query(() => services.scheduler.status()),
     }),
@@ -300,6 +344,25 @@ export const createAppRouter = (services: CoreServices) =>
         .input(z.object({ key: z.string().min(1) }))
         .output(SkillDetail)
         .query(({ input }) => services.skill.get(input.key)),
+      files: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .output(SkillFiles)
+        .query(({ input }) => services.skill.files(input.key)),
+      readFile: t.procedure
+        .input(SkillFilePath)
+        .output(SkillFileContent)
+        .query(({ input }) => services.skill.readFile(input)),
+      saveFile: t.procedure
+        .input(SaveSkillFileInput)
+        .output(SavedSkillFile)
+        .mutation(({ input, ctx }) => services.skill.saveFile(input, ctx.client)),
+      deletePlan: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .output(SkillDeletePlan)
+        .query(({ input }) => services.skill.deletePlan(input.key)),
+      delete: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.skill.delete(input.key, ctx.client)),
     }),
     namespace: t.router({
       plan: t.procedure

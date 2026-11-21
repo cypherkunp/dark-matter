@@ -22,6 +22,8 @@ export interface ApplyContext {
   wrote: Wrote;
   /** Carries out `editFile` steps (owned files, the global lock); returns the paths written. */
   editFile(step: Extract<PlanStep, { kind: "editFile" }>): Promise<string[]>;
+  /** Carries out `storeSecret` and `deleteSecret` steps (the keychain); plans without them leave it out. */
+  secret?(step: Extract<PlanStep, { kind: "storeSecret" | "deleteSecret" }>): Promise<void>;
 }
 
 const exists = (path: string) =>
@@ -138,6 +140,11 @@ export const applySteps = async (steps: readonly PlanStep[], context: ApplyConte
       }
       case "editFile":
         for (const path of await context.editFile(step)) context.wrote(path);
+        break;
+      case "storeSecret":
+      case "deleteSecret":
+        if (!context.secret) throw new Error(`no keychain to carry out ${step.kind} ${step.name}`);
+        await context.secret(step);
         break;
     }
   }

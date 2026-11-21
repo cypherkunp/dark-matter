@@ -3,6 +3,7 @@ import type { LibraryLockFile, LibrarySkill } from "@dark-matter/contracts";
 import { fromHomeRelative } from "./home-path";
 import type { OwnedFile } from "./owned-file";
 import { readFrontmatter } from "./scanner";
+import { computeSkillFolderHash } from "./skill-hash";
 
 /** `<namespace>/<name>` → its parts. Namespaces are `local` or `owner/repo`. */
 export const splitKey = (key: string) => {
@@ -43,13 +44,25 @@ export class Library {
           name: meta.name ?? name,
           description: meta.description ?? "",
           localSource: entry.localSource ?? null,
-          ...(entry.modified && { modified: true }),
           adoptedFrom: entry.adoptedFrom ?? null,
+          modified: await this.modified(key),
           projects: usage.get(key)?.projects ?? 0,
           nameConflict: usage.get(key)?.nameConflict ?? false,
         };
       }),
     );
+  }
+
+  /**
+   * Modified (#34): a Skill from a Source whose files no longer hash to the
+   * Library Lock's `computedHash`. `local` Skills and Local Sources have no
+   * upstream to differ from, so they're never Modified.
+   */
+  async modified(key: string): Promise<boolean> {
+    const entry = this.lock.value.skills[key];
+    if (!entry || entry.localSource || entry.sourceType === "local") return false;
+    const hash = await computeSkillFolderHash(this.folder(key)).catch(() => null);
+    return hash !== null && hash !== entry.computedHash;
   }
 
   /** An absolute path from a home-relative one in the lock. */

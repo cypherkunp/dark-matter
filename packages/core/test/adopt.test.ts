@@ -55,6 +55,7 @@ describe("Adopt", () => {
         description: "Work with PDFs",
         localSource: null,
         adoptedFrom: "~/.claude/skills/pdf",
+        modified: false,
         projects: 0,
         nameConflict: false,
       },

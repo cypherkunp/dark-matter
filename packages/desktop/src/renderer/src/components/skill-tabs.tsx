@@ -1,5 +1,6 @@
 import type { SkillDetail } from "@dark-matter/contracts";
 import type { ComponentType } from "react";
+import { SkillFiles } from "./skill-files";
 import { SkillPreview } from "./skill-preview";
 import { SkillProjects } from "./skill-projects";
 import { SkillProvenance } from "./skill-provenance";
@@ -17,6 +18,7 @@ export interface SkillTab {
  */
 export const skillTabs: SkillTab[] = [
   { id: "preview", label: "Preview", Panel: SkillPreview },
+  { id: "files", label: "Files", Panel: SkillFiles },
   { id: "projects", label: "Projects", Panel: SkillProjects },
   { id: "provenance", label: "Provenance", Panel: SkillProvenance },
 ];

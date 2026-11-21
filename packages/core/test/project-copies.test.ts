@@ -119,6 +119,14 @@ describe("Project Skills as Copies", () => {
     ]);
   });
 
+  test("a Copy not committed yet isn't offered as an untracked Project Skill", async () => {
+    const { trpc, project } = await setup();
+    const app = await project("code/app", ["claude-code", "codex"]);
+    await trpc.project.addSkills.mutate({ skills: [{ path: app, key: "acme/skills/pdf", mode: "copy" }] });
+    await trpc.scan.run.mutate();
+    expect((await trpc.inbox.list.query()).untrackedSkills).toEqual([]);
+  });
+
   test("Off removes the Copy folder, its symlink and its lock entry; On restores both from the Library", async () => {
     const { trpc, project } = await setup({
       "acme/skills/pdf": { entry: PDF_ENTRY },
@@ -238,7 +246,6 @@ describe("Project Skills as Copies", () => {
     expect((await trpc.project.skills.query({ path: other }))[0]?.copyState).toBe("outdated");
     const { skills } = await trpc.library.list.query();
     expect(skills.find((skill) => skill.key === "acme/skills/pdf")?.modified).toBe(true);
-    expect((await readJson(join(libraryHome, "library-lock.json"))).skills["acme/skills/pdf"].modified).toBe(true);
   });
 
   test("Pull into Library for a local Skill (no Source) doesn't mark it Modified", async () => {
