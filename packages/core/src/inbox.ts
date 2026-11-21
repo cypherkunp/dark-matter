@@ -1,6 +1,7 @@
 import type {
   AgentCard,
   Inbox,
+  InboxDriftGroup,
   InboxFolderGroup,
   InboxManagedGroup,
   InboxManagedMcpGroup,
@@ -22,6 +23,7 @@ export const inboxFrom = (
   env: AgentPathEnv,
   suggestedProjects = 0,
   untracked: readonly InboxProjectGroup[] = [],
+  driftGroups: readonly InboxDriftGroup[] = [],
 ): Inbox => {
   const skipped = new Set(ignored);
   const all = scan?.globalSkills ?? [];
@@ -60,6 +62,11 @@ export const inboxFrom = (
     const first = findings[0];
     return first ? [{ agent: adapter.id, file: first.file, findings }] : [];
   });
+  const drift = driftGroups
+    .map((group) => ({ ...group, findings: group.findings.filter((finding) => !skipped.has(finding.id)) }))
+    .filter((group) => group.findings.length > 0);
+  const driftAll = driftGroups.reduce((sum, group) => sum + group.findings.length, 0);
+  const driftWaiting = drift.reduce((sum, group) => sum + group.findings.length, 0);
   const managedMcp = (scan?.managedMcpServers ?? []).filter((finding) => !finding.off);
   const managedMcpWaiting = managedMcp.filter((finding) => !skipped.has(finding.id));
   const managedMcpServers: InboxManagedMcpGroup[] = agentAdapters.flatMap((adapter) => {
@@ -73,7 +80,9 @@ export const inboxFrom = (
       mcpWaiting.length +
       untrackedWaiting +
       managedMcpWaiting.length +
+      driftWaiting +
       suggestedProjects,
+    drift,
     untrackedSkills,
     globalSkills: [...groups.values()],
     managedSkills,
@@ -87,7 +96,9 @@ export const inboxFrom = (
       untrackedAll -
       untrackedWaiting +
       managedMcp.length -
-      managedMcpWaiting.length,
+      managedMcpWaiting.length +
+      driftAll -
+      driftWaiting,
     suggestedProjects,
     mcpServers,
     managedMcpServers,

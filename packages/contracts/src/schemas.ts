@@ -115,12 +115,10 @@ export const CollectionName = z
   .max(80, "Use at most 80 characters")
   .refine((name) => !name.includes("\n"), "Use one line");
 
-/**
- * One thing in a Collection: a Library Skill by key. A discriminated union, so
- * MCP Servers (#41) join as `{ kind: "mcpServer", name }` without a new shape.
- */
+/** One thing in a Collection: a Library Skill by key, or a Library MCP Server by name (#41). */
 export const CollectionItem = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("skill"), key: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("mcpServer"), name: z.string().min(1) }),
 ]);
 export type CollectionItem = z.infer<typeof CollectionItem>;
 
@@ -677,6 +675,45 @@ export const InboxProjectGroup = z.object({
 });
 export type InboxProjectGroup = z.infer<typeof InboxProjectGroup>;
 
+/**
+ * Drift (#42): owned intent (`projects.json`) and the disk disagree.
+ * "missing": a delivery was deleted by hand. "replaced": something else (e.g.
+ * `npx skills`) took a delivery's place. "lockAdded" / "lockRemoved": a
+ * teammate's `skills-lock.json` change added an entry that isn't a Project
+ * Skill, or removed a Copy's entry. "projectGone": the Project's folder is gone.
+ */
+export const DriftKind = z.enum(["missing", "replaced", "lockAdded", "lockRemoved", "projectGone"]);
+export type DriftKind = z.infer<typeof DriftKind>;
+
+/** Restore re-applies owned intent; Accept updates `projects.json` to match disk. */
+export const DriftAction = z.enum(["restore", "accept"]);
+export type DriftAction = z.infer<typeof DriftAction>;
+
+export const DriftFinding = z.object({
+  /** `drift:<project>:<key>`, `drift:<project>:lock:<name>` or `drift:<project>`. */
+  id: z.string(),
+  kind: DriftKind,
+  /** The Project, by absolute path. */
+  project: z.string(),
+  /** The Library key, when one is known. */
+  key: z.string().nullable(),
+  /** The delivered (or locked) name. */
+  name: z.string().nullable(),
+  /** Its delivery mode (`DeliveryMode`, declared further down). */
+  mode: z.enum(["link", "copy"]).nullable(),
+  /** Project-relative paths that drifted. */
+  paths: z.array(z.string()),
+  actions: z.array(DriftAction),
+});
+export type DriftFinding = z.infer<typeof DriftFinding>;
+
+export const InboxDriftGroup = z.object({
+  project: z.string(),
+  name: z.string(),
+  findings: z.array(DriftFinding),
+});
+export type InboxDriftGroup = z.infer<typeof InboxDriftGroup>;
+
 /** Findings still waiting on a decision. Ignored findings are left out. */
 export const Inbox = z.object({
   /** The badge: findings waiting, across every kind. */
@@ -691,6 +728,8 @@ export const Inbox = z.object({
   suggestedProjects: z.int().nonnegative(),
   /** Global MCP Servers, by Agent config file. */
   mcpServers: z.array(InboxMcpGroup).default([]),
+  /** Drift between `projects.json` and the disk, by Project (#42). */
+  drift: z.array(InboxDriftGroup).default([]),
   /** Agent-managed MCP Servers that are still on, by Agent. */
   managedMcpServers: z.array(InboxManagedMcpGroup).default([]),
 });
@@ -1098,9 +1137,10 @@ export type FulfilLockInput = z.infer<typeof FulfilLockInput>;
 export const CopyDiff = z.object({ patch: z.string() });
 export type CopyDiff = z.infer<typeof CopyDiff>;
 
-/** A Collection item as Collections list it: `missing` when its Library Skill is gone (deleted or never there). */
+/** A Collection item as Collections list it: `missing` when its Library Skill or MCP Server is gone (deleted or never there). */
 export const CollectionItemView = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("skill"), key: z.string(), name: z.string(), missing: z.boolean() }),
+  z.object({ kind: z.literal("mcpServer"), name: z.string(), missing: z.boolean() }),
 ]);
 export type CollectionItemView = z.infer<typeof CollectionItemView>;
 
@@ -1121,6 +1161,8 @@ export const CollectionPlanInput = z.object({
   name: z.string().min(1),
   projects: z.array(z.string().min(1)).min(1),
   modes: z.record(z.string(), DeliveryMode).optional(),
+  /** Personal or Shared per MCP Server (#41), by name; Personal when left out. */
+  mcpModes: z.record(z.string(), McpDeliveryMode).optional(),
 });
 export type CollectionPlanInput = z.infer<typeof CollectionPlanInput>;
 
@@ -1146,24 +1188,6 @@ export const CollectionCell = z.object({
   blockedBy: z.string().nullable(),
 });
 export type CollectionCell = z.infer<typeof CollectionCell>;
-
-export const CollectionPlan = z.object({ name: z.string(), cells: z.array(CollectionCell) });
-export type CollectionPlan = z.infer<typeof CollectionPlan>;
-
-/** Applying a Collection: the cells you ticked, each with Link or Copy. Blocked ones are skipped and reported. */
-export const ApplyCollectionInput = z.object({
-  name: z.string().min(1),
-  skills: z.array(AddProjectSkill).min(1),
-});
-export type ApplyCollectionInput = z.infer<typeof ApplyCollectionInput>;
-
-export const AppliedCollection = z.object({
-  /** Each touched Project's Project Skills afterwards. */
-  projects: z.array(ProjectSkills),
-  /** Per item and Project, what happened. */
-  cells: z.array(CollectionCell),
-});
-export type AppliedCollection = z.infer<typeof AppliedCollection>;
 
 /**
  * One Agent's delivery of a Project MCP Server: "delivered" (its entry is
@@ -1213,3 +1237,49 @@ export type SetSecretInput = z.infer<typeof SetSecretInput>;
 
 export const UpdateMcpDefinitionInput = z.object({ name: McpServerName, definition: McpDefinition });
 export type UpdateMcpDefinitionInput = z.infer<typeof UpdateMcpDefinitionInput>;
+
+/**
+ * What adding one Collection MCP Server to one Project does (#41): "add" (a
+ * Project MCP Server, delivered On), "present", "blocked" (it can't be
+ * delivered: a name taken in a config file, `blockedBy`, or another
+ * `problem` such as a Secret not in the keychain yet) or "missing".
+ */
+export const CollectionMcpCell = z.object({
+  path: z.string(),
+  name: z.string(),
+  mode: McpDeliveryMode,
+  outcome: z.enum(["add", "present", "blocked", "missing"]),
+  /** For a Name Conflict: the config file and entry in the way, as `<~file> › <at>`. */
+  blockedBy: z.string().nullable(),
+  /** For "blocked": why, in words. */
+  problem: z.string().nullable(),
+});
+export type CollectionMcpCell = z.infer<typeof CollectionMcpCell>;
+
+export const CollectionPlan = z.object({
+  name: z.string(),
+  cells: z.array(CollectionCell),
+  mcpCells: z.array(CollectionMcpCell),
+});
+export type CollectionPlan = z.infer<typeof CollectionPlan>;
+
+/** Applying a Collection: the cells you ticked, each with Link or Copy. Blocked ones are skipped and reported. */
+export const ApplyCollectionInput = z
+  .object({
+    name: z.string().min(1),
+    skills: z.array(AddProjectSkill).default([]),
+    mcpServers: z.array(AddProjectMcpServer).default([]),
+  })
+  .refine((input) => input.skills.length + input.mcpServers.length > 0, "Pick at least one item");
+export type ApplyCollectionInput = z.infer<typeof ApplyCollectionInput>;
+
+export const AppliedCollection = z.object({
+  /** Each touched Project's Project Skills afterwards. */
+  projects: z.array(ProjectSkills),
+  /** Per item and Project, what happened. */
+  cells: z.array(CollectionCell),
+  /** Each touched Project's MCP Servers afterwards (#41). */
+  mcpProjects: z.array(ProjectMcpServers),
+  mcpCells: z.array(CollectionMcpCell),
+});
+export type AppliedCollection = z.infer<typeof AppliedCollection>;

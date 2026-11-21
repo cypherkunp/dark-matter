@@ -3,7 +3,7 @@ import type { LibraryLockFile, LibrarySkill } from "@dark-matter/contracts";
 import { fromHomeRelative } from "./home-path";
 import type { OwnedFile } from "./owned-file";
 import { readFrontmatter } from "./scanner";
-import { computeSkillFolderHash } from "./skill-hash";
+import { cachedSkillFolderHash } from "./skill-hash";
 
 /** `<namespace>/<name>` → its parts. Namespaces are `local` or `owner/repo`. */
 export const splitKey = (key: string) => {
@@ -62,7 +62,7 @@ export class Library {
   async modified(key: string): Promise<boolean> {
     const entry = this.lock.value.skills[key];
     if (!entry || entry.localSource || entry.sourceType === "local") return false;
-    const hash = await computeSkillFolderHash(this.folder(key)).catch(() => null);
+    const hash = await cachedSkillFolderHash(this.folder(key)).catch(() => null);
     return hash !== null && hash !== entry.computedHash;
   }
 

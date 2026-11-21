@@ -324,7 +324,7 @@ export class CollectionExists extends TaggedError<"CollectionExists"> {
   }
 }
 
-/** Applying a Collection named a Skill that isn't one of its items. */
+/** Applying a Collection named a Skill or MCP Server that isn't one of its items. */
 export class CollectionItemNotFound extends TaggedError<"CollectionItemNotFound"> {
   readonly _tag = "CollectionItemNotFound";
   constructor(

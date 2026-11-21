@@ -4,6 +4,7 @@ packages:
 catalog:
   "@base-ui/react": 1.9.0
   "@decimalturn/toml-patch": 3.3.2
+  "@parcel/watcher": 2.6.0
   "@biomejs/biome": 2.6.8
   "@codemirror/commands": 6.11.1
   "@codemirror/lang-javascript": 6.2.5
@@ -60,3 +61,5 @@ allowBuilds:
   electron: true
   # Windows-only installer tooling pulled in by electron-builder; we never build for Windows.
   electron-winstaller: false
+  # Ships prebuilt binaries per platform; its install script only builds from source when none fits.
+  "@parcel/watcher": false

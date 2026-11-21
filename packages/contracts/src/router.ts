@@ -124,7 +124,7 @@ export interface CoreServices {
     status(): ScanStatus;
   };
   inbox: {
-    list(): Inbox;
+    list(): Promise<Inbox>;
     /** Leaves a finding alone from now on (recorded in `settings.json`). */
     ignore(id: string, client: ClientKind): Promise<void>;
   };
@@ -132,6 +132,12 @@ export interface CoreServices {
     list(): AgentCard[];
     /** Every Agent-managed MCP Server the latest Scan found, off ones included (#40). */
     managedMcp(): ManagedMcpServer[];
+  };
+  drift: {
+    /** Re-applies owned intent for a drift finding (#42). */
+    restore(id: string, client: ClientKind): Promise<void>;
+    /** Updates `projects.json` to match the disk for a drift finding (#42). */
+    accept(id: string, client: ClientKind): Promise<void>;
   };
   managedSkills: {
     /**
@@ -327,6 +333,14 @@ export const createAppRouter = (services: CoreServices) =>
       ignore: t.procedure
         .input(z.object({ id: z.string().min(1) }))
         .mutation(({ input, ctx }) => services.inbox.ignore(input.id, ctx.client)),
+    }),
+    drift: t.router({
+      restore: t.procedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.drift.restore(input.id, ctx.client)),
+      accept: t.procedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.drift.accept(input.id, ctx.client)),
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),

@@ -25,7 +25,7 @@ import {
 } from "./project-lock";
 import { deliveryFolders } from "./projects";
 import { readFrontmatter } from "./scanner";
-import { computeSkillFolderHash } from "./skill-hash";
+import { cachedSkillFolderHash } from "./skill-hash";
 
 /**
  * Project delivery (#8, #9, #27): turns a Project's record in `projects.json`
@@ -221,7 +221,7 @@ export interface DeliveryOptions {
   claim?: readonly string[];
 }
 
-const hashOrEmpty = (folder: string) => computeSkillFolderHash(folder).catch(() => "");
+const hashOrEmpty = (folder: string) => cachedSkillFolderHash(folder).catch(() => "");
 
 /** How a delivered Copy compares with its lock entry (edited in the repo?) and the Library (moved on?). */
 export const copyStateOf = async (
