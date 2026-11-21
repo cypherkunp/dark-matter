@@ -12,6 +12,7 @@ import { agentCards, inboxFrom } from "./inbox";
 import { Library } from "./library";
 import { log } from "./log";
 import { managedSkillRef } from "./managed-skills";
+import { McpAdopt, McpLibrary } from "./mcp-library";
 import { type KeyRenameHook, NamespaceRename } from "./namespace-rename";
 import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
@@ -20,6 +21,7 @@ import { projectServices, waitingSuggestions } from "./projects";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
+import type { SecretStore } from "./secrets";
 import { SkillEditor } from "./skill-editor";
 import { skillServices } from "./skill-page";
 import { Trash } from "./trash";
@@ -33,10 +35,11 @@ export interface ServicesOptions {
   bus: EventBus;
   clock: Clock;
   notifier: Notifier;
+  secrets: SecretStore;
 }
 
 /** The core's service methods behind the router (ADR-0003): every action is one of these. */
-export const createServices = async ({ libraryHome, home, info, bus, clock, notifier }: ServicesOptions) => {
+export const createServices = async ({ libraryHome, home, info, bus, clock, notifier, secrets }: ServicesOptions) => {
   const cache = await openCache(libraryHome);
   const activity = await ActivityLog.open({
     libraryHome,
@@ -87,6 +90,17 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     latestScan: () => scans.latest,
     rescan: () => scans.refresh(),
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
+  });
+  const mcpLibrary = new McpLibrary(libraryHome);
+  const mcpAdopt = new McpAdopt({
+    home,
+    libraryHome,
+    mcp: mcpLibrary,
+    secrets,
+    activity,
+    latestScan: () => scans.latest,
+    rescan: () => scans.refresh(),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["mcp", "inbox"] }),
   });
   /** What follows a Library Skill to a new key. Links (#27) push their hook here. */
   const keyRenameHooks: KeyRenameHook[] = [];
@@ -199,6 +213,12 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       plan: ({ findings }) => adopt.plan(findings),
       apply: ({ findings, planId }, client) => adopt.apply(findings, planId, client),
       undo: (key, client) => adopt.undo(key, client),
+    },
+    mcp: {
+      list: async () => ({ servers: await mcpLibrary.list(home) }),
+      adoptPlan: ({ findings, names }) => mcpAdopt.plan(findings, names),
+      adoptExecute: ({ findings, names, planId }, client) => mcpAdopt.apply(findings, names, planId, client),
+      undoAdopt: (name, client) => mcpAdopt.undo(name, client),
     },
     scheduler: { status: () => scheduler.status() },
     skill: {

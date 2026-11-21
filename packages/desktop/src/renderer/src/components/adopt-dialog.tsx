@@ -28,6 +28,10 @@ export const stepText = (step: PlanStep): string => {
       return `remove identical copy ${step.path}`;
     case "editFile":
       return `edit ${step.path}: ${step.change}${step.backup ? ` (backup ${step.backup})` : ""}`;
+    case "storeSecret":
+      return `store Secret ${step.name} in the keychain`;
+    case "deleteSecret":
+      return `delete Secret ${step.name} from the keychain`;
   }
 };
 
