@@ -180,3 +180,40 @@ export function useProjectSkillChanges(path: string, skill: ProjectSkill) {
     error: asking ? null : (setOn.error ?? remove.error),
   };
 }
+
+/**
+ * Resolve a Name Conflict by keeping `skill`. When a Skill it removes is a
+ * Copy modified in repo, the core refuses, and this asks before discarding the edits.
+ */
+export function useResolveConflict(path: string, skill: ProjectSkill) {
+  const trpc = useTRPC();
+  const [asking, setAsking] = useState(false);
+  const resolve = useMutation(
+    trpc.project.resolveConflict.mutationOptions({
+      onSuccess: () => setAsking(false),
+      onError: (error) => {
+        if ((error.data as { tag?: string } | undefined)?.tag === "CopyModifiedInRepo") setAsking(true);
+      },
+    }),
+  );
+  const dialog = asking && (
+    <ConfirmDialog
+      title={`Keep ${skill.key} and discard the edits?`}
+      confirm="Discard edits and resolve"
+      busy={resolve.isPending}
+      onConfirm={() => resolve.mutate({ path, key: skill.key, discardEdits: true })}
+      onClose={() => setAsking(false)}
+    >
+      <p>
+        Resolving removes {skill.conflictsWith.join(", ")}. One of them is a Copy whose files were modified in repo:
+        those edits will be lost, and git will show the deletion for you to commit.
+      </p>
+    </ConfirmDialog>
+  );
+  return {
+    resolve: () => resolve.mutate({ path, key: skill.key }),
+    dialog,
+    busy: resolve.isPending,
+    error: asking ? null : resolve.error,
+  };
+}

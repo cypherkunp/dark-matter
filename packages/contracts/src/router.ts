@@ -316,7 +316,7 @@ export interface CoreServices {
     /** Makes `skills-lock.json` entries Copies of their Library Skills; a committed folder is kept as is. */
     fulfilLock(input: FulfilLockInput, client: ClientKind): Promise<ProjectSkills>;
     /** Resolves a Name Conflict: `key` wins and the other same-name Project Skills are removed. */
-    resolveConflict(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    resolveConflict(input: ProjectSkillChange, client: ClientKind): Promise<ProjectSkills>;
     /** Its Project MCP Servers, with each Agent's delivery (#38). */
     mcpServers(path: string): Promise<ProjectMcpServer[]>;
     /** Where Personal would write for each of its Agents, and whether it's offered there. */
@@ -563,7 +563,7 @@ export const createAppRouter = (services: CoreServices) => {
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.fulfilLock(input, ctx.client)),
       resolveConflict: t.procedure
-        .input(ProjectSkillRef)
+        .input(ProjectSkillChange)
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.resolveConflict(input, ctx.client)),
       mcpServers: t.procedure

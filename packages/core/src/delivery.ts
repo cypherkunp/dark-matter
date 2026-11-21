@@ -293,6 +293,7 @@ export const planDelivery = async (
     steps.flatMap((step) => (step.kind === "removeLink" || step.kind === "removeFolder" ? [step.path] : [])),
   );
   const copies: { it: DeliveryTarget; index: number }[] = [];
+  const keptCopies: { it: DeliveryTarget; index: number }[] = [];
   for (const key of keys) {
     const wanted = record.skills[key];
     if (!wanted) continue;
@@ -313,6 +314,9 @@ export const planDelivery = async (
     } else track(it, await mode.plan(it, [], every));
     const { namespace } = splitKey(key);
     if (wanted.mode === "copy" && status === "on") copies.push({ it, index: skills.length });
+    // A Copy left in place by a Name Conflict still has its state, so Resolve can guard its edits.
+    if (wanted.mode === "copy" && status === "nameConflict" && wanted.on && it.claimed !== false)
+      keptCopies.push({ it, index: skills.length });
     skills.push({
       key,
       namespace,
@@ -349,6 +353,15 @@ export const planDelivery = async (
       const folder = join(project, COPY_FOLDER, it.name);
       if (!next.skills[it.name]) next.skills[it.name] = entryFor(it.key, it.name, await hashOrEmpty(folder));
       skill.copyState = await copyStateOf(folder, lockEntry(next, it.name), {
+        folder: it.source,
+        commit: library.lock.value.skills[it.key]?.commit,
+      });
+    }
+    for (const { it, index } of keptCopies) {
+      const skill = skills[index];
+      const entry = current ? lockEntry(current, it.name) : null;
+      if (!skill || !entry) continue;
+      skill.copyState = await copyStateOf(join(project, COPY_FOLDER, it.name), entry, {
         folder: it.source,
         commit: library.lock.value.skills[it.key]?.commit,
       });

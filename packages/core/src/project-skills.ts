@@ -616,8 +616,12 @@ export class ProjectSkillService {
           return [{ path, skills: await this.deliver(path, next, wrote, [], { claim }) }];
         }).then(([result]) => result as ProjectSkills),
 
-      resolveConflict: ({ path, key }, client) =>
-        this.#changeOne(client, "project.resolveConflict", path, key, (record, current) => {
+      resolveConflict: ({ path, key, discardEdits }, client) =>
+        this.#changeOne(client, "project.resolveConflict", path, key, async (record, current) => {
+          // The Skills it removes are deliveries like any other: a Copy edited in the repo asks first.
+          const planned = (await planDelivery(this.options.library, path, record)).skills;
+          for (const other of planned)
+            if (current.conflictsWith.includes(other.key)) guardEdits(path, other, discardEdits);
           const skills = Object.fromEntries(
             Object.entries(record.skills).filter(([other]) => !current.conflictsWith.includes(other)),
           );

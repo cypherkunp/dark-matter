@@ -205,6 +205,27 @@ describe("Project Skills as Copies", () => {
     expect(taken.skills[0]?.copyState).toBe("current");
   });
 
+  test("Resolve never deletes a Copy edited in the repo without asking (story 63)", async () => {
+    const { trpc, project } = await setup({
+      "acme/skills/pdf": { entry: PDF_ENTRY },
+      "local/pdf": { name: "pdf" },
+    });
+    const app = await project("code/app", ["codex"]);
+    await trpc.project.addSkills.mutate({ skills: [{ path: app, key: "acme/skills/pdf", mode: "copy" }] });
+    await trpc.project.addSkills.mutate({ skills: [{ path: app, key: "local/pdf" }] });
+    await writeFile(join(app, ".agents/skills/pdf/notes.md"), "a teammate's fix\n");
+    const before = await snapshotTree(app);
+
+    await expect(trpc.project.resolveConflict.mutate({ path: app, key: "local/pdf" })).rejects.toMatchObject({
+      data: { tag: "CopyModifiedInRepo" },
+    });
+    expect(await snapshotTree(app)).toEqual(before);
+
+    const resolved = await trpc.project.resolveConflict.mutate({ path: app, key: "local/pdf", discardEdits: true });
+    expect(resolved.skills.map((skill) => skill.key)).toEqual(["local/pdf"]);
+    expect(await exists(join(app, ".agents/skills/pdf/notes.md"))).toBe(false);
+  });
+
   test("a Copy is 'outdated' when the Library moves on; Update brings the files and the lock entry up to date", async () => {
     const { libraryHome, trpc, project } = await setup();
     const app = await project("code/app", ["codex"]);
