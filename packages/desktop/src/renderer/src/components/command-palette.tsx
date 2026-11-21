@@ -12,7 +12,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-  const results = filterCommands(useCommands(), query).slice(0, LIMIT);
+  const results = filterCommands(useCommands(query), query).slice(0, LIMIT);
   const selected = results[Math.min(active, results.length - 1)];
 
   useEffect(() => {

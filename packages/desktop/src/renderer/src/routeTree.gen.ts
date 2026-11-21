@@ -22,6 +22,7 @@ import { Route as ComputerActivityRouteImport } from './routes/computer/activity
 import { Route as ComputerAgentsRouteImport } from './routes/computer/agents'
 import { Route as ComputerMcpServersRouteImport } from './routes/computer/mcp-servers'
 import { Route as GetGithubRouteImport } from './routes/get/github'
+import { Route as GetSkillsShRouteImport } from './routes/get/skills-sh'
 import { Route as LibraryCollectionsRouteImport } from './routes/library_.collections'
 import { Route as ProjectsSuggestedRouteImport } from './routes/projects/suggested'
 
@@ -90,6 +91,11 @@ const GetGithubRoute = GetGithubRouteImport.update({
   path: '/get/github',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GetSkillsShRoute = GetSkillsShRouteImport.update({
+  id: '/get/skills-sh',
+  path: '/get/skills-sh',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LibraryCollectionsRoute = LibraryCollectionsRouteImport.update({
   id: '/library_/collections',
   path: '/library/collections',
@@ -115,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/computer/agents': typeof ComputerAgentsRoute
   '/computer/mcp-servers': typeof ComputerMcpServersRoute
   '/get/github': typeof GetGithubRoute
+  '/get/skills-sh': typeof GetSkillsShRoute
   '/library/collections': typeof LibraryCollectionsRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/computer/agents': typeof ComputerAgentsRoute
   '/computer/mcp-servers': typeof ComputerMcpServersRoute
   '/get/github': typeof GetGithubRoute
+  '/get/skills-sh': typeof GetSkillsShRoute
   '/library/collections': typeof LibraryCollectionsRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/computer/agents': typeof ComputerAgentsRoute
   '/computer/mcp-servers': typeof ComputerMcpServersRoute
   '/get/github': typeof GetGithubRoute
+  '/get/skills-sh': typeof GetSkillsShRoute
   '/library_/collections': typeof LibraryCollectionsRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/computer/agents'
     | '/computer/mcp-servers'
     | '/get/github'
+    | '/get/skills-sh'
     | '/library/collections'
     | '/projects/suggested'
   fileRoutesByTo: FileRoutesByTo
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/computer/agents'
     | '/computer/mcp-servers'
     | '/get/github'
+    | '/get/skills-sh'
     | '/library/collections'
     | '/projects/suggested'
   id:
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '/computer/agents'
     | '/computer/mcp-servers'
     | '/get/github'
+    | '/get/skills-sh'
     | '/library_/collections'
     | '/projects/suggested'
   fileRoutesById: FileRoutesById
@@ -221,6 +233,7 @@ export interface RootRouteChildren {
   ComputerAgentsRoute: typeof ComputerAgentsRoute
   ComputerMcpServersRoute: typeof ComputerMcpServersRoute
   GetGithubRoute: typeof GetGithubRoute
+  GetSkillsShRoute: typeof GetSkillsShRoute
   LibraryCollectionsRoute: typeof LibraryCollectionsRoute
   ProjectsSuggestedRoute: typeof ProjectsSuggestedRoute
 }
@@ -318,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GetGithubRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/get/skills-sh': {
+      id: '/get/skills-sh'
+      path: '/get/skills-sh'
+      fullPath: '/get/skills-sh'
+      preLoaderRoute: typeof GetSkillsShRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library_/collections': {
       id: '/library_/collections'
       path: '/library/collections'
@@ -349,6 +369,7 @@ const rootRouteChildren: RootRouteChildren = {
   ComputerAgentsRoute: ComputerAgentsRoute,
   ComputerMcpServersRoute: ComputerMcpServersRoute,
   GetGithubRoute: GetGithubRoute,
+  GetSkillsShRoute: GetSkillsShRoute,
   LibraryCollectionsRoute: LibraryCollectionsRoute,
   ProjectsSuggestedRoute: ProjectsSuggestedRoute,
 }
