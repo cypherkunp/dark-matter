@@ -19,7 +19,7 @@ describe("core.lock: one writer per Library", () => {
     const coreFile = await readCoreFile(libraryHome);
     expect(coreFile.token).toBe(first.token);
     await expect(connect(coreFile).trpc.core.info.query()).resolves.toMatchObject({
-      home: libraryHome,
+      libraryHome,
     });
   });
 

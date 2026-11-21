@@ -14,7 +14,7 @@ describe("booting the core", () => {
 
     const { trpc } = connect(coreFile);
     const info = await trpc.core.info.query();
-    expect(info.home).toBe(libraryHome);
+    expect(info.libraryHome).toBe(libraryHome);
     expect(info.pid).toBe(process.pid);
   });
 
@@ -24,7 +24,7 @@ describe("booting the core", () => {
 
     const coreFile = await readCoreFile(join(home, ".dark-matter"));
     const info = await connect(coreFile).trpc.core.info.query();
-    expect(info.home).toBe(join(home, ".dark-matter"));
+    expect(info.libraryHome).toBe(join(home, ".dark-matter"));
   });
 });
 

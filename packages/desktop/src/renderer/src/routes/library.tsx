@@ -21,7 +21,7 @@ function AllSkills() {
       <PageHead
         title="All Skills"
         summary={`${plural(skills.length, "Skill")} · ${plural(namespaces, "Namespace")}`}
-        {...(info.data && { status: `Library at ${tildify(info.data.home)}` })}
+        {...(info.data && { status: `Library at ${tildify(info.data.libraryHome)}` })}
       />
       {library.isPending ? null : skills.length === 0 ? (
         <section

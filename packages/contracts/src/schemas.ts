@@ -31,7 +31,7 @@ export const CoreInfo = z.object({
   version: z.string(),
   pid: z.int().positive(),
   /** The Library location: `DARK_MATTER_HOME`, or `$HOME/.dark-matter`. */
-  home: z.string(),
+  libraryHome: z.string(),
   startedAt: z.iso.datetime(),
 });
 export type CoreInfo = z.infer<typeof CoreInfo>;

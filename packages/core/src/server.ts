@@ -55,7 +55,7 @@ const serve = async (
   const bus = new EventBus();
 
   const router = createAppRouter({
-    info: () => ({ version: pkg.version, pid: process.pid, home: libraryHome, startedAt }),
+    info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
     library: { list: async () => ({ skills: [] }) },
     events: (signal) => bus.subscribe(signal),
   });

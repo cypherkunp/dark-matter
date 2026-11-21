@@ -51,7 +51,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
         <div className="min-w-0 leading-tight">
           <div className="font-semibold text-[13px]">Dark Matter</div>
           <div className="truncate font-mono text-[11px] text-muted-foreground">
-            {info.data ? `${tildify(info.data.home)} · ${skillCount ?? 0} Skills` : "Starting core…"}
+            {info.data ? `${tildify(info.data.libraryHome)} · ${skillCount ?? 0} Skills` : "Starting core…"}
           </div>
         </div>
       </div>
@@ -104,7 +104,8 @@ export function Sidebar({ connected }: { connected: boolean }) {
       </nav>
 
       <footer className="flex h-10 shrink-0 items-center gap-2 border-sidebar-border border-t px-4 text-muted-foreground text-xs">
-        <StatusDot tone={connected ? "healthy" : "off"} />
+        {/* Grey until the first Scan: green means up to date (visual reference). */}
+        <StatusDot tone="off" />
         <span data-testid="core-status">{connected ? "Not scanned yet" : "Connecting to core…"}</span>
         <Settings aria-label="Settings" className="ml-auto size-4" />
       </footer>
