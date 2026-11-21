@@ -1,8 +1,11 @@
-import { basename } from "node:path";
+import { lstat } from "node:fs/promises";
+import { basename, join } from "node:path";
 import {
   type ActivitySubject,
+  type AgentId,
   type ClientKind,
   NameConflict,
+  type PlanStep,
   ProjectNotFound,
   type ProjectRecord,
   type ProjectSkill,
@@ -13,10 +16,14 @@ import {
 } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import type { ActivityLog, Wrote } from "./activity";
-import { applyDelivery, planDelivery } from "./delivery";
+import type { KeepLink, KeepLinks } from "./adopt";
+import { type AgentAdapter, agentAdapters } from "./agents";
+import { applyDelivery, linkMode, planDelivery } from "./delivery";
 import type { EventBus } from "./events";
+import { homeRelative } from "./home-path";
 import type { Library } from "./library";
 import type { OwnedFile } from "./owned-file";
+import { deliveryFolders } from "./projects";
 
 export interface ProjectSkillOptions {
   home: string;
@@ -134,6 +141,86 @@ export class ProjectSkillService {
     return usage;
   }
 
+  /**
+   * Adopt & keep Link (#29): each Adopted untracked Skill goes back into its
+   * Project as an ordinary Project Skill (Link, On). If it was found in a
+   * folder the Project's Agents don't get deliveries in, the Agent that uses
+   * that folder is added, so the Skill stays where the Agents saw it.
+   */
+  keepLinks(): KeepLinks {
+    const { home, library, projects } = this.options;
+    const rel = (path: string) => homeRelative(home, path);
+    const byProject = (links: readonly KeepLink[]) => {
+      const grouped = new Map<string, KeepLink[]>();
+      for (const link of links) grouped.set(link.project, [...(grouped.get(link.project) ?? []), link]);
+      return grouped;
+    };
+    const next = (path: string, links: readonly KeepLink[]) => {
+      const record = this.#record(path);
+      const { agents, added } = withAgentsFor(
+        record.agents,
+        links.flatMap((link) => link.folders),
+      );
+      const skills = { ...record.skills };
+      for (const link of links) skills[link.key] = { mode: "link" as const, on: true };
+      return { record: { ...record, agents, skills }, added };
+    };
+    return {
+      plan: async (links) => {
+        const steps: PlanStep[] = [];
+        const warnings: string[] = [];
+        for (const [path, own] of byProject(links)) {
+          const { record, added } = next(path, own);
+          for (const adapter of added) {
+            warnings.push(
+              `Adds ${adapter.name} to ${basename(path)}'s Agents, so ${adapter.skills.deliveryFolder} keeps its Skills.`,
+            );
+          }
+          for (const link of own) {
+            const target = { project: path, key: link.key, name: link.name, source: library.folder(link.key) };
+            for (const folder of deliveryFolders(record.agents)) {
+              const at = join(path, folder, link.name);
+              const taken = await lstat(at).then(
+                () => true,
+                () => false,
+              );
+              if (taken && !link.freed.includes(at)) {
+                if (await linkMode.isDelivered(at, target)) continue;
+                throw new NameConflict([link.key], join(folder, link.name));
+              }
+              steps.push({ kind: "createLink", path: rel(at), target: rel(target.source) });
+            }
+          }
+        }
+        if (steps.length > 0 || links.length > 0) {
+          steps.push({
+            kind: "editFile",
+            path: rel(projects.path),
+            change: `add ${[...new Set(links.map((link) => link.key))].sort().join(", ")} as Links, On`,
+          });
+        }
+        return { steps, warnings };
+      },
+      apply: async (links, wrote) => {
+        try {
+          for (const [path, own] of byProject(links)) await this.deliver(path, next(path, own).record, wrote);
+        } finally {
+          this.#changed();
+        }
+      },
+      release: async (path, key, wrote) => {
+        const record = projects.value.projects[path];
+        if (!record?.skills[key]) return;
+        const { [key]: _gone, ...skills } = record.skills;
+        try {
+          await this.deliver(path, { ...record, skills }, wrote, [key]);
+        } finally {
+          this.#changed();
+        }
+      },
+    };
+  }
+
   services(): ProjectSkillProcedures {
     const { library, projects } = this.options;
     return {
@@ -201,3 +288,31 @@ export class ProjectSkillService {
     };
   }
 }
+
+/**
+ * `agents` plus, for each skill folder a Skill was found in, an Agent that
+ * gets deliveries there when none does yet: the folder's own Agent (Claude
+ * Code for `.claude/skills`), else `.agents/skills`, which every Agent that
+ * reads other folders also reads.
+ */
+const withAgentsFor = (agents: readonly AgentId[], folders: readonly string[]) => {
+  const next = [...agents];
+  const added: AgentAdapter[] = [];
+  for (const folder of folders) {
+    const needed = agentAdapters.some((adapter) => adapter.skills.deliveryFolder === folder)
+      ? folder
+      : ".agents/skills";
+    if (deliveryFolders(next).includes(needed)) continue;
+    // The Agent that reads only that folder (Claude Code, or the generic `.agents`).
+    const adapter = agentAdapters
+      .filter(
+        (candidate) => candidate.skills.projectFolders.length === 1 && candidate.skills.projectFolders[0] === needed,
+      )
+      .at(-1);
+    if (!adapter) continue;
+    next.push(adapter.id);
+    added.push(adapter);
+  }
+  const order = agentAdapters.map((adapter) => adapter.id);
+  return { agents: order.filter((id) => next.includes(id)), added };
+};

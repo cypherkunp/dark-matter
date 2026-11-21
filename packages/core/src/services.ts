@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { type CoreInfo, LibraryLockFile, ProjectsFile, SettingsFile, UnknownFinding } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
-import { ActivityLog } from "./activity";
+import { ActivityLog, retentionJob } from "./activity";
 import { Adopt } from "./adopt";
 import { agentAdapters } from "./agents";
 import { openCache } from "./cache";
@@ -22,7 +22,10 @@ import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
 import type { SecretStore } from "./secrets";
+import { SkillEditor } from "./skill-editor";
 import { skillServices } from "./skill-page";
+import { Trash } from "./trash";
+import { untrackedSkills } from "./untracked";
 import { watchOwnedFiles } from "./watch-owned";
 
 export interface ServicesOptions {
@@ -64,6 +67,8 @@ export const createServices = async ({
     join(libraryHome, "library-lock.json"),
     LibraryLockFile,
   );
+  const activityRetention = () => settings.value.preferences.activityRetention;
+  await activity.prune(activityRetention());
   const library = new Library(libraryHome, home, libraryLock);
   const ownedFiles = [settings, projects, libraryLock];
   const ownedFileChanged = () =>
@@ -78,7 +83,10 @@ export const createServices = async ({
     onChange: () => bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents", "project", "scheduler"] }),
   });
   /** The daily run, in order. Later jobs (update checks, starred Sources) are added here. */
-  const dailyJobs: DailyJob[] = [scanJob(scans, () => settings.value.ignoredFindings)];
+  const dailyJobs: DailyJob[] = [
+    scanJob(scans, () => settings.value.ignoredFindings),
+    retentionJob(activity, activityRetention),
+  ];
   const scheduler = new Scheduler({
     clock,
     notifier,
@@ -91,14 +99,6 @@ export const createServices = async ({
       return scanned && { at: scanned, scheduled: false };
     },
     onChange: () => bus.publish({ type: "invalidate", domains: ["scheduler"] }),
-  });
-  const adopt = new Adopt({
-    home,
-    library,
-    activity,
-    latestScan: () => scans.latest,
-    rescan: () => scans.refresh(),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
   });
   const mcpLibrary = new McpLibrary(libraryHome);
   const mcpAdopt = new McpAdopt({
@@ -120,7 +120,47 @@ export const createServices = async ({
     hooks: keyRenameHooks,
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project"] }),
   });
+  const skillEditor = new SkillEditor({
+    library,
+    activity,
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill"] }),
+  });
+  /** Untracked Project Skills (#29) from the latest Scan. */
+  const findUntracked = () =>
+    untrackedSkills(
+      scans.latest,
+      env,
+      libraryHome,
+      Object.values(libraryLock.value.skills).flatMap((entry) =>
+        entry.localSource ? [library.absolute(entry.localSource)] : [],
+      ),
+    );
   const projectSkills = new ProjectSkillService({ home, libraryHome, library, projects, activity, bus });
+  const adopt = new Adopt({
+    home,
+    library,
+    activity,
+    latestScan: () => scans.latest,
+    rescan: () => scans.refresh(),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
+    untracked: () => findUntracked().flatMap((group) => group.findings),
+    keepLinks: projectSkills.keepLinks(),
+  });
+  const trash = new Trash({
+    library,
+    activity,
+    clock,
+    retentionDays: () => settings.value.preferences.trashRetentionDays,
+    usage: async (key) =>
+      (await projectSkills.services().forSkill(key)).map(({ path, projectName, mode, on }) => ({
+        path,
+        projectName,
+        mode,
+        on,
+      })),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project"] }),
+  });
+  dailyJobs.push(trash.job());
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
@@ -130,8 +170,8 @@ export const createServices = async ({
     library: { list: async () => ({ skills: await library.list(await projectSkills.usage()) }) },
     settings: {
       get: () => settings.value,
-      updatePreferences: (patch, client) =>
-        activity.track(
+      updatePreferences: async (patch, client) => {
+        const saved = await activity.track(
           { client, action: "settings.updatePreferences", subjects: [{ kind: "settings", id: "preferences" }] },
           async (wrote) => {
             wrote(
@@ -141,7 +181,10 @@ export const createServices = async ({
             scheduler.check();
             return settings.value;
           },
-        ),
+        );
+        await activity.prune(activityRetention());
+        return saved;
+      },
     },
     ownedFiles: {
       problems: () => ownedFiles.flatMap((file) => (file.problem ? [file.problem] : [])),
@@ -155,7 +198,7 @@ export const createServices = async ({
           },
         ),
     },
-    activity: { list: (query) => activity.list(query) },
+    activity: { list: (query) => activity.list(query), export: (filter) => activity.export(filter) },
     scan: {
       run: (client) => scans.run(client),
       status: () => scans.status(),
@@ -167,6 +210,7 @@ export const createServices = async ({
           settings.value.ignoredFindings,
           env,
           waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
+          findUntracked(),
         ),
       ignore: (id, client) =>
         activity.track({ client, action: "inbox.ignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
@@ -226,11 +270,18 @@ export const createServices = async ({
       undoAdopt: (name, client) => mcpAdopt.undo(name, client),
     },
     scheduler: { status: () => scheduler.status() },
+    skill: {
+      ...skillServices(library),
+      files: (key) => skillEditor.files(key),
+      readFile: (input) => skillEditor.readFile(input),
+      saveFile: (input, client) => skillEditor.saveFile(input, client),
+      deletePlan: (key) => trash.plan(key),
+      delete: (key, client) => trash.delete(key, client),
+    },
     project: {
       ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
       ...projectSkills.services(),
     },
-    skill: skillServices(library),
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),

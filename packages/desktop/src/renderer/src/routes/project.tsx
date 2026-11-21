@@ -1,7 +1,8 @@
 import type { AgentId, ProjectDetail } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { FolderOpen, TriangleAlert } from "lucide-react";
+import { FilteredActivity } from "@/components/activity-view";
 import { PageHead } from "@/components/page-head";
 import { ProjectSkills } from "@/components/project-skills";
 import { StatusDot } from "@/components/status-dot";
@@ -150,6 +151,29 @@ function FoundSkills({ project }: { project: ProjectDetail }) {
   );
 }
 
+/** Untracked Skills in this Project wait in the Inbox for Adopt & keep Link (#29). */
+function UntrackedBanner({ path }: { path: string }) {
+  const trpc = useTRPC();
+  const inbox = useQuery(trpc.inbox.list.queryOptions());
+  const count = inbox.data?.untrackedSkills.find((group) => group.project === path)?.findings.length ?? 0;
+  if (count === 0) return null;
+  return (
+    <Link
+      to="/inbox"
+      data-testid="project-untracked"
+      className="flex items-start gap-3 rounded-xl border border-warning-border bg-warning-surface px-5 py-4 hover:opacity-90"
+    >
+      <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <p className="text-sm">{plural(count, "untracked Skill")} in this Project</p>
+        <p className="text-muted-foreground text-xs">
+          Adopt them from the Inbox: each moves into the Library and a Link goes back, so this Project sees no change.
+        </p>
+      </div>
+    </Link>
+  );
+}
+
 function ProjectPage() {
   const { path } = Route.useSearch();
   const trpc = useTRPC();
@@ -190,9 +214,11 @@ function ProjectPage() {
         </Button>
       </div>
       {!data.exists && <GoneBanner project={data} />}
+      {data.exists && <UntrackedBanner path={data.path} />}
       <AgentPicker project={data} />
       {data.exists && <ProjectSkills path={data.path} />}
       <FoundSkills project={data} />
+      <FilteredActivity search={{ project: data.path }} exportName={`activity-${data.name}`} />
     </div>
   );
 }

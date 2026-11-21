@@ -2,6 +2,8 @@ import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { isTaggedError } from "./errors";
 import {
+  ActivityExport,
+  ActivityFilter,
   ActivityList,
   ActivityQuery,
   AddProjectSkills,
@@ -36,11 +38,17 @@ import {
   ProjectSummary,
   RenameNamespaceInput,
   RenameNamespacePlan,
+  SavedSkillFile,
+  SaveSkillFileInput,
   ScanResult,
   ScanStatus,
   SchedulerStatus,
   SettingsFile,
+  SkillDeletePlan,
   SkillDetail,
+  SkillFileContent,
+  SkillFilePath,
+  SkillFiles,
   SkillProjectUse,
   SuggestedProjects,
 } from "./schemas";
@@ -72,6 +80,8 @@ export interface CoreServices {
   };
   activity: {
     list(query: ActivityQuery): ActivityList;
+    /** Every entry matching the filter, for saving as JSON. Not recorded, like any view. */
+    export(filter: ActivityFilter): ActivityExport;
   };
   scan: {
     /** Runs a read-only Scan, or joins the one already running. */
@@ -126,6 +136,15 @@ export interface CoreServices {
   skill: {
     /** A Library Skill's page: SKILL.md split into frontmatter and body, warnings and its Library Lock entry. */
     get(key: string): Promise<SkillDetail>;
+    /** The Skill's file tree for the Files tab. */
+    files(key: string): Promise<SkillFiles>;
+    readFile(input: SkillFilePath): Promise<SkillFileContent>;
+    /** Saves one file atomically, exactly as given (SKILL.md is never rewritten). Frontmatter problems are warnings. */
+    saveFile(input: SaveSkillFileInput, client: ClientKind): Promise<SavedSkillFile>;
+    /** Deleting's dry run: the trash retention and the Projects whose Links would break or Copies stay behind. */
+    deletePlan(key: string): Promise<SkillDeletePlan>;
+    /** Moves the Skill into `trash/` (purged after the configured days) and drops it from the Library Lock. */
+    delete(key: string, client: ClientKind): Promise<void>;
   };
   namespace: {
     /** Rename Namespace's dry run. Writes nothing. */
@@ -201,6 +220,10 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ActivityQuery)
         .output(ActivityList)
         .query(({ input }) => services.activity.list(input)),
+      export: t.procedure
+        .input(ActivityFilter)
+        .output(ActivityExport)
+        .query(({ input }) => services.activity.export(input)),
     }),
     scan: t.router({
       run: t.procedure.output(ScanResult).mutation(({ ctx }) => services.scan.run(ctx.client)),
@@ -312,6 +335,25 @@ export const createAppRouter = (services: CoreServices) =>
         .input(z.object({ key: z.string().min(1) }))
         .output(SkillDetail)
         .query(({ input }) => services.skill.get(input.key)),
+      files: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .output(SkillFiles)
+        .query(({ input }) => services.skill.files(input.key)),
+      readFile: t.procedure
+        .input(SkillFilePath)
+        .output(SkillFileContent)
+        .query(({ input }) => services.skill.readFile(input)),
+      saveFile: t.procedure
+        .input(SaveSkillFileInput)
+        .output(SavedSkillFile)
+        .mutation(({ input, ctx }) => services.skill.saveFile(input, ctx.client)),
+      deletePlan: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .output(SkillDeletePlan)
+        .query(({ input }) => services.skill.deletePlan(input.key)),
+      delete: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.skill.delete(input.key, ctx.client)),
     }),
     namespace: t.router({
       plan: t.procedure

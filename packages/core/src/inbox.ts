@@ -5,6 +5,7 @@ import type {
   InboxManagedGroup,
   InboxManagedMcpGroup,
   InboxMcpGroup,
+  InboxProjectGroup,
   ScanResult,
 } from "@dark-matter/contracts";
 import { type AgentPathEnv, agentAdapters } from "./agents";
@@ -20,6 +21,7 @@ export const inboxFrom = (
   ignored: readonly string[],
   env: AgentPathEnv,
   suggestedProjects = 0,
+  untracked: readonly InboxProjectGroup[] = [],
 ): Inbox => {
   const skipped = new Set(ignored);
   const all = scan?.globalSkills ?? [];
@@ -46,6 +48,11 @@ export const inboxFrom = (
       findings: managedWaiting.filter((finding) => finding.agent === adapter.id),
     }))
     .filter((group) => group.findings.length > 0);
+  const untrackedSkills = untracked
+    .map((group) => ({ ...group, findings: group.findings.filter((finding) => !skipped.has(finding.id)) }))
+    .filter((group) => group.findings.length > 0);
+  const untrackedAll = untracked.reduce((sum, group) => sum + group.findings.length, 0);
+  const untrackedWaiting = untrackedSkills.reduce((sum, group) => sum + group.findings.length, 0);
   const mcp = scan?.globalMcpServers ?? [];
   const mcpWaiting = mcp.filter((finding) => !skipped.has(finding.id));
   const mcpServers: InboxMcpGroup[] = agentAdapters.flatMap((adapter) => {
@@ -60,7 +67,14 @@ export const inboxFrom = (
     return findings.length > 0 ? [{ agent: adapter.id, findings }] : [];
   });
   return {
-    count: waiting.length + managedWaiting.length + mcpWaiting.length + managedMcpWaiting.length + suggestedProjects,
+    count:
+      waiting.length +
+      managedWaiting.length +
+      mcpWaiting.length +
+      untrackedWaiting +
+      managedMcpWaiting.length +
+      suggestedProjects,
+    untrackedSkills,
     globalSkills: [...groups.values()],
     managedSkills,
     ignoredCount:
@@ -70,6 +84,8 @@ export const inboxFrom = (
       managedWaiting.length +
       mcp.length -
       mcpWaiting.length +
+      untrackedAll -
+      untrackedWaiting +
       managedMcp.length -
       managedMcpWaiting.length,
     suggestedProjects,

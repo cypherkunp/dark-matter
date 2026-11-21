@@ -15,6 +15,7 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters, type SkillFolder } from "./agents";
 import { readConfigText } from "./config-edit";
+import { gitTrackedPaths } from "./git-tracked";
 import { homeRelative } from "./home-path";
 import { managedSkillRef } from "./managed-skills";
 import { readGlobalMcp } from "./mcp-agents";
@@ -135,7 +136,7 @@ export const scan = async (
 const scanProject = async (path: string, adapters: readonly AgentAdapter[]): Promise<ProjectScan> => {
   const folders = [...new Set(adapters.flatMap((adapter) => adapter.skills.projectFolders))].sort();
   const skillFolders: ProjectScan["skillFolders"] = [];
-  const skills: ProjectSkillEntry[] = [];
+  const skills: Omit<ProjectSkillEntry, "tracked">[] = [];
   for (const folder of folders) {
     const absolute = join(path, folder);
     skillFolders.push({ path: folder, exists: await isDirectory(absolute) });
@@ -149,7 +150,14 @@ const scanProject = async (path: string, adapters: readonly AgentAdapter[]): Pro
       });
     }
   }
-  return { path, exists: await isDirectory(path), skillFolders, skills };
+  // Git-tracked entries (or real folders) are Vendored (#10 point 7): one `git ls-files` per Project.
+  const tracked = await gitTrackedPaths(path, [...new Set(skills.flatMap((skill) => [skill.path, skill.realPath]))]);
+  return {
+    path,
+    exists: await isDirectory(path),
+    skillFolders,
+    skills: skills.map((skill) => ({ ...skill, tracked: tracked.has(skill.path) || tracked.has(skill.realPath) })),
+  };
 };
 
 /**

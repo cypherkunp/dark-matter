@@ -16,14 +16,16 @@ import {
   type ScanResult,
   SkillNotFound,
   type SymlinkRecord,
+  type UntrackedSkill,
 } from "@dark-matter/contracts";
-import type { ActivityLog } from "./activity";
+import type { ActivityLog, Wrote } from "./activity";
 import { fromHomeRelative, homeRelative } from "./home-path";
 import type { Library } from "./library";
 import { applySteps, planId } from "./plan";
+import { readFrontmatter } from "./scanner";
 import { diffSkillFiles } from "./skill-diff";
 import { computeSkillFolderHash, fingerprintSkillFolder, readSkillFiles, type SkillFile } from "./skill-hash";
-import { editGlobalLock, type GlobalLockEntry, readGlobalLock } from "./skill-lock";
+import { editGlobalLock, type GlobalLockEntry, readGlobalLock, readProjectLock } from "./skill-lock";
 
 const VISIBILITY_WARNING = (count: number) =>
   `${count === 1 ? "This Skill stops" : `These ${count} Skills stop`} being visible to every Agent everywhere. ` +
@@ -43,9 +45,38 @@ interface Known {
   files: () => Promise<SkillFile[]>;
 }
 
+/** An Adopted untracked Skill (#29) whose Link goes back into its Project, On. */
+export interface KeepLink {
+  /** The Project, absolute. */
+  project: string;
+  key: string;
+  /** The folder name it's delivered under (its SKILL.md `name`). */
+  name: string;
+  /** Project-relative skill folders it was found in. */
+  folders: string[];
+  /** Absolute paths the Adopt itself empties (the found entries), so a Link can go there. */
+  freed: string[];
+}
+
+/** Adopt & keep Link (#29): Project delivery puts Links back for Adopted untracked Skills. */
+export interface KeepLinks {
+  /** The steps and warnings shown in the dry run. Throws `NameConflict` when a Link can't go back. */
+  plan(links: readonly KeepLink[]): Promise<{ steps: PlanStep[]; warnings: string[] }>;
+  /** Adds each as a Project Skill (Link, On) and delivers it, after the Adopt's own steps. */
+  apply(links: readonly KeepLink[], wrote: Wrote): Promise<void>;
+  /** Undo Adopt: the Project forgets the Project Skill and its Links go, before the folder moves back. */
+  release(project: string, key: string, wrote: Wrote): Promise<void>;
+}
+
+/** A Global Skill or an untracked Project Skill (with its Project), as Adopt plans it. */
+type Finding = Pick<GlobalSkill, "id" | "realPath" | "locations" | "localSource"> & { project: string | null };
+
 /** Everything a plan needs besides what goes back to the client. */
 interface Planned {
   plan: AdoptPlan;
+  /** The Adopt's own steps; `plan.steps` adds the Links put back. */
+  adoptSteps: PlanStep[];
+  keep: KeepLink[];
   /** Library Lock entries to add or replace, by key. */
   entries: Record<string, LibraryLockEntry>;
   /** Global lock names to remove. */
@@ -61,6 +92,9 @@ export interface AdoptOptions {
   /** A fresh Scan after applying, so the Inbox drops what moved. */
   rescan: () => Promise<unknown>;
   onChange: () => void;
+  /** Untracked Project Skills from the latest Scan (#29). */
+  untracked?: () => UntrackedSkill[];
+  keepLinks?: KeepLinks;
 }
 
 /**
@@ -91,12 +125,15 @@ export class Adopt {
         {
           client,
           action: "adopt.apply",
-          subjects: plan.skills.map((skill) => ({ kind: "skill" as const, id: skill.key })),
+          subjects: [
+            ...plan.skills.map((skill) => ({ kind: "skill" as const, id: skill.key })),
+            ...[...new Set(planned.keep.map((link) => link.project))].map((id) => ({ kind: "project" as const, id })),
+          ],
         },
         async (wrote) => {
           if (plan.planId !== expectedPlanId) throw new PlanStale();
           this.#assertLockWritable();
-          await applySteps(plan.steps, {
+          await applySteps(planned.adoptSteps, {
             home: this.#options.home,
             libraryHome: library.libraryHome,
             wrote,
@@ -121,6 +158,7 @@ export class Adopt {
               return [];
             },
           });
+          if (planned.keep.length > 0) await this.#options.keepLinks?.apply(planned.keep, wrote);
           this.#options.onChange();
           await this.#options.rescan();
           return plan;
@@ -139,6 +177,8 @@ export class Adopt {
           if (!entry) throw new SkillNotFound(key);
           if (!entry.adoptedFrom) throw new NotAdopted(key);
           this.#assertLockWritable();
+          for (const project of entry.keptLinks ?? [])
+            await this.#options.keepLinks?.release(library.absolute(project), key, wrote);
           const rel = (path: string) => homeRelative(this.#options.home, path);
           const folder = rel(library.folder(key));
           const steps: PlanStep[] = [];
@@ -188,10 +228,13 @@ export class Adopt {
     const { home, library } = this.#options;
     const rel = (path: string) => homeRelative(home, path);
     const scan = this.#options.latestScan();
-    const findings = [...new Set(ids)].map((id) => {
-      const finding = scan?.globalSkills.find((skill) => skill.id === id);
-      if (!finding) throw new FindingNotFound(id);
-      return finding;
+    const untracked = this.#options.untracked?.() ?? [];
+    const findings = [...new Set(ids)].map((id): Finding => {
+      const global = scan?.globalSkills.find((skill) => skill.id === id);
+      if (global) return { ...global, project: null };
+      const found = untracked.find((skill) => skill.id === id);
+      if (found) return found;
+      throw new FindingNotFound(id);
     });
     const globalLock = await readGlobalLock(home);
     const agentsFolder = rel(join(home, ".agents/skills"));
@@ -214,6 +257,7 @@ export class Adopt {
     const skills: AdoptPlanSkill[] = [];
     const entries: Record<string, LibraryLockEntry> = {};
     const lockRemovals: string[] = [];
+    const keep: KeepLink[] = [];
 
     for (const finding of findings) {
       const real = fromHomeRelative(home, finding.realPath);
@@ -222,11 +266,17 @@ export class Adopt {
       const files = await readSkillFiles(real);
       const fingerprint = await fingerprintSkillFolder(real);
       const computedHash = await computeSkillFolderHash(real);
-      const lockName = finding.locations
-        .filter((location) => location.folder === agentsFolder)
-        .map((location) => basename(location.path))
-        .find((candidate) => globalLock?.entries[candidate] !== undefined);
-      const lockEntry = lockName ? globalLock?.entries[lockName] : undefined;
+      // A Global Skill's Source is in the global lock (and dropped from it); a Project's in its skills-lock.json.
+      const lockName = finding.project
+        ? undefined
+        : finding.locations
+            .filter((location) => location.folder === agentsFolder)
+            .map((location) => basename(location.path))
+            .find((candidate) => globalLock?.entries[candidate] !== undefined);
+      const projectLock = finding.project ? await readProjectLock(finding.project) : {};
+      const lockEntry = lockName
+        ? globalLock?.entries[lockName]
+        : finding.locations.map((location) => projectLock[basename(location.path)]).find(Boolean);
       const namespace = finding.localSource ? "local" : namespaceOf(lockEntry);
       const links = await symlinksOf(finding, home);
 
@@ -266,6 +316,16 @@ export class Adopt {
           ? { path: rel(globalLock.path), name: lockName, entry: globalLock.raw[lockName] }
           : undefined;
       if (lockName) lockRemovals.push(lockName);
+      const keptLinks = finding.project ? [rel(finding.project)] : [];
+      if (finding.project) {
+        keep.push({
+          project: finding.project,
+          key,
+          name: (await readFrontmatter(real)).name ?? name,
+          folders: [...new Set(finding.locations.map((location) => location.folder))],
+          freed: finding.locations.map((location) => fromHomeRelative(home, location.path)),
+        });
+      }
 
       if (twin) {
         // The same bytes are already in the Library (or moving there now): this copy merges into it.
@@ -276,6 +336,9 @@ export class Adopt {
             ...into,
             adoptedCopies: [...(into.adoptedCopies ?? []), finding.realPath],
             adoptedLinks: [...(into.adoptedLinks ?? []), ...links],
+            ...((into.keptLinks || keptLinks.length > 0) && {
+              keptLinks: [...new Set([...(into.keptLinks ?? []), ...keptLinks])],
+            }),
           };
         }
         continue;
@@ -291,6 +354,7 @@ export class Adopt {
           localSource: finding.realPath,
           adoptedFrom: links[0]?.path ?? finding.realPath,
           ...(links.length > 0 && { adoptedLinks: links }),
+          ...(keptLinks.length > 0 && { keptLinks }),
         };
       } else {
         moves.push({ kind: "move", from: finding.realPath, to: destination });
@@ -300,12 +364,13 @@ export class Adopt {
           adoptedFrom: finding.realPath,
           ...(links.length > 0 && { adoptedLinks: links }),
           ...(skillLockEntry && { skillLockEntry }),
+          ...(keptLinks.length > 0 && { keptLinks }),
         };
       }
       remember({ key, name, fingerprint, files: async () => files });
     }
 
-    const steps: PlanStep[] = [
+    const adoptSteps: PlanStep[] = [
       ...moves,
       {
         kind: "editFile",
@@ -317,7 +382,7 @@ export class Adopt {
     let globalLockPath: string | null = null;
     if (globalLock && lockRemovals.length > 0) {
       globalLockPath = globalLock.path;
-      steps.push({
+      adoptSteps.push({
         kind: "editFile",
         path: rel(globalLock.path),
         change: `remove ${lockRemovals.sort().join(", ")}`,
@@ -325,14 +390,21 @@ export class Adopt {
       });
     }
 
+    const kept =
+      keep.length > 0 && this.#options.keepLinks
+        ? await this.#options.keepLinks.plan(keep)
+        : { steps: [] as PlanStep[], warnings: [] as string[] };
+    const globalKeys = new Set(skills.filter((_, at) => findings[at]?.project === null).map((skill) => skill.key));
     const body = {
       findings: findings.map((finding) => finding.id),
       skills,
-      steps,
-      warnings: [VISIBILITY_WARNING(new Set(skills.map((skill) => skill.key)).size)],
+      steps: [...adoptSteps, ...kept.steps],
+      warnings: [...(globalKeys.size > 0 ? [VISIBILITY_WARNING(globalKeys.size)] : []), ...kept.warnings],
     };
     return {
       plan: { planId: planId({ ...body, entries }), ...body },
+      adoptSteps,
+      keep,
       entries,
       lockRemovals,
       globalLockPath,
@@ -363,7 +435,7 @@ const sourceFields = (entry: GlobalLockEntry) => ({
 });
 
 /** The finding's global symlinks, with their link text as it is now. */
-const symlinksOf = async (finding: GlobalSkill, home: string): Promise<SymlinkRecord[]> =>
+const symlinksOf = async (finding: Pick<GlobalSkill, "locations">, home: string): Promise<SymlinkRecord[]> =>
   Promise.all(
     finding.locations
       .filter((location) => location.symlink)

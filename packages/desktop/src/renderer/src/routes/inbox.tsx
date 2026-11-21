@@ -1,8 +1,18 @@
-import type { GlobalSkill, InboxFolderGroup, InboxManagedGroup, ManagedSkill, OffSwitch } from "@dark-matter/contracts";
+import type {
+  AdoptPlan,
+  GlobalSkill,
+  InboxFolderGroup,
+  InboxManagedGroup,
+  InboxProjectGroup,
+  ManagedSkill,
+  OffSwitch,
+  UntrackedSkill,
+} from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight, Inbox as InboxIcon } from "lucide-react";
 import { useState } from "react";
+import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { AdoptDialog } from "@/components/adopt-dialog";
 import { InboxMcpServers } from "@/components/inbox-mcp";
 import { ManagedMcpGroups } from "@/components/managed-mcp";
@@ -88,6 +98,56 @@ function FolderGroup({ group, onAdopt }: { group: InboxFolderGroup; onAdopt: Ado
   );
 }
 
+function UntrackedFinding({ finding, onAdopt }: { finding: UntrackedSkill; onAdopt: Adopt }) {
+  const trpc = useTRPC();
+  const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
+  return (
+    <div data-testid="inbox-untracked-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
+      <StatusDot tone="warning" />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-sm">{finding.name}</span>
+          {finding.localSource && (
+            <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+              Local Source
+            </span>
+          )}
+        </div>
+        {finding.description && <p className="truncate text-muted-foreground text-xs">{finding.description}</p>}
+        <div className="truncate font-mono text-muted-foreground text-xs">
+          {finding.locations.map((location) => location.path).join(" · ")}
+        </div>
+      </div>
+      <div className="flex gap-1.5">
+        <Button size="sm" variant="ghost" disabled={ignore.isPending} onClick={() => ignore.mutate({ id: finding.id })}>
+          Ignore
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => onAdopt([finding.id])}>
+          Adopt & keep Link
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ProjectGroup({ group, onAdopt }: { group: InboxProjectGroup; onAdopt: Adopt }) {
+  return (
+    <section data-testid="inbox-untracked-group" className="flex flex-col gap-3">
+      <h2 className="flex items-center gap-2 font-semibold text-sm">
+        <Link to="/project" search={{ path: group.project }} className="hover:underline">
+          {group.name}
+        </Link>
+        <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+      </h2>
+      <div className="divide-y rounded-xl border">
+        {group.findings.map((finding) => (
+          <UntrackedFinding key={finding.id} finding={finding} onAdopt={onAdopt} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 const offLabel: Record<OffSwitch["scope"], string> = {
   skill: "Turn off everywhere",
   plugin: "Turn off plugin everywhere",
@@ -160,6 +220,15 @@ function Inbox() {
   const now = useNow();
   const groups = inbox.data?.globalSkills ?? [];
   const managed = inbox.data?.managedSkills ?? [];
+  const untracked = inbox.data?.untrackedSkills ?? [];
+  const projects = useQuery(trpc.project.list.queryOptions());
+  const [granting, setGranting] = useState<string[] | null>(null);
+  /** After Adopting Global Skills, offer them to Projects in one step (#10 point 8). */
+  const adopted = (plan: AdoptPlan) => {
+    const keys = plan.skills.filter((skill) => skill.finding.startsWith("global-skill:")).map((skill) => skill.key);
+    if (keys.length > 0 && (projects.data ?? []).some((project) => project.exists))
+      setGranting([...new Set(keys)].sort());
+  };
   const count = inbox.data?.count ?? 0;
   const ignored = inbox.data?.ignoredCount ?? 0;
   const [adopting, setAdopting] = useState<string[] | null>(null);
@@ -223,6 +292,20 @@ function Inbox() {
           {groups.map((group) => (
             <FolderGroup key={group.folder} group={group} onAdopt={setAdopting} />
           ))}
+          {untracked.length > 0 && (
+            <>
+              <div className="flex flex-col gap-1 pt-2">
+                <h2 className="font-semibold text-base">Untracked Project Skills</h2>
+                <p className="text-muted-foreground text-sm">
+                  Skills in a Project's skill folders that git doesn't track. Adopt & keep Link moves each into the
+                  Library and puts a Link back, On, so the Project sees no change.
+                </p>
+              </div>
+              {untracked.map((group) => (
+                <ProjectGroup key={group.project} group={group} onAdopt={setAdopting} />
+              ))}
+            </>
+          )}
           {managed.length > 0 && (
             <>
               <div className="flex flex-col gap-1 pt-2">
@@ -241,7 +324,14 @@ function Inbox() {
           <ManagedMcpGroups groups={inbox.data?.managedMcpServers ?? []} inInbox />
         </>
       )}
-      <AdoptDialog findings={adopting} onClose={() => setAdopting(null)} />
+      <AdoptDialog findings={adopting} onClose={() => setAdopting(null)} onAdopted={adopted} />
+      {granting && (
+        <AddToProjectsDialog
+          keys={granting}
+          description="Agents see Adopted Skills only where a Project adds them. Tick what each Project needs; each becomes a Link."
+          onClose={() => setGranting(null)}
+        />
+      )}
     </div>
   );
 }
