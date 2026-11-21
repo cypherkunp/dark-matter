@@ -9,6 +9,7 @@ import {
   AgentCard,
   AgentId,
   ApplyAdoptInput,
+  ApplyRenameNamespaceInput,
   type ClientKind,
   type CoreEvent,
   CoreInfo,
@@ -22,10 +23,13 @@ import {
   ProjectDetail,
   ProjectPath,
   ProjectSummary,
+  RenameNamespaceInput,
+  RenameNamespacePlan,
   ScanResult,
   ScanStatus,
   SchedulerStatus,
   SettingsFile,
+  SkillDetail,
   SuggestedProjects,
 } from "./schemas";
 
@@ -87,6 +91,16 @@ export interface CoreServices {
   };
   scheduler: {
     status(): SchedulerStatus;
+  };
+  skill: {
+    /** A Library Skill's page: SKILL.md split into frontmatter and body, warnings and its Library Lock entry. */
+    get(key: string): Promise<SkillDetail>;
+  };
+  namespace: {
+    /** Rename Namespace's dry run. Writes nothing. */
+    plan(input: RenameNamespaceInput): Promise<RenameNamespacePlan>;
+    /** Re-plans, checks the plan id, then moves the folders, re-keys the Library Lock and re-creates Links. */
+    rename(input: ApplyRenameNamespaceInput, client: ClientKind): Promise<RenameNamespacePlan>;
   };
   /** OS notifications for the app to show, from now on, until `signal` aborts. */
   notifications(signal: AbortSignal): AsyncIterable<CoreNotification>;
@@ -205,6 +219,22 @@ export const createAppRouter = (services: CoreServices) =>
       remove: t.procedure
         .input(ProjectPath)
         .mutation(({ input, ctx }) => services.project.remove(input.path, ctx.client)),
+    }),
+    skill: t.router({
+      get: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .output(SkillDetail)
+        .query(({ input }) => services.skill.get(input.key)),
+    }),
+    namespace: t.router({
+      plan: t.procedure
+        .input(RenameNamespaceInput)
+        .output(RenameNamespacePlan)
+        .query(({ input }) => services.namespace.plan(input)),
+      rename: t.procedure
+        .input(ApplyRenameNamespaceInput)
+        .output(RenameNamespacePlan)
+        .mutation(({ input, ctx }) => services.namespace.rename(input, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

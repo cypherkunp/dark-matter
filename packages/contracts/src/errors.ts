@@ -121,3 +121,19 @@ export class PathTaken extends TaggedError<"PathTaken"> {
     super(`${path} already exists; move it aside first`);
   }
 }
+
+/** Two Library Skills would end up under one key. */
+export class NameConflict extends TaggedError<"NameConflict"> {
+  readonly _tag = "NameConflict";
+  constructor(readonly keys: string[]) {
+    super(`${keys.join(", ")} already ${keys.length === 1 ? "exists" : "exist"} in the Library`);
+  }
+}
+
+/** No Library Skill is in this Namespace. */
+export class NamespaceNotFound extends TaggedError<"NamespaceNotFound"> {
+  readonly _tag = "NamespaceNotFound";
+  constructor(readonly namespace: string) {
+    super(`No Library Skills in the Namespace ${namespace}`);
+  }
+}

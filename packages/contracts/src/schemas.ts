@@ -54,6 +54,24 @@ export const LibraryList = z.object({
 });
 export type LibraryList = z.infer<typeof LibraryList>;
 
+/** SKILL.md frontmatter rules from the Agent Skills spec; problems are warnings, never errors. */
+export const SkillName = z
+  .string()
+  .max(64, "name must be at most 64 characters")
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "name must be lowercase letters, numbers and single hyphens");
+export const SkillDescription = z
+  .string()
+  .trim()
+  .min(1, "description is empty")
+  .max(1024, "description must be at most 1024 characters");
+
+/** A SKILL.md frontmatter problem shown as a warning. */
+export const FrontmatterWarning = z.object({
+  field: z.enum(["frontmatter", "name", "description"]),
+  message: z.string(),
+});
+export type FrontmatterWarning = z.infer<typeof FrontmatterWarning>;
+
 /** Activity Log retention: days of `activity/*.jsonl` kept, or forever (ADR-0005). */
 export const ActivityRetention = z.union([
   z.literal(7),
@@ -136,6 +154,23 @@ export const LibraryLockFile = z.strictObject({
   skills: z.record(z.string(), LibraryLockEntry).default({}),
 });
 export type LibraryLockFile = z.infer<typeof LibraryLockFile>;
+
+/** One Library Skill as its page shows it (#24). */
+export const SkillDetail = z.object({
+  key: z.string(),
+  namespace: z.string(),
+  /** The folder name, the key's last segment. */
+  name: z.string(),
+  /** The Skill's folder in the Library, absolute (a symlink for a Local Source). */
+  path: z.string(),
+  /** The raw YAML between the `---` fences; null when SKILL.md has none. */
+  frontmatter: z.string().nullable(),
+  /** SKILL.md after the frontmatter. */
+  body: z.string(),
+  warnings: z.array(FrontmatterWarning),
+  entry: LibraryLockEntry,
+});
+export type SkillDetail = z.infer<typeof SkillDetail>;
 
 /** The owned files the core watches and validates. */
 export const OwnedFileName = z.enum(["settings.json", "projects.json", "library-lock.json"]);
@@ -452,6 +487,32 @@ export type AdoptInput = z.infer<typeof AdoptInput>;
 
 export const ApplyAdoptInput = AdoptInput.extend({ planId: z.string() });
 export type ApplyAdoptInput = z.infer<typeof ApplyAdoptInput>;
+/** A Namespace: `local`, or `owner/repo` like a GitHub Source. */
+export const NamespaceName = z.string().regex(/^(local|[\w.-]+\/[\w.-]+)$/, "A Namespace is local or owner/repo");
+
+/** A Library Skill's key before and after a change such as Rename Namespace. */
+export const KeyRename = z.object({ from: z.string(), to: z.string() });
+export type KeyRename = z.infer<typeof KeyRename>;
+
+export const RenameNamespaceInput = z
+  .object({ from: NamespaceName, to: NamespaceName })
+  .refine((input) => input.from !== input.to, {
+    message: "The new Namespace is the same as the old one",
+    path: ["to"],
+  });
+export type RenameNamespaceInput = z.infer<typeof RenameNamespaceInput>;
+
+export const ApplyRenameNamespaceInput = z.object({ from: NamespaceName, to: NamespaceName, planId: z.string() });
+export type ApplyRenameNamespaceInput = z.infer<typeof ApplyRenameNamespaceInput>;
+
+/** Rename Namespace's dry run: every Skill's new key, the folder moves, and Links to re-create (#27). */
+export const RenameNamespacePlan = PlanBase.extend({
+  from: z.string(),
+  to: z.string(),
+  renames: z.array(KeyRename),
+});
+export type RenameNamespacePlan = z.infer<typeof RenameNamespacePlan>;
+
 /** When the daily Scheduled Scan runs. */
 export const SchedulerStatus = z.object({
   /** The Scheduled Scan time, local `HH:MM`. */
@@ -484,6 +545,7 @@ export const Domain = z.enum([
   "agents",
   "scheduler",
   "project",
+  "skill",
 ]);
 export type Domain = z.infer<typeof Domain>;
 
