@@ -23,8 +23,10 @@ import {
   Inbox,
   LibraryList,
   LibraryMcpList,
+  ManagedMcpServer,
   McpAdoptInput,
   McpAdoptPlan,
+  McpOffScope,
   McpServerName,
   OffScope,
   OwnedFileName,
@@ -97,6 +99,8 @@ export interface CoreServices {
   };
   agents: {
     list(): AgentCard[];
+    /** Every Agent-managed MCP Server the latest Scan found, off ones included (#40). */
+    managedMcp(): ManagedMcpServer[];
   };
   managedSkills: {
     /**
@@ -104,6 +108,13 @@ export interface CoreServices {
      * own global settings, with a targeted, format-preserving edit.
      */
     turnOff(input: { id: string; scope: OffScope }, client: ClientKind): Promise<void>;
+  };
+  managedMcp: {
+    /**
+     * "Turn off everywhere" for an Agent-managed MCP Server, through its Agent's
+     * own documented global setting, with a targeted, format-preserving edit.
+     */
+    turnOff(input: { id: string; scope: McpOffScope }, client: ClientKind): Promise<void>;
   };
   adopt: {
     /** The dry run: what Adopting these findings would do. Writes nothing. */
@@ -240,11 +251,17 @@ export const createAppRouter = (services: CoreServices) =>
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+      managedMcp: t.procedure.output(ManagedMcpServer.array()).query(() => services.agents.managedMcp()),
     }),
     managedSkills: t.router({
       turnOff: t.procedure
         .input(z.object({ id: z.string().min(1), scope: OffScope }))
         .mutation(({ input, ctx }) => services.managedSkills.turnOff(input, ctx.client)),
+    }),
+    managedMcp: t.router({
+      turnOff: t.procedure
+        .input(z.object({ id: z.string().min(1), scope: McpOffScope }))
+        .mutation(({ input, ctx }) => services.managedMcp.turnOff(input, ctx.client)),
     }),
     adopt: t.router({
       plan: t.procedure

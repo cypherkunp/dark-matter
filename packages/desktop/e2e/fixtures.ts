@@ -47,6 +47,8 @@ export const test = base.extend<{
         DARK_MATTER_CORE_ENTRY: coreEntry,
         // Never the real keychain in e2e tests.
         DARK_MATTER_SECRETS: "memory",
+        // Nor the machine's /etc and /Library.
+        DARK_MATTER_SYSTEM_ROOT: join(root, "system"),
       },
       readCoreFile: async () => {
         try {

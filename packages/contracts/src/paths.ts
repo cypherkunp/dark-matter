@@ -11,6 +11,8 @@ export interface CoreEnv {
   DARK_MATTER_HOME?: string | undefined;
   /** `memory` keeps Secrets in memory instead of the OS keychain, for development and e2e tests. */
   DARK_MATTER_SECRETS?: string | undefined;
+  /** Where system-wide Agent config (`/etc`, `/Library`) is read from; `/` unless a test points it at a fixture. */
+  DARK_MATTER_SYSTEM_ROOT?: string | undefined;
 }
 
 /** The Library location: `DARK_MATTER_HOME`, else `$HOME/.dark-matter`. */

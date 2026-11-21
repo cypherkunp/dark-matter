@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { KeyRound, Server } from "lucide-react";
 import { definitionSummary } from "@/components/inbox-mcp";
+import { byAgent, ManagedMcpGroups } from "@/components/managed-mcp";
 import { PageHead } from "@/components/page-head";
 import { Button } from "@/components/ui/button";
 import { agentName } from "@/lib/agents";
@@ -58,6 +59,7 @@ function ServerRow({ server }: { server: LibraryMcpServer }) {
 function McpServers() {
   const trpc = useTRPC();
   const list = useQuery(trpc.mcp.list.queryOptions());
+  const managed = useQuery(trpc.agents.managedMcp.queryOptions());
   const servers = list.data?.servers ?? [];
   const secrets = new Set(servers.flatMap((server) => server.secrets)).size;
 
@@ -89,6 +91,7 @@ function McpServers() {
           ))}
         </div>
       )}
+      <ManagedMcpGroups groups={byAgent(managed.data ?? [])} />
     </div>
   );
 }

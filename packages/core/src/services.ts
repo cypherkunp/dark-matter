@@ -36,12 +36,23 @@ export interface ServicesOptions {
   info: () => CoreInfo;
   bus: EventBus;
   clock: Clock;
+  /** Where system-wide Agent config is read from (`/` outside tests). */
+  systemRoot?: string;
   notifier: Notifier;
   secrets: SecretStore;
 }
 
 /** The core's service methods behind the router (ADR-0003): every action is one of these. */
-export const createServices = async ({ libraryHome, home, info, bus, clock, notifier, secrets }: ServicesOptions) => {
+export const createServices = async ({
+  libraryHome,
+  home,
+  info,
+  bus,
+  clock,
+  notifier,
+  secrets,
+  systemRoot,
+}: ServicesOptions) => {
   const cache = await openCache(libraryHome);
   const activity = await ActivityLog.open({
     libraryHome,
@@ -63,7 +74,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
   const ownedFiles = [settings, projects, libraryLock];
   const ownedFileChanged = () =>
     bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill"] });
-  const env = { home };
+  const env = { home, ...(systemRoot && { systemRoot }) };
   const scans = new Scans({
     env,
     cache,
@@ -224,7 +235,10 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
           bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
         }),
     },
-    agents: { list: () => agentCards(scans.latest, env) },
+    agents: {
+      list: () => agentCards(scans.latest, env),
+      managedMcp: () => scans.latest?.managedMcpServers ?? [],
+    },
     managedSkills: {
       turnOff: ({ id, scope }, client) =>
         activity.track(
@@ -242,6 +256,19 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
             await scans.refresh();
           },
         ),
+    },
+    managedMcp: {
+      turnOff: ({ id, scope }, client) =>
+        activity.track({ client, action: "managedMcp.turnOff", subjects: [{ kind: "finding", id }] }, async (wrote) => {
+          const server = scans.latest?.managedMcpServers.find((found) => found.id === id);
+          const off = agentAdapters.find((adapter) => adapter.id === server?.agent)?.managedMcp?.off;
+          if (!server || !off || !server.offSwitches.some((offSwitch) => offSwitch.scope === scope)) {
+            throw new UnknownFinding(id);
+          }
+          const written = await editConfigFile(off.file(env), (text) => off.turnOff(text, server, scope));
+          if (written) wrote(written);
+          await scans.refresh();
+        }),
     },
     adopt: {
       plan: ({ findings }) => adopt.plan(findings),

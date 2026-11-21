@@ -44,6 +44,20 @@ function Card({ agent }: { agent: AgentCard }) {
             </Link>
           )}
         </dd>
+        {agent.managedMcpServerCount !== null && (
+          <>
+            <dt className="text-muted-foreground">Agent-managed MCP</dt>
+            <dd data-testid="agent-managed-mcp-count" title={agent.managedMcpNotes.join("\n")}>
+              <Link
+                to="/computer/mcp-servers"
+                className="inline-flex items-center gap-0.5 tabular-nums hover:underline"
+              >
+                {agent.managedMcpServerCount}
+                <ChevronRight className="size-3" />
+              </Link>
+            </dd>
+          </>
+        )}
         <dt className="text-muted-foreground">MCP config</dt>
         <dd data-testid="agent-mcp-config" className="truncate font-mono">
           {agent.mcpConfig ?? "No MCP Servers"}
