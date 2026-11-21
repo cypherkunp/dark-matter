@@ -10,9 +10,9 @@ catalog:
   "@tanstack/react-query": 5.108.2
   "@tanstack/react-router": 1.170.46
   "@tanstack/router-plugin": 1.169.0
-  "@trpc/client": 11.29.6
-  "@trpc/server": 11.29.6
-  "@trpc/tanstack-react-query": 11.29.6
+  "@trpc/client": 11.29.5
+  "@trpc/server": 11.29.5
+  "@trpc/tanstack-react-query": 11.29.5
   "@types/node": 24.19.2
   "@types/react": 19.3.0
   "@types/react-dom": 19.3.0
@@ -38,8 +38,3 @@ catalog:
 
 allowBuilds:
   electron: true
-
-minimumReleaseAgeExclude:
-  - "@trpc/client@11.29.6"
-  - "@trpc/server@11.29.6"
-  - "@trpc/tanstack-react-query@11.29.6"
