@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { FolderOpen, TriangleAlert } from "lucide-react";
 import { PageHead } from "@/components/page-head";
+import { ProjectMcpServers } from "@/components/project-mcp-servers";
 import { ProjectSkills } from "@/components/project-skills";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -192,6 +193,7 @@ function ProjectPage() {
       {!data.exists && <GoneBanner project={data} />}
       <AgentPicker project={data} />
       {data.exists && <ProjectSkills path={data.path} />}
+      {data.exists && <ProjectMcpServers path={data.path} />}
       <FoundSkills project={data} />
     </div>
   );

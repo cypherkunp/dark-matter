@@ -12,8 +12,8 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 
 const pill = "rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground";
 
-/** The On/Off switch for a Project Skill: blue On, grey Off. */
-function OnOffSwitch({
+/** The On/Off switch for a Project Skill or Project MCP Server: blue On, grey Off. */
+export function OnOffSwitch({
   on,
   disabled,
   label,
