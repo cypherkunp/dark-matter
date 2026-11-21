@@ -10,6 +10,7 @@ import pkg from "../package.json" with { type: "json" };
 import { writeFileAtomic } from "./atomic";
 import { EventBus } from "./events";
 import { acquireCoreLock } from "./lock";
+import { createServices } from "./services";
 
 export interface StartCoreOptions {
   env: CoreEnv;
@@ -54,11 +55,12 @@ const serve = async (
   const startedAt = new Date().toISOString();
   const bus = new EventBus();
 
-  const router = createAppRouter({
+  const core = await createServices({
+    libraryHome,
+    bus,
     info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
-    library: { list: async () => ({ skills: [] }) },
-    events: (signal) => bus.subscribe(signal),
   });
+  const router = createAppRouter({ ...core.services, events: (signal) => bus.subscribe(signal) });
 
   const createContext = ({ info }: CreateWSSContextFnOptions): CoreContext => {
     const params = ConnectionParams.safeParse(info.connectionParams);
@@ -84,6 +86,7 @@ const serve = async (
     handler.broadcastReconnectNotification();
     for (const socket of wss.clients) socket.terminate();
     await new Promise<void>((resolve) => wss.close(() => resolve()));
+    await core.close();
     await removeIfOurs(paths.coreFile, token);
     await releaseLock();
   };

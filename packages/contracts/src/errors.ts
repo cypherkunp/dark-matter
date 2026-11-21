@@ -27,3 +27,14 @@ export class CoreLocked extends TaggedError<"CoreLocked"> {
     super(`Another core (pid ${holderPid}) holds ${lockPath}`);
   }
 }
+
+/** An owned file holds a hand edit that doesn't validate, so the core won't write it (ADR-0005). */
+export class InvalidOwnedFile extends TaggedError<"InvalidOwnedFile"> {
+  readonly _tag = "InvalidOwnedFile";
+  constructor(
+    readonly path: string,
+    readonly problem: string,
+  ) {
+    super(`${path} has a hand edit that isn't valid: ${problem}. Fix it or discard it first.`);
+  }
+}

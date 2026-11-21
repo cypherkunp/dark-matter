@@ -12,7 +12,8 @@
   "dependencies": {
     "@dark-matter/contracts": "catalog:",
     "@trpc/server": "catalog:",
-    "ws": "catalog:"
+    "ws": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@trpc/client": "catalog:",
