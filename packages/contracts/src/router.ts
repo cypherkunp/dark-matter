@@ -15,9 +15,11 @@ import {
   ApplyMcpAdoptInput,
   ApplyRenameNamespaceInput,
   type ClientKind,
+  CopyDiff,
   type CoreEvent,
   CoreInfo,
   type CoreNotification,
+  FulfilLockInput,
   Inbox,
   LibraryList,
   LibraryMcpList,
@@ -31,11 +33,13 @@ import {
   ProjectDetail,
   ProjectPath,
   ProjectSkill,
+  ProjectSkillChange,
   ProjectSkillRef,
   ProjectSkills,
   ProjectSummary,
   RenameNamespaceInput,
   RenameNamespacePlan,
+  RepoSkills,
   SavedSkillFile,
   SaveSkillFileInput,
   ScanResult,
@@ -166,9 +170,19 @@ export interface CoreServices {
     /** Adds Library Skills to Projects (Link by default) and delivers them On. Re-adding one turns it On. */
     addSkills(input: AddProjectSkills, client: ClientKind): Promise<ProjectSkills[]>;
     /** On re-delivers a Project Skill; Off removes its delivery but keeps it in `projects.json`. */
-    setSkillOn(input: ProjectSkillRef & { on: boolean }, client: ClientKind): Promise<ProjectSkills>;
+    setSkillOn(input: ProjectSkillChange & { on: boolean }, client: ClientKind): Promise<ProjectSkills>;
     /** Removes a Project Skill: its delivery goes and the Project forgets it. */
-    removeSkill(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    removeSkill(input: ProjectSkillChange, client: ClientKind): Promise<ProjectSkills>;
+    /** Replaces an On Copy's files and lock entry with the Library's version (Update, Take Library version). */
+    updateCopy(input: ProjectSkillChange, client: ClientKind): Promise<ProjectSkills>;
+    /** A Copy's edits against the Library. */
+    copyDiff(input: ProjectSkillRef): Promise<CopyDiff>;
+    /** Copies a Copy's files into its Library Skill (marked Modified when it has a Source); other Copies become outdated. */
+    pullCopy(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    /** Committed Skills it didn't create (Vendored) and `skills-lock.json` entries waiting to be fulfilled. Read-only. */
+    repoSkills(path: string): Promise<RepoSkills>;
+    /** Makes `skills-lock.json` entries Copies of their Library Skills; a committed folder is kept as is. */
+    fulfilLock(input: FulfilLockInput, client: ClientKind): Promise<ProjectSkills>;
     /** Resolves a Name Conflict: `key` wins and the other same-name Project Skills are removed. */
     resolveConflict(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
   };
@@ -301,13 +315,33 @@ export const createAppRouter = (services: CoreServices) =>
         .output(ProjectSkills.array())
         .mutation(({ input, ctx }) => services.project.addSkills(input, ctx.client)),
       setSkillOn: t.procedure
-        .input(ProjectSkillRef.extend({ on: z.boolean() }))
+        .input(ProjectSkillChange.extend({ on: z.boolean() }))
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.setSkillOn(input, ctx.client)),
       removeSkill: t.procedure
-        .input(ProjectSkillRef)
+        .input(ProjectSkillChange)
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.removeSkill(input, ctx.client)),
+      updateCopy: t.procedure
+        .input(ProjectSkillChange)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.updateCopy(input, ctx.client)),
+      copyDiff: t.procedure
+        .input(ProjectSkillRef)
+        .output(CopyDiff)
+        .query(({ input }) => services.project.copyDiff(input)),
+      pullCopy: t.procedure
+        .input(ProjectSkillRef)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.pullCopy(input, ctx.client)),
+      repoSkills: t.procedure
+        .input(ProjectPath)
+        .output(RepoSkills)
+        .query(({ input }) => services.project.repoSkills(input.path)),
+      fulfilLock: t.procedure
+        .input(FulfilLockInput)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.fulfilLock(input, ctx.client)),
       resolveConflict: t.procedure
         .input(ProjectSkillRef)
         .output(ProjectSkills)

@@ -18,6 +18,7 @@ import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
 import { ProjectSkillService } from "./project-skills";
 import { projectServices, waitingSuggestions } from "./projects";
+import type { LockImporter } from "./repo-skills";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
@@ -100,7 +101,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     rescan: () => scans.refresh(),
     onChange: () => bus.publish({ type: "invalidate", domains: ["mcp", "inbox"] }),
   });
-  /** What follows a Library Skill to a new key. Links (#27) push their hook here. */
+  /** What follows a Library Skill to a new key. Project Skills (Links and Copies) push their hook below. */
   const keyRenameHooks: KeyRenameHook[] = [];
   const namespaceRename = new NamespaceRename({
     home,
@@ -114,17 +115,28 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     activity,
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill"] }),
   });
-  /** Untracked Project Skills (#29) from the latest Scan. */
+  /** Untracked Project Skills (#29) from the latest Scan; a Copy (#28) not yet committed isn't one. */
   const findUntracked = () =>
-    untrackedSkills(
-      scans.latest,
-      env,
-      libraryHome,
-      Object.values(libraryLock.value.skills).flatMap((entry) =>
+    untrackedSkills(scans.latest, env, libraryHome, [
+      ...Object.values(libraryLock.value.skills).flatMap((entry) =>
         entry.localSource ? [library.absolute(entry.localSource)] : [],
       ),
-    );
-  const projectSkills = new ProjectSkillService({ home, libraryHome, library, projects, activity, bus });
+      ...projectSkills.copyFolders(),
+    ]);
+  /** Imports a `skills-lock.json` entry missing from the Library while fulfilling it. GitHub Import (#30) sets it. */
+  const lockImporter: LockImporter | null = null;
+  const projectSkills = new ProjectSkillService({
+    home,
+    libraryHome,
+    library,
+    projects,
+    activity,
+    bus,
+    importer: () => lockImporter,
+  });
+  keyRenameHooks.push(projectSkills.keyRenameHook());
+  // Learns where Copies are, so untracked Skills (#29) leave them out.
+  void projectSkills.usage().catch(() => {});
   const adopt = new Adopt({
     home,
     library,

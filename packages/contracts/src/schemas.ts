@@ -633,6 +633,8 @@ export const PlanStep = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("removeLink"), path: z.string(), target: z.string() }),
   /** Remove a copy whose content is identical to `sameAs`, which is kept. */
   z.object({ kind: z.literal("removeCopy"), path: z.string(), sameAs: z.string() }),
+  /** Remove a real folder Dark Matter wrote, e.g. a Copy turned Off (#28). Never a symlink. */
+  z.object({ kind: z.literal("removeFolder"), path: z.string() }),
   /** Rewrite an owned or foreign file, e.g. `library-lock.json` or the `skills` CLI's global lock. */
   z.object({ kind: z.literal("editFile"), path: z.string(), change: z.string(), backup: z.string().optional() }),
   /** Store a Secret's value in the OS keychain under `name` (the value never appears in a plan). */
@@ -769,8 +771,8 @@ export type CoreEvent = z.infer<typeof CoreEvent>;
  * add Project Skills (#27), Project MCP Servers (#38) and the Grant as fields
  * with defaults, so older files stay valid.
  */
-/** How a Project Skill reaches the Project's Agents. #28 adds "copy". */
-export const DeliveryMode = z.enum(["link"]);
+/** How a Project Skill reaches the Project's Agents: a personal Link or a committed Copy (#28). */
+export const DeliveryMode = z.enum(["link", "copy"]);
 export type DeliveryMode = z.infer<typeof DeliveryMode>;
 
 /** One Project Skill in `projects.json`: owned intent, keyed by Library key. Off keeps it here, undelivered. */
@@ -841,6 +843,9 @@ export const CoreExitCode = {
   failed: 1,
 } as const;
 
+export const CopyState = z.enum(["current", "outdated", "modifiedInRepo"]);
+export type CopyState = z.infer<typeof CopyState>;
+
 /** What Adopt does with one MCP Server: as with Skills, minus Local Sources. */
 export const McpAdoptOutcome = AdoptOutcome.exclude(["localSource"]);
 export type McpAdoptOutcome = z.infer<typeof McpAdoptOutcome>;
@@ -892,6 +897,12 @@ export const ProjectSkill = z.object({
   conflictsWith: z.array(z.string()),
   /** Project-relative paths it is (or would be) delivered at. */
   paths: z.array(z.string()),
+  /**
+   * A delivered Copy against its `skills-lock.json` entry and the Library (#28):
+   * "current", "outdated" (the Library moved on: Update) or "modifiedInRepo"
+   * (its files were edited: Diff, Pull into Library). Absent for a Link or an Off Copy.
+   */
+  copyState: CopyState.optional(),
 });
 export type ProjectSkill = z.infer<typeof ProjectSkill>;
 
@@ -912,3 +923,47 @@ export type SkillProjectUse = z.infer<typeof SkillProjectUse>;
 
 export const ProjectSkillRef = ProjectPath.extend({ key: z.string().min(1) });
 export type ProjectSkillRef = z.infer<typeof ProjectSkillRef>;
+
+/**
+ * A change that may replace or delete a Copy's files (#28). A Copy "modified
+ * in repo" is refused (`CopyModifiedInRepo`) unless `discardEdits` says you were asked.
+ */
+export const ProjectSkillChange = ProjectSkillRef.extend({ discardEdits: z.boolean().optional() });
+export type ProjectSkillChange = z.infer<typeof ProjectSkillChange>;
+
+/** A committed Skill in a Project that Dark Matter didn't create as a Copy: shown, never changed (#28). */
+export const VendoredSkill = z.object({
+  name: z.string(),
+  description: z.string(),
+  /** Project-relative entries that are this Skill (a folder and the symlinks to it). */
+  paths: z.array(z.string()),
+});
+export type VendoredSkill = z.infer<typeof VendoredSkill>;
+
+/** An entry in the Project's `skills-lock.json` that isn't one of its Project Skills yet: a wanted Skill to fulfil. */
+export const LockedSkill = z.object({
+  /** The installed name: the lock key and the folder under `.agents/skills`. */
+  name: z.string(),
+  source: z.string(),
+  sourceType: z.string(),
+  /** The Library Skill that fulfils it, or null when it isn't in the Library. */
+  key: z.string().nullable(),
+  /** Its folder is already in `.agents/skills` (kept as is when fulfilled). */
+  present: z.boolean(),
+  /** Why it can't be fulfilled now, e.g. not in the Library and no Import yet; null when it can. */
+  message: z.string().nullable(),
+});
+export type LockedSkill = z.infer<typeof LockedSkill>;
+
+export const RepoSkills = z.object({
+  vendored: z.array(VendoredSkill),
+  locked: z.array(LockedSkill),
+});
+export type RepoSkills = z.infer<typeof RepoSkills>;
+
+export const FulfilLockInput = ProjectPath.extend({ names: z.array(z.string().min(1)).min(1) });
+export type FulfilLockInput = z.infer<typeof FulfilLockInput>;
+
+/** A Copy's files against its Library Skill, as a unified diff (`a` = Library, `b` = the repo). Empty when they match. */
+export const CopyDiff = z.object({ patch: z.string() });
+export type CopyDiff = z.infer<typeof CopyDiff>;

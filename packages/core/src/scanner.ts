@@ -129,7 +129,7 @@ export const scan = async (
  * Entries are listed as found; classifying them (untracked, Vendored, Link,
  * Copy) is left to the tickets that act on them.
  */
-const scanProject = async (path: string, adapters: readonly AgentAdapter[]): Promise<ProjectScan> => {
+export const scanProject = async (path: string, adapters: readonly AgentAdapter[]): Promise<ProjectScan> => {
   const folders = [...new Set(adapters.flatMap((adapter) => adapter.skills.projectFolders))].sort();
   const skillFolders: ProjectScan["skillFolders"] = [];
   const skills: Omit<ProjectSkillEntry, "tracked">[] = [];

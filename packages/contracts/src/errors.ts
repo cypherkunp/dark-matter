@@ -173,6 +173,41 @@ export class ProjectSkillNotFound extends TaggedError<"ProjectSkillNotFound"> {
   }
 }
 
+/** A Project's `skills-lock.json` can't be read (bad JSON, merge markers, no `skills` map), so it isn't written. */
+export class InvalidSkillsLock extends TaggedError<"InvalidSkillsLock"> {
+  readonly _tag = "InvalidSkillsLock";
+  constructor(
+    readonly path: string,
+    readonly problem: string,
+  ) {
+    super(`${path} can't be read (${problem}). Fix it by hand first; Dark Matter won't overwrite it.`);
+  }
+}
+
+/** A Copy's files were edited in the repo: replacing or removing them needs `discardEdits` (#28). */
+export class CopyModifiedInRepo extends TaggedError<"CopyModifiedInRepo"> {
+  readonly _tag = "CopyModifiedInRepo";
+  constructor(
+    readonly path: string,
+    readonly key: string,
+  ) {
+    super(`${key} was modified in repo at ${path}. Pull the edits into the Library, or confirm discarding them.`);
+  }
+}
+
+/** A Project's `skills-lock.json` entry names a Skill that isn't in the Library and can't be Imported yet. */
+export class NotInLibrary extends TaggedError<"NotInLibrary"> {
+  readonly _tag = "NotInLibrary";
+  constructor(
+    readonly skillName: string,
+    readonly source: string,
+  ) {
+    super(
+      `${skillName} (from ${source}) isn't in the Library. Importing from GitHub isn't available yet, so it can't be fulfilled.`,
+    );
+  }
+}
+
 /** A Library MCP Server name that has no file under `mcp/`. */
 export class McpServerNotFound extends TaggedError<"McpServerNotFound"> {
   readonly _tag = "McpServerNotFound";
