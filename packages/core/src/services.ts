@@ -131,7 +131,7 @@ export const createServices = async ({
     activity,
     latestScan: () => scans.latest,
     rescan: () => scans.refresh(),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["mcp", "inbox"] }),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["mcp", "inbox", "collections"] }),
   });
   /** What follows a Library Skill to a new key. Project Skills (Links and Copies) push their hook below. */
   const keyRenameHooks: KeyRenameHook[] = [];
@@ -245,7 +245,9 @@ export const createServices = async ({
     settings,
     library,
     activity,
+    mcp: mcpLibrary,
     projectSkills,
+    projectMcp,
     onChange: () => bus.publish({ type: "invalidate", domains: ["collections", "settings"] }),
   });
   keyRenameHooks.push(collections.keyRenameHook(home));

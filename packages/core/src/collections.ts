@@ -15,15 +15,19 @@ import type { ActivityLog, Wrote } from "./activity";
 import { deliveredName } from "./delivery";
 import { homeRelative } from "./home-path";
 import type { Library } from "./library";
+import type { McpLibrary } from "./mcp-library";
 import type { KeyRenameHook } from "./namespace-rename";
 import type { OwnedFile } from "./owned-file";
+import type { ProjectMcpService } from "./project-mcp";
 import type { ProjectSkillService } from "./project-skills";
 
 export interface CollectionOptions {
   settings: OwnedFile<typeof SettingsFile>;
   library: Library;
   activity: ActivityLog;
+  mcp: McpLibrary;
   projectSkills: Pick<ProjectSkillService, "preview" | "applyCollection">;
+  projectMcp: Pick<ProjectMcpService, "preview" | "applyCollection">;
   onChange: () => void;
 }
 
@@ -31,7 +35,7 @@ export interface CollectionOptions {
 const distinct = (items: readonly CollectionItem[]) => {
   const seen = new Set<string>();
   return items.filter((item) => {
-    const id = `${item.kind}:${item.key}`;
+    const id = item.kind === "skill" ? `skill:${item.key}` : `mcpServer:${item.name}`;
     if (seen.has(id)) return false;
     seen.add(id);
     return true;
@@ -39,9 +43,10 @@ const distinct = (items: readonly CollectionItem[]) => {
 };
 
 /**
- * Collections (#36): named, flat lists of Library Skills kept in
- * `settings.json`. A template: applying one adds ordinary Project Skills, and
- * nothing links the Project back to the Collection afterwards.
+ * Collections (#36, #41): named, flat lists of Library Skills and MCP Servers
+ * kept in `settings.json`. A template: applying one adds ordinary Project
+ * Skills and Project MCP Servers, and nothing links the Project back to the
+ * Collection afterwards.
  */
 export class Collections {
   readonly #options: CollectionOptions;
@@ -59,6 +64,11 @@ export class Collections {
     return this.record(name).items.flatMap((item) => (item.kind === "skill" ? [item.key] : []));
   }
 
+  /** Its Library MCP Server names, in order. */
+  #serverItems(name: string) {
+    return this.record(name).items.flatMap((item) => (item.kind === "mcpServer" ? [item.name] : []));
+  }
+
   record(name: string): CollectionRecord {
     const found = this.#all[name];
     if (!found) throw new CollectionNotFound(name);
@@ -66,14 +76,14 @@ export class Collections {
   }
 
   async view(name: string): Promise<Collection> {
-    const { library } = this.#options;
+    const { library, mcp } = this.#options;
     const skills = library.lock.value.skills;
     const items = await Promise.all(
-      this.record(name).items.map(async (item) => ({
-        ...item,
-        name: await deliveredName(library, item.key),
-        missing: !(item.key in skills),
-      })),
+      this.record(name).items.map(async (item) =>
+        item.kind === "skill"
+          ? { ...item, name: await deliveredName(library, item.key), missing: !(item.key in skills) }
+          : { ...item, missing: !(await mcp.read(item.name))?.value },
+      ),
     );
     return { name, items };
   }
@@ -99,7 +109,7 @@ export class Collections {
     const path = homeRelative(home, settings.path);
     const using = (renames: KeyRename[]) =>
       Object.values(settings.value.collections).filter((record) =>
-        record.items.some((item) => renames.some((rename) => rename.from === item.key)),
+        record.items.some((item) => item.kind === "skill" && renames.some((rename) => rename.from === item.key)),
       ).length;
     return {
       steps: async (renames) => {
@@ -116,7 +126,10 @@ export class Collections {
           collections: Object.fromEntries(
             Object.entries(file.collections).map(([name, record]) => [
               name,
-              { ...record, items: record.items.map((item) => ({ ...item, key: rekey(item.key) })) },
+              {
+                ...record,
+                items: record.items.map((item) => (item.kind === "skill" ? { ...item, key: rekey(item.key) } : item)),
+              },
             ]),
           ),
         }));
@@ -158,17 +171,46 @@ export class Collections {
           this.record(name);
           await this.#save(wrote, ({ [name]: _gone, ...rest }) => rest);
         }),
-      plan: async ({ name, projects, modes = {} }) => {
+      plan: async ({ name, projects, modes = {}, mcpModes = {} }) => {
         const items = this.#skillItems(name).map((key) => ({ key, mode: modes[key] ?? ("link" as const) }));
+        const servers = this.#serverItems(name).map((server) => ({
+          name: server,
+          mode: mcpModes[server] ?? ("personal" as const),
+        }));
         const cells = [];
-        for (const path of projects) cells.push(...(await this.#options.projectSkills.preview(path, items)));
-        return { name, cells };
+        const mcpCells = [];
+        for (const path of projects) {
+          cells.push(...(await this.#options.projectSkills.preview(path, items)));
+          mcpCells.push(...(await this.#options.projectMcp.preview(path, servers)));
+        }
+        return { name, cells, mcpCells };
       },
-      apply: ({ name, skills }, client) => {
+      apply: ({ name, skills, mcpServers }, client) => {
         const keys = new Set(this.#skillItems(name));
         const outside = skills.find((skill) => !keys.has(skill.key));
         if (outside) return Promise.reject(new CollectionItemNotFound(name, outside.key));
-        return this.#options.projectSkills.applyCollection(name, skills, client);
+        const names = new Set(this.#serverItems(name));
+        const stranger = mcpServers.find((server) => !names.has(server.name));
+        if (stranger) return Promise.reject(new CollectionItemNotFound(name, stranger.name));
+        const subjects: ActivitySubject[] = [
+          subject(name),
+          ...[...new Set([...skills, ...mcpServers].map((item) => item.path))].map((id) => ({
+            kind: "project" as const,
+            id,
+          })),
+          ...[...new Set(skills.map((skill) => skill.key))].map((id) => ({ kind: "skill" as const, id })),
+          ...[...new Set(mcpServers.map((server) => server.name))].map((id) => ({ kind: "mcpServer" as const, id })),
+        ];
+        return this.#options.activity.track({ client, action: "collections.apply", subjects }, async (wrote) => {
+          const applied = skills.length > 0 ? await this.#options.projectSkills.applyCollection(skills, wrote) : null;
+          const mcp = mcpServers.length > 0 ? await this.#options.projectMcp.applyCollection(mcpServers, wrote) : null;
+          return {
+            projects: applied?.projects ?? [],
+            cells: applied?.cells ?? [],
+            mcpProjects: mcp?.projects ?? [],
+            mcpCells: mcp?.cells ?? [],
+          };
+        });
       },
     };
   }
