@@ -24,7 +24,7 @@ const cards: {
   {
     id: "outdated",
     label: "Outdated",
-    caption: "Copies behind the Library",
+    caption: "updates and Copies behind",
     tone: (count) => (count > 0 ? "warning" : "healthy"),
   },
   {

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { AgentId, Domain } from "@dark-matter/contracts";
 import { describe, expect, test } from "vitest";
 import { agentHome, gitRepo } from "./agent-home";
+import { fakeGitHub, skillMd } from "./fake-github";
 import { bootCore, connect, fakeClock, tempHome } from "./harness";
 
 const GITHUB_ENTRY = {
@@ -162,4 +163,22 @@ describe("the overview stays live", () => {
     await trpc.inbox.ignore.mutate({ id: "global-skill:~/.agents/skills/lint" });
     await expect.poll(sawOverview).toBe(true);
   }, 15_000);
+});
+
+describe("the Outdated card", () => {
+  test("also counts Library Skills with an upstream update waiting, linking to Updates", async () => {
+    const { home, libraryHome } = await tempHome();
+    const github = await fakeGitHub();
+    const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome }, { github: { api: github.api } });
+    const { trpc } = connect(core);
+    const repo = await github.repo("acme/skills", { "skills/pdf/SKILL.md": skillMd("pdf", "Work with PDFs") });
+    const preview = await trpc.importer.preview.query({ input: "acme/skills" });
+    await trpc.importer.import.mutate({ input: "acme/skills", commit: preview.commit, paths: ["skills/pdf"] });
+    expect((await trpc.overview.get.query()).stats.outdated).toEqual({ count: 0, path: "/library" });
+
+    await repo.commit({ "skills/pdf/SKILL.md": skillMd("pdf", "PDFs v2") });
+    await trpc.importer.checkUpdates.mutate({});
+
+    expect((await trpc.overview.get.query()).stats.outdated).toEqual({ count: 1, path: "/library/updates" });
+  });
 });

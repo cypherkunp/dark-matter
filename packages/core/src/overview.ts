@@ -13,6 +13,8 @@ export interface OverviewOptions {
   projectPaths: () => string[];
   /** A Project's Project Skills with their status and Copy state. */
   projectSkills: (path: string) => Promise<ProjectSkill[]>;
+  /** Library Skills with an upstream update waiting, from the last checks (#33). */
+  libraryUpdates: () => Promise<number>;
 }
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
@@ -78,8 +80,9 @@ export class OverviewService {
   async get(): Promise<Overview> {
     const { home, latestScan, inbox: readInbox, projectPaths, projectSkills } = this.options;
     const inbox = await readInbox();
+    const libraryUpdates = await this.options.libraryUpdates().catch(() => 0);
     let on = 0;
-    let outdated = 0;
+    let outdated = libraryUpdates;
     let nameConflicts = 0;
     let firstOutdated: string | null = null;
     let firstConflict: string | null = null;
@@ -179,7 +182,11 @@ export class OverviewService {
       stats: {
         projectSkillsOn: { count: on, path: "/library" },
         globalSkills: { count: latestScan()?.globalSkills.length ?? null, path: "/inbox" },
-        outdated: { count: outdated, path: firstOutdated ? projectPage(firstOutdated) : "/library" },
+        outdated: {
+          count: outdated,
+          // Library updates first: applying one also marks the Copies that follow it.
+          path: libraryUpdates > 0 ? "/library/updates" : firstOutdated ? projectPage(firstOutdated) : "/library",
+        },
         nameConflicts: { count: nameConflicts, path: firstConflict ? projectPage(firstConflict) : "/library" },
       },
       alerts,

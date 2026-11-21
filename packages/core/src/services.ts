@@ -297,6 +297,7 @@ export const createServices = async ({
     inbox: () => listInbox(),
     projectPaths: () => Object.keys(projects.value.projects),
     projectSkills: (path) => projectSkills.services().skills(path),
+    libraryUpdates: async () => (await updates.view()).updates.length,
   });
 
   const services: Omit<CoreServices, "events" | "notifications"> = {
