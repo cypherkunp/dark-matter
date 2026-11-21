@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { FolderOpen, TriangleAlert } from "lucide-react";
 import { PageHead } from "@/components/page-head";
 import { ProjectSkills } from "@/components/project-skills";
+import { RepoSkills } from "@/components/repo-skills";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { tildify } from "@/lib/paths";
@@ -192,6 +193,7 @@ function ProjectPage() {
       {!data.exists && <GoneBanner project={data} />}
       <AgentPicker project={data} />
       {data.exists && <ProjectSkills path={data.path} />}
+      {data.exists && <RepoSkills path={data.path} />}
       <FoundSkills project={data} />
     </div>
   );
