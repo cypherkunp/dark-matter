@@ -1,8 +1,8 @@
 import type { SkillDetail } from "@dark-matter/contracts";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { FilteredActivity } from "@/components/activity-view";
 import { Button } from "@/components/ui/button";
-import { actionLabel, clientLabel } from "@/lib/activity";
 import { useTRPC } from "@/lib/trpc";
 
 const field = (label: string, value: string | undefined) => (value ? [[label, value] as const] : []);
@@ -11,7 +11,6 @@ const field = (label: string, value: string | undefined) => (value ? [[label, va
 export function SkillProvenance({ skill }: { skill: SkillDetail }) {
   const trpc = useTRPC();
   const navigate = useNavigate();
-  const activity = useQuery(trpc.activity.list.queryOptions({}));
   const undo = useMutation(
     trpc.adopt.undo.mutationOptions({
       onSuccess: () => navigate({ to: "/library" }),
@@ -27,9 +26,6 @@ export function SkillProvenance({ skill }: { skill: SkillDetail }) {
     ...field("computedHash", entry.computedHash),
     ...field("localSource", entry.localSource),
   ];
-  const history = (activity.data?.entries ?? []).filter((item) =>
-    item.subjects.some((subject) => subject.kind === "skill" && subject.id === skill.key),
-  );
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
@@ -83,24 +79,7 @@ export function SkillProvenance({ skill }: { skill: SkillDetail }) {
         {undo.error && <p className="text-status-warning text-xs">{undo.error.message}</p>}
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="font-semibold text-sm">Activity</h2>
-        {history.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Nothing recorded yet.</p>
-        ) : (
-          <ul className="divide-y rounded-xl border text-sm">
-            {history.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 px-4 py-2">
-                <span className={item.result === "error" ? "text-status-warning" : ""}>{actionLabel(item.action)}</span>
-                <span className="text-muted-foreground text-xs">by {clientLabel(item.client)}</span>
-                <span className="ml-auto text-muted-foreground text-xs tabular-nums">
-                  {new Date(item.time).toLocaleString()}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <FilteredActivity search={{ skill: skill.key }} exportName={`activity-${skill.name}`} />
     </div>
   );
 }
