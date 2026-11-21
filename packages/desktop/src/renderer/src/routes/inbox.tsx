@@ -17,7 +17,7 @@ import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { AdoptDialog } from "@/components/adopt-dialog";
 import { IgnoredFindings } from "@/components/ignored-findings";
 import { InboxDrift } from "@/components/inbox-drift";
-import { InboxMcpServers } from "@/components/inbox-mcp";
+import { InboxMcpServers, InboxUntrackedMcpServers } from "@/components/inbox-mcp";
 import { InboxRequests } from "@/components/inbox-requests";
 import { ManagedMcpGroups } from "@/components/managed-mcp";
 import { PageHead } from "@/components/page-head";
@@ -373,6 +373,7 @@ function Inbox() {
             <NewSkillsGroup key={group.source} group={group} />
           ))}
           <InboxMcpServers groups={inbox.data?.mcpServers ?? []} />
+          <InboxUntrackedMcpServers groups={inbox.data?.untrackedMcpServers ?? []} />
           <ManagedMcpGroups groups={inbox.data?.managedMcpServers ?? []} inInbox />
         </>
       )}

@@ -40,6 +40,7 @@ import { OwnedFile } from "./owned-file";
 import { ProjectMcpService } from "./project-mcp";
 import { ProjectSkillService } from "./project-skills";
 import { projectServices, waitingSuggestions } from "./projects";
+import { projectMcpEntries } from "./repo-mcp";
 import type { LockImporter } from "./repo-skills";
 import { type RequestApplier, Requests } from "./requests";
 import { Scans } from "./scans";
@@ -155,6 +156,10 @@ export const createServices = async ({
     cache,
     activity,
     projectPaths: () => Object.keys(projects.value.projects),
+    projectMcp: async (path) => {
+      const record = projects.value.projects[path];
+      return record ? projectMcpEntries(env, path, record) : [];
+    },
     exclude: [libraryHome],
     onChange: () => {
       bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents", "project", "scheduler"] });

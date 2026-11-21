@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { type ActivityClient, ScanResult, type ScanStatus } from "@dark-matter/contracts";
+import { type ActivityClient, type ProjectMcpEntry, ScanResult, type ScanStatus } from "@dark-matter/contracts";
 import type { ActivityLog } from "./activity";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { log } from "./log";
@@ -11,6 +11,8 @@ export interface ScansOptions {
   activity: ActivityLog;
   /** Confirmed Projects by absolute path, read at the start of each Scan. */
   projectPaths?: () => readonly string[];
+  /** A Project's MCP entries Dark Matter didn't deliver (#39 carry-over), recorded with the Scan. */
+  projectMcp?: (path: string) => Promise<ProjectMcpEntry[]>;
   /** Folders never suggested as Projects (the Library). */
   exclude?: readonly string[];
   /** Called when a Scan starts and when it finishes. */
@@ -104,6 +106,10 @@ export class Scans {
       projects: this.#options.projectPaths?.() ?? [],
       exclude: this.#options.exclude ?? [],
     });
+    const projectMcp = this.#options.projectMcp;
+    if (projectMcp)
+      for (const project of result.projects)
+        if (project.exists) project.mcpServers = await projectMcp(project.path).catch(() => []);
     this.#options.cache
       .prepare("INSERT INTO scan (id, result) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET result = excluded.result")
       .run(JSON.stringify(result));

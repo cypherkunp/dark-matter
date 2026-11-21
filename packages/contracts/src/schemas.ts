@@ -501,14 +501,6 @@ export const ProjectSkillEntry = z.object({
 export type ProjectSkillEntry = z.infer<typeof ProjectSkillEntry>;
 
 /** One confirmed Project's skill folders, as a Scan read them. */
-export const ProjectScan = z.object({
-  path: z.string(),
-  exists: z.boolean(),
-  /** Project-relative skill folders any v1 Agent loads, and whether each exists. */
-  skillFolders: z.array(z.object({ path: z.string(), exists: z.boolean() })),
-  skills: z.array(ProjectSkillEntry),
-});
-export type ProjectScan = z.infer<typeof ProjectScan>;
 
 /** The Skills already in a Suggested Project (First run, #46): untracked ones and Vendored (`tracked`) ones. */
 export const SuggestedProjectSkills = z.object({
@@ -696,6 +688,37 @@ export const InboxMcpGroup = z.object({
 });
 export type InboxMcpGroup = z.infer<typeof InboxMcpGroup>;
 
+/**
+ * An MCP entry in a Project's config files that Dark Matter didn't deliver
+ * (#39), found by a Scan: committed ones (`tracked`) are Vendored and left
+ * alone; untracked ones (Claude Code's local scope included) can be Adopted.
+ */
+export const ProjectMcpEntry = z.object({
+  /** `project-mcp:<agent>:<project path>:<name>`. */
+  id: z.string(),
+  /** The Project, absolute. */
+  project: z.string(),
+  agent: AgentId,
+  name: z.string(),
+  /** The config file, home-relative. */
+  file: z.string(),
+  tracked: z.boolean(),
+  /** Inline secrets masked as `${secret:…}`. */
+  definition: McpDefinition,
+});
+export type ProjectMcpEntry = z.infer<typeof ProjectMcpEntry>;
+
+export const ProjectScan = z.object({
+  path: z.string(),
+  exists: z.boolean(),
+  /** Project-relative skill folders any v1 Agent loads, and whether each exists. */
+  skillFolders: z.array(z.object({ path: z.string(), exists: z.boolean() })),
+  skills: z.array(ProjectSkillEntry),
+  /** MCP entries in its config files that Dark Matter didn't deliver: untracked or Vendored (`tracked`). */
+  mcpServers: z.array(ProjectMcpEntry).default([]),
+});
+export type ProjectScan = z.infer<typeof ProjectScan>;
+
 /** Everything one Scan found. Cached in `state/`; rebuilt by scanning again. */
 export const ScanResult = z.object({
   scannedAt: z.iso.datetime(),
@@ -824,6 +847,14 @@ export const InboxNewSkillsGroup = z.object({
 export type InboxNewSkillsGroup = z.infer<typeof InboxNewSkillsGroup>;
 
 /** Findings still waiting on a decision. Ignored findings are left out. */
+/** Untracked MCP entries in one Project, for the Inbox. */
+export const InboxProjectMcpGroup = z.object({
+  project: z.string(),
+  name: z.string(),
+  findings: z.array(ProjectMcpEntry),
+});
+export type InboxProjectMcpGroup = z.infer<typeof InboxProjectMcpGroup>;
+
 export const Inbox = z.object({
   /** The badge: findings waiting, across every kind. */
   count: z.int().nonnegative(),
@@ -845,6 +876,8 @@ export const Inbox = z.object({
   managedMcpServers: z.array(InboxManagedMcpGroup).default([]),
   /** New Skills in starred Sources, by Source (#35). Never Imported on their own. */
   newSkills: z.array(InboxNewSkillsGroup).default([]),
+  /** Untracked Project MCP entries, by Project: Adopt them back as Personal. */
+  untrackedMcpServers: z.array(InboxProjectMcpGroup).default([]),
 });
 export type Inbox = z.infer<typeof Inbox>;
 
@@ -1133,6 +1166,8 @@ export const ProjectDetail = ProjectSummary.extend({
   folders: z.array(z.string()),
   /** Skills the last Scan saw in its skill folders; null before a Scan has read it. */
   skills: z.array(ProjectSkillEntry).nullable(),
+  /** MCP entries the last Scan saw in its config files that Dark Matter didn't deliver; null before a Scan. */
+  mcpServers: z.array(ProjectMcpEntry).nullable().default(null),
   /** Its Grant (#44): On/Off and adding or removing a Link go through without asking. */
   grant: z.boolean().optional(),
 });

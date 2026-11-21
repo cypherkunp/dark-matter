@@ -1,4 +1,4 @@
-import type { AgentId, ProjectRecord, RepoMcpServer, RepoMcpServers } from "@dark-matter/contracts";
+import type { AgentId, ProjectMcpEntry, ProjectRecord, RepoMcpServer, RepoMcpServers } from "@dark-matter/contracts";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { readConfigText } from "./config-edit";
 import { homeRelative } from "./home-path";
@@ -101,3 +101,19 @@ export const repoMcpServers = async (
     untracked: findings.filter((finding) => !finding.tracked).map(view),
   };
 };
+
+/** What a Scan records for a Project (#39 carry-over): every entry Dark Matter didn't deliver, inline secrets masked. */
+export const projectMcpEntries = async (
+  env: AgentPathEnv,
+  project: string,
+  record: ProjectRecord,
+): Promise<ProjectMcpEntry[]> =>
+  (await projectMcpFindings(env, project, record)).map((finding) => ({
+    id: finding.id,
+    project,
+    agent: finding.agent,
+    name: finding.entry.name,
+    file: homeRelative(env.home, finding.file),
+    tracked: finding.tracked,
+    definition: maskSecrets(finding.entry.name, finding.entry.definition).definition,
+  }));

@@ -479,6 +479,57 @@ describe("MCP entries already in a Project", () => {
   });
 });
 
+describe("Project MCP entries in the Scan and Inbox (#39 carry-over)", () => {
+  test("a Scan lists untracked and Vendored entries; untracked ones wait in the Inbox (counted, ignorable, Adoptable)", async () => {
+    const { trpc, project } = await setup({});
+    const app = await project("code/app", ["claude-code", "cursor"]);
+    await writeFile(join(app, ".mcp.json"), `{ "mcpServers": { "team": { "command": "team-server" } } }\n`);
+    commitAll(app);
+    await mkdir(join(app, ".cursor"));
+    await writeFile(
+      join(app, ".cursor/mcp.json"),
+      `{ "mcpServers": { "notes": { "command": "notes", "env": { "NOTES_TOKEN": "tok_inline" } } } }\n`,
+    );
+
+    await trpc.scan.run.mutate();
+
+    const inbox = await trpc.inbox.list.query();
+    expect(inbox.untrackedMcpServers).toEqual([
+      {
+        project: app,
+        name: "app",
+        findings: [
+          {
+            id: `project-mcp:cursor:${app}:notes`,
+            project: app,
+            agent: "cursor",
+            name: "notes",
+            file: "~/code/app/.cursor/mcp.json",
+            tracked: false,
+            definition: { transport: "stdio", command: "notes", env: { NOTES_TOKEN: "${secret:notes.NOTES_TOKEN}" } },
+          },
+        ],
+      },
+    ]);
+    expect(inbox.count).toBe(1);
+    expect(JSON.stringify(inbox)).not.toContain("tok_inline");
+    expect((await trpc.project.get.query({ path: app })).mcpServers).toEqual([
+      expect.objectContaining({ name: "team", agent: "claude-code", tracked: true }),
+      expect.objectContaining({ name: "notes", agent: "cursor", tracked: false }),
+    ]);
+
+    await trpc.inbox.ignore.mutate({ id: `project-mcp:cursor:${app}:notes` });
+    expect((await trpc.inbox.list.query()).count).toBe(0);
+    expect((await trpc.inbox.ignored.query()).untrackedMcpServers).toHaveLength(1);
+    await trpc.inbox.unignore.mutate({ id: `project-mcp:cursor:${app}:notes` });
+
+    const findings = [`project-mcp:cursor:${app}:notes`];
+    const plan = await trpc.mcp.adoptPlan.query({ findings });
+    await trpc.mcp.adoptExecute.mutate({ findings, planId: plan.planId });
+    expect((await trpc.inbox.list.query()).untrackedMcpServers).toEqual([]);
+  });
+});
+
 describe("Secrets", () => {
   test("deleting a Secret removes it from the keychain; refused while an On Personal delivery uses it", async () => {
     const { secrets, trpc, project } = await setup();

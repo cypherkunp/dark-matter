@@ -157,6 +157,8 @@ export const scanProject = async (path: string, adapters: readonly AgentAdapter[
     exists: await isDirectory(path),
     skillFolders,
     skills: skills.map((skill) => ({ ...skill, tracked: tracked.has(skill.path) || tracked.has(skill.realPath) })),
+    // Filled in by Scans, which knows each Project's record (what Dark Matter delivered).
+    mcpServers: [],
   };
 };
 

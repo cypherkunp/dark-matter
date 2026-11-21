@@ -171,6 +171,7 @@ export const projectServices = ({
       })),
       folders: deliveryFolders(agents),
       skills: scans.latest?.projects.find((scanned) => scanned.path === path)?.skills ?? null,
+      mcpServers: scans.latest?.projects.find((scanned) => scanned.path === path)?.mcpServers ?? null,
     };
   };
 

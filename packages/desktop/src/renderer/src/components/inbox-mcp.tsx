@@ -1,4 +1,10 @@
-import type { GlobalMcpServer, InboxMcpGroup, McpDefinition } from "@dark-matter/contracts";
+import type {
+  GlobalMcpServer,
+  InboxMcpGroup,
+  InboxProjectMcpGroup,
+  McpDefinition,
+  ProjectMcpEntry,
+} from "@dark-matter/contracts";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { McpAdoptDialog } from "@/components/mcp-adopt-dialog";
@@ -79,6 +85,80 @@ export function InboxMcpServers({ groups }: { groups: InboxMcpGroup[] }) {
           <div className="divide-y rounded-xl border">
             {group.findings.map((finding) => (
               <Finding key={finding.id} finding={finding} onAdopt={setAdopting} />
+            ))}
+          </div>
+        </section>
+      ))}
+      <McpAdoptDialog findings={adopting} onClose={() => setAdopting(null)} />
+    </>
+  );
+}
+
+function UntrackedFinding({ finding, onAdopt }: { finding: ProjectMcpEntry; onAdopt: (ids: string[]) => void }) {
+  const trpc = useTRPC();
+  const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
+  return (
+    <div data-testid="inbox-untracked-mcp-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
+      <StatusDot tone="warning" />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-sm">{finding.name}</span>
+          <span className="rounded-md border px-1.5 py-0.5 text-[11px] text-muted-foreground">
+            {agentName(finding.agent)}
+          </span>
+        </div>
+        <div className="truncate font-mono text-muted-foreground text-xs">
+          {finding.file} · {definitionSummary(finding.definition)}
+        </div>
+      </div>
+      <div className="flex gap-1.5">
+        <Button size="sm" variant="ghost" disabled={ignore.isPending} onClick={() => ignore.mutate({ id: finding.id })}>
+          Ignore
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => onAdopt([finding.id])}>
+          Adopt
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Untracked Project MCP entries (#39 carry-over), one group per Project:
+ * Adopt moves each definition into the Library and keeps it in the Project as
+ * Personal, so its Agents see no change.
+ */
+export function InboxUntrackedMcpServers({ groups }: { groups: InboxProjectMcpGroup[] }) {
+  const [adopting, setAdopting] = useState<string[] | null>(null);
+  if (groups.length === 0) return null;
+  return (
+    <>
+      <div className="flex flex-col gap-1 pt-2">
+        <h2 className="font-semibold text-base">Untracked Project MCP Servers</h2>
+        <p className="text-muted-foreground text-sm">
+          MCP Servers in a Project's own config that Dark Matter didn't write and git doesn't track. Adopt moves each
+          into the Library and keeps it in the Project as Personal; inline secrets move into the keychain.
+        </p>
+      </div>
+      {groups.map((group) => (
+        <section key={group.project} data-testid="inbox-untracked-mcp-group" className="flex flex-col gap-3">
+          <h2 className="flex items-center gap-2 font-semibold text-sm">
+            {group.name}
+            <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+            {group.findings.length > 1 && (
+              <Button
+                size="xs"
+                variant="ghost"
+                className="ml-auto font-normal"
+                onClick={() => setAdopting(group.findings.map((finding) => finding.id))}
+              >
+                Adopt all {group.findings.length}
+              </Button>
+            )}
+          </h2>
+          <div className="divide-y rounded-xl border">
+            {group.findings.map((finding) => (
+              <UntrackedFinding key={finding.id} finding={finding} onAdopt={setAdopting} />
             ))}
           </div>
         </section>
