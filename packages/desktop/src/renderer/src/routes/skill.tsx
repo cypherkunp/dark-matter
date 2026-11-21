@@ -2,7 +2,9 @@ import { Tabs } from "@base-ui/react/tabs";
 import type { SkillDetail } from "@dark-matter/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Plus } from "lucide-react";
+import { useState } from "react";
+import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { skillTabs } from "@/components/skill-tabs";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
@@ -23,6 +25,7 @@ const provenanceLine = ({ entry }: SkillDetail) => {
 };
 
 function SkillHeader({ skill }: { skill: SkillDetail }) {
+  const [adding, setAdding] = useState(false);
   return (
     <div className="flex items-start gap-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -42,6 +45,11 @@ function SkillHeader({ skill }: { skill: SkillDetail }) {
         <FolderOpen />
         Reveal in Finder
       </Button>
+      <Button size="sm" onClick={() => setAdding(true)}>
+        <Plus />
+        Add to Projects
+      </Button>
+      {adding && <AddToProjectsDialog keys={[skill.key]} onClose={() => setAdding(false)} />}
     </div>
   );
 }
