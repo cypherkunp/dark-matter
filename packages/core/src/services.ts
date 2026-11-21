@@ -127,7 +127,17 @@ export const createServices = async ({
   const ownedFileChanged = () =>
     bus.publish({
       type: "invalidate",
-      domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill", "collections", "favourites", "requests"],
+      domains: [
+        "settings",
+        "ownedFiles",
+        "inbox",
+        "project",
+        "library",
+        "skill",
+        "collections",
+        "favourites",
+        "requests",
+      ],
     });
   const env = { home, ...(systemRoot && { systemRoot }) };
   const scans = new Scans({
