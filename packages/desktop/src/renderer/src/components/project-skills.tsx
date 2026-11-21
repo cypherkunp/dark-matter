@@ -20,7 +20,7 @@ const modeHelp: Record<DeliveryMode, string> = {
   copy: "Copy: real files committed in .agents/skills and recorded in skills-lock.json, so teammates get it too.",
 };
 
-/** The On/Off switch for a Project Skill: blue On, grey Off. */
+/** The On/Off switch for a Project Skill or Project MCP Server: blue On, grey Off. */
 export function OnOffSwitch({
   on,
   disabled,

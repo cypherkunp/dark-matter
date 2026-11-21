@@ -224,6 +224,36 @@ export class KeychainUnavailable extends TaggedError<"KeychainUnavailable"> {
   }
 }
 
+/** A Secret a definition refers to isn't in the keychain: enter it first. */
+export class SecretMissing extends TaggedError<"SecretMissing"> {
+  readonly _tag = "SecretMissing";
+  constructor(readonly secret: string) {
+    super(`The Secret ${secret} isn't in the keychain yet`);
+  }
+}
+
+/** The Project hasn't added this Library MCP Server. */
+export class ProjectMcpServerNotFound extends TaggedError<"ProjectMcpServerNotFound"> {
+  readonly _tag = "ProjectMcpServerNotFound";
+  constructor(
+    readonly path: string,
+    readonly server: string,
+  ) {
+    super(`${path} has no Project MCP Server ${server}`);
+  }
+}
+
+/** A definition uses something an Agent's config format can't express (e.g. an env reference inside a Codex arg). */
+export class McpNotTranslatable extends TaggedError<"McpNotTranslatable"> {
+  readonly _tag = "McpNotTranslatable";
+  constructor(
+    readonly agent: string,
+    readonly problem: string,
+  ) {
+    super(`Can't write this MCP Server for ${agent}: ${problem}`);
+  }
+}
+
 /** No Collection has this name. */
 export class CollectionNotFound extends TaggedError<"CollectionNotFound"> {
   readonly _tag = "CollectionNotFound";

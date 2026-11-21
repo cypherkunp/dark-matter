@@ -64,6 +64,7 @@ export const startCore = async ({
       clock,
       notifier: notifier ?? notifications,
       secrets: secrets ?? defaultSecretStore(env),
+      ...(env.DARK_MATTER_SYSTEM_ROOT && { systemRoot: env.DARK_MATTER_SYSTEM_ROOT }),
       info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
     });
     try {

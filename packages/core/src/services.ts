@@ -1,7 +1,14 @@
 import { join } from "node:path";
-import { type CoreInfo, LibraryLockFile, ProjectsFile, SettingsFile, UnknownFinding } from "@dark-matter/contracts";
+import {
+  type CoreInfo,
+  LibraryLockFile,
+  type ProjectRecord,
+  ProjectsFile,
+  SettingsFile,
+  UnknownFinding,
+} from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
-import { ActivityLog, retentionJob } from "./activity";
+import { ActivityLog, retentionJob, type Wrote } from "./activity";
 import { Adopt } from "./adopt";
 import { agentAdapters } from "./agents";
 import { openCache } from "./cache";
@@ -17,6 +24,7 @@ import { McpAdopt, McpLibrary } from "./mcp-library";
 import { type KeyRenameHook, NamespaceRename } from "./namespace-rename";
 import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
+import { ProjectMcpService } from "./project-mcp";
 import { ProjectSkillService } from "./project-skills";
 import { projectServices, waitingSuggestions } from "./projects";
 import type { LockImporter } from "./repo-skills";
@@ -37,12 +45,23 @@ export interface ServicesOptions {
   info: () => CoreInfo;
   bus: EventBus;
   clock: Clock;
+  /** Where system-wide Agent config is read from (`/` outside tests). */
+  systemRoot?: string;
   notifier: Notifier;
   secrets: SecretStore;
 }
 
 /** The core's service methods behind the router (ADR-0003): every action is one of these. */
-export const createServices = async ({ libraryHome, home, info, bus, clock, notifier, secrets }: ServicesOptions) => {
+export const createServices = async ({
+  libraryHome,
+  home,
+  info,
+  bus,
+  clock,
+  notifier,
+  secrets,
+  systemRoot,
+}: ServicesOptions) => {
   const cache = await openCache(libraryHome);
   const activity = await ActivityLog.open({
     libraryHome,
@@ -67,7 +86,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       type: "invalidate",
       domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill", "collections"],
     });
-  const env = { home };
+  const env = { home, ...(systemRoot && { systemRoot }) };
   const scans = new Scans({
     env,
     cache,
@@ -139,6 +158,14 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     importer: () => lockImporter,
   });
   keyRenameHooks.push(projectSkills.keyRenameHook());
+  const projectMcp = new ProjectMcpService({ home, mcp: mcpLibrary, secrets, projects, activity, bus });
+  /** A changed record (e.g. Agents) re-delivers Project Skills, then Project MCP Servers. */
+  const deliverProject = {
+    deliver: async (path: string, next: ProjectRecord, wrote: Wrote) => {
+      await projectSkills.deliver(path, next, wrote);
+      await projectMcp.redeliver(path, wrote);
+    },
+  };
   // Learns where Copies are, so untracked Skills (#29) leave them out.
   void projectSkills.usage().catch(() => {});
   const adopt = new Adopt({
@@ -237,7 +264,10 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
           bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
         }),
     },
-    agents: { list: () => agentCards(scans.latest, env) },
+    agents: {
+      list: () => agentCards(scans.latest, env),
+      managedMcp: () => scans.latest?.managedMcpServers ?? [],
+    },
     managedSkills: {
       turnOff: ({ id, scope }, client) =>
         activity.track(
@@ -256,16 +286,30 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
           },
         ),
     },
+    managedMcp: {
+      turnOff: ({ id, scope }, client) =>
+        activity.track({ client, action: "managedMcp.turnOff", subjects: [{ kind: "finding", id }] }, async (wrote) => {
+          const server = scans.latest?.managedMcpServers.find((found) => found.id === id);
+          const off = agentAdapters.find((adapter) => adapter.id === server?.agent)?.managedMcp?.off;
+          if (!server || !off || !server.offSwitches.some((offSwitch) => offSwitch.scope === scope)) {
+            throw new UnknownFinding(id);
+          }
+          const written = await editConfigFile(off.file(env), (text) => off.turnOff(text, server, scope));
+          if (written) wrote(written);
+          await scans.refresh();
+        }),
+    },
     adopt: {
       plan: ({ findings }) => adopt.plan(findings),
       apply: ({ findings, planId }, client) => adopt.apply(findings, planId, client),
       undo: (key, client) => adopt.undo(key, client),
     },
     mcp: {
-      list: async () => ({ servers: await mcpLibrary.list(home) }),
+      list: async () => ({ servers: await mcpLibrary.list(home, secrets) }),
       adoptPlan: ({ findings, names }) => mcpAdopt.plan(findings, names),
       adoptExecute: ({ findings, names, planId }, client) => mcpAdopt.apply(findings, names, planId, client),
       undoAdopt: (name, client) => mcpAdopt.undo(name, client),
+      ...projectMcp.mcpServices(),
     },
     scheduler: { status: () => scheduler.status() },
     skill: {
@@ -277,8 +321,9 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       delete: (key, client) => trash.delete(key, client),
     },
     project: {
-      ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
+      ...projectServices({ env, projects, settings, activity, scans, bus, deliver: deliverProject }),
       ...projectSkills.services(),
+      ...projectMcp.services(),
     },
     collections: collections.services(),
     namespace: {
