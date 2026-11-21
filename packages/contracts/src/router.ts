@@ -2,6 +2,14 @@ import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { isTaggedError } from "./errors";
 import {
+  GitHubAuthStatus,
+  ImportPreview,
+  ImportResult,
+  ImportSkillsInput,
+  ImportSourceInput,
+  SetGitHubTokenInput,
+} from "./importer";
+import {
   ActivityList,
   ActivityQuery,
   AddProjectSkills,
@@ -136,6 +144,16 @@ export interface CoreServices {
     plan(input: RenameNamespaceInput): Promise<RenameNamespacePlan>;
     /** Re-plans, checks the plan id, then moves the folders, re-keys the Library Lock and re-creates Links. */
     rename(input: ApplyRenameNamespaceInput, client: ClientKind): Promise<RenameNamespacePlan>;
+  };
+  importer: {
+    /** Finds the Skills in a GitHub Source at its tracked ref's head, for the picker. Writes nothing to the Library. */
+    preview(input: ImportSourceInput): Promise<ImportPreview>;
+    /** Imports the picked Skills at the previewed commit; ones already Imported from the same path get an update check instead. */
+    import(input: ImportSkillsInput, client: ClientKind): Promise<ImportResult>;
+    /** Which GitHub credentials Import uses. */
+    auth(): Promise<GitHubAuthStatus>;
+    /** Stores (or with null removes) the GitHub PAT in the keychain. */
+    setToken(input: SetGitHubTokenInput, client: ClientKind): Promise<GitHubAuthStatus>;
   };
   /** OS notifications for the app to show, from now on, until `signal` aborts. */
   notifications(signal: AbortSignal): AsyncIterable<CoreNotification>;
@@ -339,6 +357,21 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ApplyRenameNamespaceInput)
         .output(RenameNamespacePlan)
         .mutation(({ input, ctx }) => services.namespace.rename(input, ctx.client)),
+    }),
+    importer: t.router({
+      preview: t.procedure
+        .input(ImportSourceInput)
+        .output(ImportPreview)
+        .query(({ input }) => services.importer.preview(input)),
+      import: t.procedure
+        .input(ImportSkillsInput)
+        .output(ImportResult)
+        .mutation(({ input, ctx }) => services.importer.import(input, ctx.client)),
+      auth: t.procedure.output(GitHubAuthStatus).query(() => services.importer.auth()),
+      setToken: t.procedure
+        .input(SetGitHubTokenInput)
+        .output(GitHubAuthStatus)
+        .mutation(({ input, ctx }) => services.importer.setToken(input, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

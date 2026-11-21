@@ -11,6 +11,7 @@ import pkg from "../package.json" with { type: "json" };
 import { writeFileAtomic } from "./atomic";
 import { type Clock, systemClock } from "./clock";
 import { EventBus } from "./events";
+import { type GitHubOptions, githubOptionsFrom } from "./github";
 import { acquireCoreLock } from "./lock";
 import { NotificationBus, type Notifier } from "./notifier";
 import { defaultSecretStore, type SecretStore } from "./secrets";
@@ -24,6 +25,8 @@ export interface StartCoreOptions {
   notifier?: Notifier;
   /** Defaults to the OS keychain (`DARK_MATTER_SECRETS=memory` for an in-memory one); tests pass a fake. */
   secrets?: SecretStore;
+  /** Defaults to api.github.com and `gh auth token` (`DARK_MATTER_GITHUB_API` for a fake); tests pass the fake. */
+  github?: GitHubOptions;
 }
 
 export interface RunningCore {
@@ -47,6 +50,7 @@ export const startCore = async ({
   clock = systemClock,
   notifier,
   secrets,
+  github,
 }: StartCoreOptions): Promise<RunningCore> => {
   const libraryHome = resolveLibraryHome(env);
   const home = env.HOME || homedir();
@@ -64,6 +68,7 @@ export const startCore = async ({
       clock,
       notifier: notifier ?? notifications,
       secrets: secrets ?? defaultSecretStore(env),
+      github: github ?? githubOptionsFrom(env),
       info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
     });
     try {

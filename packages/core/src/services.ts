@@ -8,6 +8,8 @@ import { openCache } from "./cache";
 import type { Clock } from "./clock";
 import { editConfigFile } from "./config-edit";
 import type { EventBus } from "./events";
+import { GitHubAccess, type GitHubOptions } from "./github";
+import { importerServices } from "./importer";
 import { agentCards, inboxFrom } from "./inbox";
 import { Library } from "./library";
 import { log } from "./log";
@@ -37,10 +39,20 @@ export interface ServicesOptions {
   clock: Clock;
   notifier: Notifier;
   secrets: SecretStore;
+  github: GitHubOptions;
 }
 
 /** The core's service methods behind the router (ADR-0003): every action is one of these. */
-export const createServices = async ({ libraryHome, home, info, bus, clock, notifier, secrets }: ServicesOptions) => {
+export const createServices = async ({
+  libraryHome,
+  home,
+  info,
+  bus,
+  clock,
+  notifier,
+  secrets,
+  github,
+}: ServicesOptions) => {
   const cache = await openCache(libraryHome);
   const activity = await ActivityLog.open({
     libraryHome,
@@ -247,6 +259,14 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
       ...projectSkills.services(),
     },
+    importer: importerServices({
+      home,
+      libraryHome,
+      library,
+      activity,
+      github: new GitHubAccess(github, secrets),
+      onChange: (domains) => bus.publish({ type: "invalidate", domains }),
+    }),
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),
