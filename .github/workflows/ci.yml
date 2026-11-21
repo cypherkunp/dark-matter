@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Biome
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: knip
+        run: pnpm knip
+      - name: Vitest
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+      - name: Smoke test (macOS)
+        if: runner.os == 'macOS'
+        run: pnpm test:e2e
+      - name: Smoke test (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum -- pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: packages/desktop/playwright-report
+          retention-days: 7
