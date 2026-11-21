@@ -402,3 +402,31 @@ describe("Adopt is all or nothing", () => {
     expect(entry?.result).toBe("error");
   });
 });
+
+describe("Library writes are serialised", () => {
+  test("a Rename Namespace asked during an Adopt waits for it, so its plan is checked against the Adopted Skills", async () => {
+    const { fixture, libraryHome, trpc, adopt } = await setup();
+    await fixture.skill(".claude/skills/pdf", { name: "pdf" });
+    await adopt("~/.claude/skills/pdf");
+    const names = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    for (const name of names) await fixture.skill(`.cursor/skills/${name}`, { name });
+    await trpc.scan.run.mutate();
+    const plan = await trpc.adopt.plan.query({
+      findings: names.map((name) => `global-skill:~/.cursor/skills/${name}`),
+    });
+    const rename = await trpc.namespace.plan.query({ from: "local", to: "me/mine" });
+
+    const [adopted, renamed] = await Promise.allSettled([
+      trpc.adopt.execute.mutate({ findings: plan.findings, planId: plan.planId }),
+      trpc.namespace.rename.mutate({ from: "local", to: "me/mine", planId: rename.planId }),
+    ]);
+
+    expect(adopted.status).toBe("fulfilled");
+    // Planned before the Adopt, the rename no longer matches the Library: refused, nothing moved.
+    expect(renamed).toMatchObject({ status: "rejected", reason: { data: { tag: "PlanStale" } } });
+    const lock = await readJson(join(libraryHome, "library-lock.json"));
+    expect(Object.keys(lock.skills).sort()).toEqual([...names.map((name) => `local/${name}`), "local/pdf"]);
+    for (const key of Object.keys(lock.skills))
+      expect(await exists(join(libraryHome, "skills", key, "SKILL.md"))).toBe(true);
+  });
+});

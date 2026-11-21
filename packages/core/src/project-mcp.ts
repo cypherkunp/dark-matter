@@ -41,8 +41,11 @@ import { secretNames } from "./mcp-secrets";
 import type { OwnedFile } from "./owned-file";
 import { type ProjectMcpFinding, projectMcpFindings, repoMcpServers } from "./repo-mcp";
 import type { SecretStore } from "./secrets";
+import { WriteQueue } from "./write-queue";
 
 export interface ProjectMcpOptions {
+  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   mcp: McpLibrary;
   secrets: SecretStore;
@@ -77,7 +80,7 @@ export type McpRewriteProcedures = Pick<CoreServices["mcp"], "setSecret" | "upda
  * record, plan the whole Project, apply, save `mcpServers`", serialised.
  */
 export class ProjectMcpService {
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   constructor(private readonly options: ProjectMcpOptions) {}
 
@@ -87,9 +90,7 @@ export class ProjectMcpService {
   }
 
   #serial<T>(run: () => Promise<T>): Promise<T> {
-    const next = this.#queue.then(run, run);
-    this.#queue = next.catch(() => undefined);
-    return next;
+    return (this.options.writes ?? this.#ownWrites).run(run);
   }
 
   /** Removing a Project's dry run, for MCP: Personal entries go, Shared ones stay committed. */

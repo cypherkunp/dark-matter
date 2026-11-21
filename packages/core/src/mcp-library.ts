@@ -32,6 +32,7 @@ import type { ProjectMcpFinding } from "./repo-mcp";
 import type { SecretStore } from "./secrets";
 import { diffSkillFiles } from "./skill-diff";
 import { toSortedJson } from "./sorted-json";
+import { WriteQueue } from "./write-queue";
 
 const VISIBILITY_WARNING = (count: number) =>
   `${count === 1 ? "This MCP Server stops" : `These ${count} MCP Servers stop`} loading in every Project. ` +
@@ -187,6 +188,8 @@ interface Planned {
 const stepKey = (step: PlanStep) => toSortedJson(step);
 
 export interface McpAdoptOptions {
+  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   libraryHome: string;
   mcp: McpLibrary;
@@ -213,7 +216,7 @@ export interface McpAdoptOptions {
  */
 export class McpAdopt {
   readonly #options: McpAdoptOptions;
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   constructor(options: McpAdoptOptions) {
     this.#options = options;
@@ -519,9 +522,7 @@ export class McpAdopt {
   }
 
   #serial<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.#queue.then(task, task);
-    this.#queue = run.catch(() => {});
-    return run;
+    return (this.#options.writes ?? this.#ownWrites).run(task);
   }
 }
 

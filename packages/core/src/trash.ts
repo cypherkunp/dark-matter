@@ -13,6 +13,7 @@ import { writeFileAtomic } from "./atomic";
 import type { Clock } from "./clock";
 import { type Library, splitKey } from "./library";
 import type { DailyJob } from "./scheduler";
+import { WriteQueue } from "./write-queue";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -26,6 +27,8 @@ const Trashed = z.object({ key: z.string(), deletedAt: z.iso.datetime(), entry: 
 export type SkillUsage = (key: string) => Promise<SkillDeleteImpact[]>;
 
 export interface TrashOptions {
+  /** The core's one write queue (review #8). */
+  writes?: WriteQueue;
   library: Library;
   activity: ActivityLog;
   clock: Clock;
@@ -62,6 +65,11 @@ export class Trash {
 
   delete(key: string, client: ActivityClient): Promise<void> {
     const { library, activity } = this.options;
+    const writes = this.options.writes ?? new WriteQueue();
+    return writes.run(() => this.#delete(key, client, library, activity));
+  }
+
+  #delete(key: string, client: ActivityClient, library: Library, activity: ActivityLog): Promise<void> {
     return activity.track({ client, action: "skill.delete", subjects: [{ kind: "skill", id: key }] }, async (wrote) => {
       this.entry(key);
       await this.options.release(key, wrote);

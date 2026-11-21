@@ -25,6 +25,7 @@ import type { Library } from "./library";
 import { applySteps } from "./plan";
 import type { LockImporter } from "./repo-skills";
 import { computeSkillFolderHash } from "./skill-hash";
+import { WriteQueue } from "./write-queue";
 
 /** The folder name the `skills` package installs a Skill under (its `sanitizeName`), so keys match `npx skills add`. */
 export const installedName = (name: string) =>
@@ -92,6 +93,8 @@ export interface FetchedSource {
 }
 
 export interface ImporterOptions {
+  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   libraryHome: string;
   library: Library;
@@ -109,7 +112,7 @@ export interface ImporterOptions {
  */
 export class Importer {
   readonly #options: ImporterOptions;
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   constructor(options: ImporterOptions) {
     this.#options = options;
@@ -277,9 +280,7 @@ export class Importer {
   }
 
   #serial<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.#queue.then(task, task);
-    this.#queue = run.catch(() => {});
-    return run;
+    return (this.#options.writes ?? this.#ownWrites).run(task);
   }
 
   async preview(input: string): Promise<ImportPreview> {

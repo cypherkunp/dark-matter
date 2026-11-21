@@ -28,6 +28,7 @@ import { readFrontmatter } from "./scanner";
 import { diffSkillFiles } from "./skill-diff";
 import { computeSkillFolderHash, fingerprintSkillFolder, readSkillFiles, type SkillFile } from "./skill-hash";
 import { editGlobalLock, type GlobalLockEntry, readGlobalLock, readProjectLock } from "./skill-lock";
+import { WriteQueue } from "./write-queue";
 
 const VISIBILITY_WARNING = (count: number) =>
   `${count === 1 ? "This Skill stops" : `These ${count} Skills stop`} being visible to every Agent everywhere. ` +
@@ -87,6 +88,8 @@ interface Planned {
 }
 
 export interface AdoptOptions {
+  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   library: Library;
   activity: ActivityLog;
@@ -112,7 +115,7 @@ export interface AdoptOptions {
  */
 export class Adopt {
   readonly #options: AdoptOptions;
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   constructor(options: AdoptOptions) {
     this.#options = options;
@@ -431,9 +434,7 @@ export class Adopt {
   }
 
   #serial<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.#queue.then(task, task);
-    this.#queue = run.catch(() => {});
-    return run;
+    return (this.#options.writes ?? this.#ownWrites).run(task);
   }
 }
 

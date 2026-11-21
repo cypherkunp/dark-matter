@@ -44,8 +44,11 @@ import { deliveryFolders } from "./projects";
 import { type LockImporter, lockedSkills, repoSkills } from "./repo-skills";
 import { diffSkillFiles } from "./skill-diff";
 import { computeSkillFolderHash, readSkillFiles } from "./skill-hash";
+import { WriteQueue } from "./write-queue";
 
 export interface ProjectSkillOptions {
+  /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   libraryHome: string;
   library: Library;
@@ -96,7 +99,7 @@ export interface SkillUsage {
  * together. `deliver` is the same step for any record change (e.g. Agents).
  */
 export class ProjectSkillService {
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   /** Each Project's Copy folders (absolute), as last planned: kept so #29 doesn't list them as untracked. */
   readonly #copyFolders = new Map<string, string[]>();
@@ -118,9 +121,7 @@ export class ProjectSkillService {
   }
 
   #serial<T>(run: () => Promise<T>): Promise<T> {
-    const next = this.#queue.then(run, run);
-    this.#queue = next.catch(() => undefined);
-    return next;
+    return (this.options.writes ?? this.#ownWrites).run(run);
   }
 
   /**

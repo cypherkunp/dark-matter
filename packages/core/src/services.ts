@@ -52,6 +52,7 @@ import { SourceChecks } from "./source-check";
 import { Trash } from "./trash";
 import { untrackedSkills } from "./untracked";
 import { Updates } from "./updates";
+import { WriteQueue } from "./write-queue";
 
 export interface ServicesOptions {
   libraryHome: string;
@@ -124,6 +125,8 @@ export const createServices = async ({
   const activityRetention = () => settings.value.preferences.activityRetention;
   await activity.prune(activityRetention());
   const library = new Library(libraryHome, home, libraryLock);
+  /** Every Library-mutating operation runs on this one queue (review #8). */
+  const writes = new WriteQueue();
   const ownedFiles = [settings, projects, libraryLock, requestsFile];
   const ownedFileChanged = () =>
     bus.publish({
@@ -173,6 +176,7 @@ export const createServices = async ({
   });
   const mcpLibrary = new McpLibrary(libraryHome);
   const mcpAdopt = new McpAdopt({
+    writes,
     home,
     libraryHome,
     mcp: mcpLibrary,
@@ -190,6 +194,7 @@ export const createServices = async ({
   /** What follows a Library Skill to a new key. Project Skills (Links and Copies) push their hook below. */
   const keyRenameHooks: KeyRenameHook[] = [];
   const namespaceRename = new NamespaceRename({
+    writes,
     home,
     library,
     activity,
@@ -197,6 +202,7 @@ export const createServices = async ({
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project", "collections"] }),
   });
   const skillEditor = new SkillEditor({
+    writes,
     library,
     activity,
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill"] }),
@@ -211,6 +217,7 @@ export const createServices = async ({
     ]);
   /** GitHub Import (#30); it also Imports `skills-lock.json` entries missing from the Library while fulfilling them. */
   const importer = new Importer({
+    writes,
     home,
     libraryHome,
     library,
@@ -222,6 +229,7 @@ export const createServices = async ({
   /** skills.sh search and Get (#31); Get Imports through `importer`. */
   const skillsShSearch = new SkillsSh({ ...skillsSh, clock, library, importer });
   const projectSkills = new ProjectSkillService({
+    writes,
     home,
     libraryHome,
     library,
@@ -231,7 +239,15 @@ export const createServices = async ({
     importer: () => lockImporter,
   });
   keyRenameHooks.push(projectSkills.keyRenameHook());
-  const projectMcp = new ProjectMcpService({ home, mcp: mcpLibrary, secrets, projects, activity, bus });
+  const projectMcp = new ProjectMcpService({
+    writes,
+    home,
+    mcp: mcpLibrary,
+    secrets,
+    projects,
+    activity,
+    bus,
+  });
   /** A changed record (e.g. Agents) re-delivers Project Skills, then Project MCP Servers. */
   const deliverProject = {
     deliver: async (path: string, next: ProjectRecord, wrote: Wrote) => {
@@ -263,6 +279,7 @@ export const createServices = async ({
       on,
     }));
   const adopt = new Adopt({
+    writes,
     home,
     library,
     activity,
@@ -275,6 +292,7 @@ export const createServices = async ({
     release: (key, wrote) => projectSkills.forgetEverywhere([key], wrote),
   });
   const trash = new Trash({
+    writes,
     library,
     activity,
     clock,
@@ -301,6 +319,7 @@ export const createServices = async ({
   // Before the Collections hook, which claims every settings.json step.
   keyRenameHooks.unshift(favourites.keyRenameHook(home));
   const updates = new Updates({
+    writes,
     home,
     library,
     importer,

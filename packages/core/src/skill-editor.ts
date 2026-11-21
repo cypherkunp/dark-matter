@@ -15,6 +15,7 @@ import { writeFileAtomic } from "./atomic";
 import { type Library, splitKey } from "./library";
 import { readSkillFiles } from "./skill-hash";
 import { frontmatterWarnings, splitSkillMd } from "./skill-page";
+import { WriteQueue } from "./write-queue";
 
 /** Text has no NUL byte; anything else opens read-only as binary. */
 const isBinary = (content: Buffer) => content.includes(0);
@@ -23,6 +24,8 @@ const isBinary = (content: Buffer) => content.includes(0);
 const hidden = (path: string) => path.startsWith(".git/") || path.split("/").includes("__pycache__");
 
 export interface SkillEditorOptions {
+  /** The core's one write queue (review #8). */
+  writes?: WriteQueue;
   library: Library;
   activity: ActivityLog;
   onChange: () => void;
@@ -70,7 +73,11 @@ export class SkillEditor {
     return { path: input.path, content: binary ? null : content.toString("utf8"), binary };
   }
 
-  saveFile({ key, path, content }: SaveSkillFileInput, client: ActivityClient): Promise<SavedSkillFile> {
+  saveFile(input: SaveSkillFileInput, client: ActivityClient): Promise<SavedSkillFile> {
+    return (this.options.writes ?? new WriteQueue()).run(() => this.#save(input, client));
+  }
+
+  #save({ key, path, content }: SaveSkillFileInput, client: ActivityClient): Promise<SavedSkillFile> {
     return this.options.activity.track(
       { client, action: "skill.saveFile", subjects: [{ kind: "skill", id: key }] },
       async (wrote) => {
