@@ -120,6 +120,14 @@ _Avoid_: Trust, allowlist, auto-approve
 A star you put on a Skill or on a Source. The Favourites view shows starred Skills plus every Library Skill from a starred Source.
 _Avoid_: Bookmark, pin, Collection
 
+**Collection**:
+A named, flat list of Library Skills and MCP Servers that you add to a Project in one action. It's a template: adding it creates ordinary Project Skills and Project MCP Servers, and later changes to the Collection don't touch those Projects.
+_Avoid_: Kit, bundle, preset, Namespace
+
+**First run**:
+The one-time guided flow on first launch: ask to Scan, show what was found, ask once to Adopt every Global Skill, then guide you through setting up Skills for each Project.
+_Avoid_: Onboarding wizard, setup
+
 **Namespace**:
 The grouping a Library Skill belongs to, derived from its Source as `owner/repo`, or `local` when the Source is unknown.
 _Avoid_: Category, folder, tag, Collection
