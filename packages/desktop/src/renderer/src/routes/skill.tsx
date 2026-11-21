@@ -6,6 +6,7 @@ import { FolderOpen, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { DeleteSkillDialog } from "@/components/delete-skill-dialog";
+import { StarSkillButton } from "@/components/favourites";
 import { ModifiedBadge } from "@/components/modified-badge";
 import { skillTabs } from "@/components/skill-tabs";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ function SkillHeader({ skill }: { skill: SkillDetail }) {
     <div className="flex items-start gap-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <h1 className="flex items-center gap-2 font-semibold text-2xl tracking-tight">
+          <StarSkillButton skillKey={skill.key} />
           {skill.name}
           {skill.modified && <ModifiedBadge />}
           {skill.entry.orphaned && <OrphanedBadge reason={skill.entry.orphaned} />}

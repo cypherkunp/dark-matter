@@ -20,6 +20,7 @@ const builtPaths = new Set([
   "/inbox",
   "/library",
   "/library/collections",
+  "/library/favourites",
   "/library/updates",
   "/computer/agents",
   "/computer/activity",
@@ -71,6 +72,8 @@ export function Sidebar({ connected }: { connected: boolean }) {
   const projects = useQuery(trpc.project.list.queryOptions());
   const suggested = useQuery(trpc.project.suggested.queryOptions());
   const collections = useQuery(trpc.collections.list.queryOptions());
+  const favourites = useQuery(trpc.favourites.view.queryOptions());
+  const updates = useQuery(trpc.importer.updates.queryOptions());
   const { scanning, lastScanAt } = useScan();
   const now = useNow();
   const [filter, setFilter] = useState("");
@@ -80,7 +83,14 @@ export function Sidebar({ connected }: { connected: boolean }) {
     "/inbox": inbox.data?.count,
     "/library": skillCount,
     "/library/collections": collections.data?.length,
+    "/library/favourites": favourites.data?.skills.length,
   };
+  /** Rows whose count is a badge: something waits on you there. */
+  const badges: Record<string, number> = {
+    "/inbox": inbox.data?.count ?? 0,
+    "/library/updates": updates.data?.updates.length ?? 0,
+  };
+  const badgeIds: Record<string, string> = { "/inbox": "inbox-badge", "/library/updates": "updates-badge" };
   const sectionCounts: Record<string, number | undefined> = { Library: skillCount, Projects: projects.data?.length };
   const groupCounts: Record<string, number | undefined> = { "/projects/suggested": suggested.data?.suggested.length };
   const matches = (item: { label: string }) => item.label.toLowerCase().includes(filter.trim().toLowerCase());
@@ -147,12 +157,12 @@ export function Sidebar({ connected }: { connected: boolean }) {
                 <NavLink key={item.path} path={item.path} className={rowClass}>
                   <item.icon className="size-4 text-muted-foreground" />
                   <span className="truncate">{item.label}</span>
-                  {item.path === "/inbox" && (counts[item.path] ?? 0) > 0 ? (
+                  {(badges[item.path] ?? 0) > 0 ? (
                     <span
-                      data-testid="inbox-badge"
+                      data-testid={badgeIds[item.path]}
                       className="ml-auto rounded-full border border-warning-border bg-warning-surface px-1.5 text-[11px] text-status-warning tabular-nums"
                     >
-                      {counts[item.path]}
+                      {badges[item.path]}
                     </span>
                   ) : (
                     item.path in counts && <Count value={counts[item.path]} />

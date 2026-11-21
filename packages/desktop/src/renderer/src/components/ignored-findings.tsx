@@ -63,6 +63,14 @@ const rows = (inbox: Inbox): Row[] => [
       where: agentName(group.agent),
     })),
   ),
+  ...inbox.newSkills.flatMap((group) =>
+    group.findings.map((finding) => ({
+      id: finding.id,
+      name: finding.name,
+      kind: "New Skill in a starred Source",
+      where: group.source,
+    })),
+  ),
 ];
 
 /** "N ignored · Show": the findings you Ignored, each with Restore to put it back in the Inbox. */

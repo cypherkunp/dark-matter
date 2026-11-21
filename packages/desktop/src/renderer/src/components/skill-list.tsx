@@ -1,6 +1,7 @@
 import type { LibrarySkill } from "@dark-matter/contracts";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
+import { StarSkillButton } from "./favourites";
 import { ModifiedBadge } from "./modified-badge";
 import { OrphanedBadge } from "./updates";
 
@@ -15,41 +16,44 @@ export const byNamespace = (skills: LibrarySkill[]) => {
 
 function SkillRow({ skill }: { skill: LibrarySkill }) {
   return (
-    <Link
-      to="/skill"
-      search={{ key: skill.key }}
-      data-testid="library-skill"
-      className="flex min-h-16 items-center gap-3 px-5 py-3 hover:bg-muted/50"
-    >
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{skill.name}</span>
-          {skill.localSource && (
-            <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-              Local Source
-            </span>
-          )}
-          {skill.modified && <ModifiedBadge />}
-          {skill.orphaned && <OrphanedBadge />}
-          {skill.nameConflict && (
-            <span
-              data-testid="name-conflict"
-              className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px]"
-            >
-              Name Conflict
-            </span>
-          )}
+    <div className="flex items-center hover:bg-muted/50">
+      <StarSkillButton skillKey={skill.key} className="ml-3.5" />
+      <Link
+        to="/skill"
+        search={{ key: skill.key }}
+        data-testid="library-skill"
+        className="flex min-h-16 min-w-0 flex-1 items-center gap-3 py-3 pr-5 pl-2"
+      >
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm">{skill.name}</span>
+            {skill.localSource && (
+              <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                Local Source
+              </span>
+            )}
+            {skill.modified && <ModifiedBadge />}
+            {skill.orphaned && <OrphanedBadge />}
+            {skill.nameConflict && (
+              <span
+                data-testid="name-conflict"
+                className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px]"
+              >
+                Name Conflict
+              </span>
+            )}
+          </div>
+          {skill.description && <p className="truncate text-muted-foreground text-xs">{skill.description}</p>}
+          <div className="truncate font-mono text-muted-foreground text-xs">
+            {[skill.key, skill.localSource].filter(Boolean).join(" · ")}
+          </div>
         </div>
-        {skill.description && <p className="truncate text-muted-foreground text-xs">{skill.description}</p>}
-        <div className="truncate font-mono text-muted-foreground text-xs">
-          {[skill.key, skill.localSource].filter(Boolean).join(" · ")}
-        </div>
-      </div>
-      <span data-testid="project-count" className="shrink-0 text-muted-foreground text-xs tabular-nums">
-        {plural(skill.projects, "Project")}
-      </span>
-      <ChevronRight className="size-4 text-muted-foreground" />
-    </Link>
+        <span data-testid="project-count" className="shrink-0 text-muted-foreground text-xs tabular-nums">
+          {plural(skill.projects, "Project")}
+        </span>
+        <ChevronRight className="size-4 text-muted-foreground" />
+      </Link>
+    </div>
   );
 }
 

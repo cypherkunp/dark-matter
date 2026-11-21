@@ -25,6 +25,7 @@ import { Route as ComputerMcpServersRouteImport } from './routes/computer/mcp-se
 import { Route as GetGithubRouteImport } from './routes/get/github'
 import { Route as GetSkillsShRouteImport } from './routes/get/skills-sh'
 import { Route as LibraryCollectionsRouteImport } from './routes/library_.collections'
+import { Route as LibraryFavouritesRouteImport } from './routes/library_.favourites'
 import { Route as LibraryUpdatesRouteImport } from './routes/library_.updates'
 import { Route as ProjectsSuggestedRouteImport } from './routes/projects/suggested'
 
@@ -108,6 +109,11 @@ const LibraryCollectionsRoute = LibraryCollectionsRouteImport.update({
   path: '/library/collections',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LibraryFavouritesRoute = LibraryFavouritesRouteImport.update({
+  id: '/library_/favourites',
+  path: '/library/favourites',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LibraryUpdatesRoute = LibraryUpdatesRouteImport.update({
   id: '/library_/updates',
   path: '/library/updates',
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/get/github': typeof GetGithubRoute
   '/get/skills-sh': typeof GetSkillsShRoute
   '/library/collections': typeof LibraryCollectionsRoute
+  '/library/favourites': typeof LibraryFavouritesRoute
   '/library/updates': typeof LibraryUpdatesRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/get/github': typeof GetGithubRoute
   '/get/skills-sh': typeof GetSkillsShRoute
   '/library/collections': typeof LibraryCollectionsRoute
+  '/library/favourites': typeof LibraryFavouritesRoute
   '/library/updates': typeof LibraryUpdatesRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
@@ -177,6 +185,7 @@ export interface FileRoutesById {
   '/get/github': typeof GetGithubRoute
   '/get/skills-sh': typeof GetSkillsShRoute
   '/library_/collections': typeof LibraryCollectionsRoute
+  '/library_/favourites': typeof LibraryFavouritesRoute
   '/library_/updates': typeof LibraryUpdatesRoute
   '/projects/suggested': typeof ProjectsSuggestedRoute
 }
@@ -199,6 +208,7 @@ export interface FileRouteTypes {
     | '/get/github'
     | '/get/skills-sh'
     | '/library/collections'
+    | '/library/favourites'
     | '/library/updates'
     | '/projects/suggested'
   fileRoutesByTo: FileRoutesByTo
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/get/github'
     | '/get/skills-sh'
     | '/library/collections'
+    | '/library/favourites'
     | '/library/updates'
     | '/projects/suggested'
   id:
@@ -239,6 +250,7 @@ export interface FileRouteTypes {
     | '/get/github'
     | '/get/skills-sh'
     | '/library_/collections'
+    | '/library_/favourites'
     | '/library_/updates'
     | '/projects/suggested'
   fileRoutesById: FileRoutesById
@@ -260,6 +272,7 @@ export interface RootRouteChildren {
   GetGithubRoute: typeof GetGithubRoute
   GetSkillsShRoute: typeof GetSkillsShRoute
   LibraryCollectionsRoute: typeof LibraryCollectionsRoute
+  LibraryFavouritesRoute: typeof LibraryFavouritesRoute
   LibraryUpdatesRoute: typeof LibraryUpdatesRoute
   ProjectsSuggestedRoute: typeof ProjectsSuggestedRoute
 }
@@ -378,6 +391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryCollectionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/library_/favourites': {
+      id: '/library_/favourites'
+      path: '/library/favourites'
+      fullPath: '/library/favourites'
+      preLoaderRoute: typeof LibraryFavouritesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library_/updates': {
       id: '/library_/updates'
       path: '/library/updates'
@@ -412,6 +432,7 @@ const rootRouteChildren: RootRouteChildren = {
   GetGithubRoute: GetGithubRoute,
   GetSkillsShRoute: GetSkillsShRoute,
   LibraryCollectionsRoute: LibraryCollectionsRoute,
+  LibraryFavouritesRoute: LibraryFavouritesRoute,
   LibraryUpdatesRoute: LibraryUpdatesRoute,
   ProjectsSuggestedRoute: ProjectsSuggestedRoute,
 }

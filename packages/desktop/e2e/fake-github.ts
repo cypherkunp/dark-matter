@@ -86,7 +86,10 @@ export const startFakeGitHub = async (dir: string, fullName: string, files: Reco
     },
     /** Commits `files` on main (#33's updates). */
     async commit(changes: Record<string, string>) {
-      for (const [path, content] of Object.entries(changes)) await writeFile(join(dir, path), content);
+      for (const [path, content] of Object.entries(changes)) {
+        await mkdir(dirname(join(dir, path)), { recursive: true });
+        await writeFile(join(dir, path), content);
+      }
       git(dir, ["add", "--all"]);
       git(dir, ["commit", "--quiet", "-m", "update"]);
       head = git(dir, ["rev-parse", "HEAD"]).toString().trim();

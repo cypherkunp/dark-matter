@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useFavourites } from "@/components/favourites";
 import { markdownComponents } from "@/components/skill-preview";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
@@ -81,6 +82,7 @@ function ListingPreview({ listing }: { listing: SkillsShListing }) {
 /** One listing: name, Source, installs, then Preview and Get (or "in Library"). */
 function ListingRow({ listing, onGot }: { listing: SkillsShListing; onGot: (keys: string[]) => void }) {
   const trpc = useTRPC();
+  const { isSourceStarred } = useFavourites();
   const [open, setOpen] = useState(false);
   const get = useMutation(
     trpc.skillsSh.get.mutationOptions({ onSuccess: (result) => onGot(result.skills.map((skill) => skill.key)) }),
@@ -91,6 +93,11 @@ function ListingRow({ listing, onGot }: { listing: SkillsShListing; onGot: (keys
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate font-medium text-sm">{listing.name}</span>
           <span className="truncate font-mono text-[11px] text-muted-foreground">
+            {isSourceStarred(listing.source) && (
+              <span data-testid="favourite-source" title="Favourite Source" className="text-status-warning">
+                ★{" "}
+              </span>
+            )}
             {listing.source} · {installs(listing.installs)}
           </span>
           {get.error && <span className="text-status-warning text-xs">{get.error.message}</span>}

@@ -3,6 +3,7 @@ import type {
   GlobalSkill,
   InboxFolderGroup,
   InboxManagedGroup,
+  InboxNewSkillsGroup,
   InboxProjectGroup,
   ManagedSkill,
   OffSwitch,
@@ -20,11 +21,12 @@ import { InboxMcpServers } from "@/components/inbox-mcp";
 import { ManagedMcpGroups } from "@/components/managed-mcp";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useScan } from "@/components/use-scan";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
 import { relativeTime, useNow } from "@/lib/use-now";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/inbox")({ component: Inbox });
 
@@ -129,6 +131,48 @@ function UntrackedFinding({ finding, onAdopt }: { finding: UntrackedSkill; onAdo
         </Button>
       </div>
     </div>
+  );
+}
+
+/** "New Skills in ⭐ owner/repo" (#35): Skills a starred Source gained. Import is always your call. */
+function NewSkillsGroup({ group }: { group: InboxNewSkillsGroup }) {
+  const trpc = useTRPC();
+  const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
+  return (
+    <section data-testid="inbox-new-skills" className="flex flex-col gap-3">
+      <h2 className="flex items-center gap-2 font-semibold text-sm">
+        New Skills in ⭐ <span className="font-mono">{group.source}</span>
+        <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+        <Link
+          to="/get/github"
+          search={{ url: group.source }}
+          className={cn(buttonVariants({ size: "sm", variant: "outline" }), "ml-auto")}
+        >
+          Import…
+        </Link>
+      </h2>
+      <div className="divide-y rounded-xl border">
+        {group.findings.map((finding) => (
+          <div key={finding.id} data-testid="inbox-new-skill" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+            <StatusDot tone="warning" />
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="font-medium text-sm">{finding.name}</span>
+              <span className="truncate font-mono text-muted-foreground text-xs">
+                {group.source}/{finding.path}
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={ignore.isPending}
+              onClick={() => ignore.mutate({ id: finding.id })}
+            >
+              Ignore
+            </Button>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -323,6 +367,9 @@ function Inbox() {
               ))}
             </>
           )}
+          {(inbox.data?.newSkills ?? []).map((group) => (
+            <NewSkillsGroup key={group.source} group={group} />
+          ))}
           <InboxMcpServers groups={inbox.data?.mcpServers ?? []} />
           <ManagedMcpGroups groups={inbox.data?.managedMcpServers ?? []} inInbox />
         </>

@@ -17,6 +17,7 @@ import { Collections } from "./collections";
 import { editConfigFile } from "./config-edit";
 import { Drift } from "./drift";
 import type { EventBus } from "./events";
+import { Favourites } from "./favourites";
 import { GitHubAccess, type GitHubOptions } from "./github";
 import { Importer, importerServices } from "./importer";
 import { agentCards, ignoredInbox, inboxFrom } from "./inbox";
@@ -95,7 +96,7 @@ export const createServices = async ({
   const ownedFileChanged = () =>
     bus.publish({
       type: "invalidate",
-      domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill", "collections"],
+      domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill", "collections", "favourites"],
     });
   const env = { home, ...(systemRoot && { systemRoot }) };
   const scans = new Scans({
@@ -226,6 +227,19 @@ export const createServices = async ({
   dailyJobs.push(trash.job());
   /** Updates for Imported Skills (#33); `sourceChecks` is the per-Source check #35 reuses for starred Sources. */
   const sourceChecks = new SourceChecks(cache, clock);
+  /** Favourites (#35): starred Skills and Sources; starred Sources are checked with the update check. */
+  const favourites = new Favourites({
+    settings,
+    library,
+    activity,
+    checks: sourceChecks,
+    cache,
+    clock,
+    librarySkills: async () => library.list(await projectSkills.usage()),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["favourites", "settings", "inbox"] }),
+  });
+  // Before the Collections hook, which claims every settings.json step.
+  keyRenameHooks.unshift(favourites.keyRenameHook(home));
   const updates = new Updates({
     home,
     library,
@@ -236,8 +250,12 @@ export const createServices = async ({
     clock,
     trash,
     hooks: keyRenameHooks,
+    starred: favourites.starredSourceCheck(),
     onChange: () =>
-      bus.publish({ type: "invalidate", domains: ["importer", "library", "skill", "project", "collections"] }),
+      bus.publish({
+        type: "invalidate",
+        domains: ["importer", "library", "skill", "project", "collections", "favourites"],
+      }),
   });
   dailyJobs.push(updates.job());
   const projectProcedures = projectServices({ env, projects, settings, activity, scans, bus, deliver: deliverProject });
@@ -288,6 +306,7 @@ export const createServices = async ({
       waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
       findUntracked(),
       await drift.groups(),
+      favourites.inboxGroups(),
     );
   const overview = new OverviewService({
     home,
@@ -455,6 +474,12 @@ export const createServices = async ({
       ...projectMcp.services(),
     },
     collections: collections.services(),
+    favourites: {
+      get: () => favourites.get(),
+      view: () => favourites.view(),
+      setSkill: (input, client) => favourites.setSkill(input, client),
+      setSource: (input, client) => favourites.setSource(input, client),
+    },
     importer: {
       ...importerServices(importer),
       checkUpdates: (input, client) => updates.check(input, client),

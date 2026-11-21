@@ -24,6 +24,7 @@ import {
 } from "@dark-matter/contracts";
 import type { ActivityLog, Wrote } from "./activity";
 import type { Clock } from "./clock";
+import type { StarredSourceCheck } from "./favourites";
 import { GitHubNotFound, type GitHubSession } from "./github";
 import { homeRelative } from "./home-path";
 import { parseImportSource } from "./import-source";
@@ -49,6 +50,8 @@ export interface UpdatesOptions {
   /** What follows a Skill to its new key on Detach (Links, Copies, Collections). */
   hooks: readonly KeyRenameHook[];
   onChange: () => void;
+  /** Starred Sources (#35), checked for new Skills alongside each Source's update check. */
+  starred?: StarredSourceCheck;
 }
 
 /** The repo folder a Library Lock entry's `skillPath` names. */
@@ -108,34 +111,43 @@ export class Updates {
     return this.#serial(async () => {
       const { activity, importer } = this.#options;
       const groups = this.#sources(keys);
-      await activity.track(
-        {
-          client,
-          action: "importer.checkUpdates",
-          subjects: [...groups.values()].map((group) => ({ kind: "source" as const, id: group.source })),
-        },
-        async (wrote) => {
-          const session = await importer.options.github.session();
-          const orphaned = new Map<string, string | null>();
-          let failure: unknown = null;
-          for (const group of groups.values()) {
-            try {
-              await this.#checkSource(session, group, orphaned);
-            } catch (error) {
-              if (error instanceof GitHubNotFound) {
-                for (const key of group.keys) orphaned.set(key, `${group.source} can't be found on GitHub`);
-                this.#saveUpdates(group, []);
-              } else {
-                failure ??= error;
-                // Every later Source would fail the same way.
-                if (error instanceof RateLimited) break;
-              }
+      const { starred } = this.#options;
+      const checked = new Set([...groups.values()].map((group) => group.source.toLowerCase()));
+      // Check upstream on one Skill looks at its own Source only.
+      const starredSources = (starred?.sources() ?? []).filter((source) => !keys || checked.has(source.toLowerCase()));
+      const subjects = [
+        ...new Map(
+          [...[...groups.values()].map((group) => group.source), ...starredSources].map((source) => [
+            source.toLowerCase(),
+            { kind: "source" as const, id: source },
+          ]),
+        ).values(),
+      ];
+      await activity.track({ client, action: "importer.checkUpdates", subjects }, async (wrote) => {
+        const session = await importer.options.github.session();
+        const orphaned = new Map<string, string | null>();
+        const heads = new Map<string, string>();
+        let failure: unknown = null;
+        for (const group of groups.values()) {
+          try {
+            heads.set(sourceId(group), await this.#checkSource(session, group, orphaned));
+          } catch (error) {
+            if (error instanceof GitHubNotFound) {
+              for (const key of group.keys) orphaned.set(key, `${group.source} can't be found on GitHub`);
+              this.#saveUpdates(group, []);
+            } else {
+              failure ??= error;
+              // Every later Source would fail the same way.
+              if (error instanceof RateLimited) break;
             }
           }
-          await this.#markOrphaned(orphaned, wrote);
-          if (failure) throw failure;
-        },
-      );
+        }
+        await this.#markOrphaned(orphaned, wrote);
+        if (starred && starredSources.length > 0 && !(failure instanceof RateLimited)) {
+          failure ??= await starred.check(session, heads, keys ? checked : null);
+        }
+        if (failure) throw failure;
+      });
       this.#options.onChange();
       return this.view();
     });
@@ -145,7 +157,7 @@ export class Updates {
     session: GitHubSession,
     group: SourceRef & { keys: string[] },
     orphaned: Map<string, string | null>,
-  ): Promise<void> {
+  ): Promise<string> {
     const { checks, library } = this.#options;
     const head = await checks.head(session, group);
     const now = this.#options.clock.now().toISOString();
@@ -181,6 +193,7 @@ export class Updates {
       });
     }
     this.#saveUpdates(group, updates);
+    return head;
   }
 
   #saveUpdates(group: SourceRef, updates: SkillUpdate[]) {
@@ -552,7 +565,9 @@ export class Updates {
       name: "importer.checkUpdates",
       run: async ({ client, notifier }) => {
         const before = new Set((await this.view()).updates.map((update) => `${update.key}@${update.folderSha}`));
-        const { updates } = await this.check({}, client);
+        const { starred } = this.#options;
+        const waiting = starred?.waiting() ?? new Set<string>();
+        const { updates } = await this.check({}, client).finally(() => starred?.notifyNew(waiting, notifier));
         const fresh = updates.filter((update) => !before.has(`${update.key}@${update.folderSha}`));
         if (fresh.length > 0) {
           notifier.notify({
