@@ -58,6 +58,13 @@ export class Scans {
     this.#running.catch((error: unknown) => log(`catch-up Scan failed: ${String(error)}`));
   }
 
+  /** A Scan after the core changed an Agent's settings, so the cache shows it. Not logged on its own. */
+  async refresh(): Promise<ScanResult> {
+    await this.settle();
+    this.#running ??= this.#start(() => this.#scan());
+    return this.#running;
+  }
+
   /** Waits for a running Scan, so the cache isn't closed under it. */
   async settle(): Promise<void> {
     await this.#running?.catch(() => {});

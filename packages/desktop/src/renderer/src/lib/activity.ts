@@ -11,6 +11,7 @@ const actionLabels: Record<string, string> = {
   "project.setAgents": "Chose a Project's Agents",
   "project.locate": "Located a moved Project",
   "project.remove": "Removed a Project",
+  "managedSkills.turnOff": "Turned off an Agent-managed Skill",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;

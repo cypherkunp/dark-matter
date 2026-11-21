@@ -1,12 +1,15 @@
 import { join } from "node:path";
-import { type CoreInfo, ProjectsFile, SettingsFile } from "@dark-matter/contracts";
+import { type CoreInfo, ProjectsFile, SettingsFile, UnknownFinding } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import { ActivityLog } from "./activity";
+import { agentAdapters } from "./agents";
 import { openCache } from "./cache";
 import type { Clock } from "./clock";
+import { editConfigFile } from "./config-edit";
 import type { EventBus } from "./events";
 import { agentCards, inboxFrom } from "./inbox";
 import { log } from "./log";
+import { managedSkillRef } from "./managed-skills";
 import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
 import { projectServices, waitingSuggestions } from "./projects";
@@ -123,6 +126,24 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
         }),
     },
     agents: { list: () => agentCards(scans.latest, env) },
+    managedSkills: {
+      turnOff: ({ id, scope }, client) =>
+        activity.track(
+          { client, action: "managedSkills.turnOff", subjects: [{ kind: "finding", id }] },
+          async (wrote) => {
+            const skill = scans.latest?.managedSkills.find((found) => found.id === id);
+            const off = agentAdapters.find((adapter) => adapter.id === skill?.agent)?.managed.off;
+            if (!skill || !off || !skill.offSwitches.some((offSwitch) => offSwitch.scope === scope)) {
+              throw new UnknownFinding(id);
+            }
+            const ref = managedSkillRef(skill, home);
+            const file = await off.file(home);
+            const written = await editConfigFile(file, (text) => off.turnOff(text, ref, scope));
+            if (written) wrote(written);
+            await scans.refresh();
+          },
+        ),
+    },
     scheduler: { status: () => scheduler.status() },
     project: projectServices({ env, projects, settings, activity, scans, bus }),
   };

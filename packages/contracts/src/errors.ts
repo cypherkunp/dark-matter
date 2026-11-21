@@ -62,3 +62,22 @@ export class ProjectExists extends TaggedError<"ProjectExists"> {
     super(`${path} is already a Project`);
   }
 }
+
+/** An Agent's config file doesn't parse, so the core won't edit it. */
+export class InvalidAgentConfig extends TaggedError<"InvalidAgentConfig"> {
+  readonly _tag = "InvalidAgentConfig";
+  constructor(
+    readonly path: string,
+    readonly problem: string,
+  ) {
+    super(`${path} doesn't parse (${problem}), so Dark Matter won't edit it. Fix it first.`);
+  }
+}
+
+/** A finding id that the latest Scan doesn't know, or an action it doesn't offer. */
+export class UnknownFinding extends TaggedError<"UnknownFinding"> {
+  readonly _tag = "UnknownFinding";
+  constructor(readonly id: string) {
+    super(`No finding ${id} in the latest Scan offers that action`);
+  }
+}

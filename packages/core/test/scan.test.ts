@@ -234,17 +234,40 @@ describe("the Agents screen", () => {
         detected: true,
         globalSkillFolder: "~/.claude/skills",
         globalSkillCount: 1,
+        managedSkillCount: 0,
       },
-      { id: "cursor", name: "Cursor", detected: false, globalSkillFolder: "~/.cursor/skills", globalSkillCount: 2 },
+      {
+        id: "cursor",
+        name: "Cursor",
+        detected: false,
+        globalSkillFolder: "~/.cursor/skills",
+        globalSkillCount: 2,
+        managedSkillCount: 0,
+      },
       {
         id: "opencode",
         name: "OpenCode",
         detected: true,
         globalSkillFolder: "~/.config/opencode/skills",
         globalSkillCount: 2,
+        managedSkillCount: 0,
       },
-      { id: "codex", name: "Codex", detected: false, globalSkillFolder: "~/.agents/skills", globalSkillCount: 2 },
-      { id: "agents", name: ".agents", detected: true, globalSkillFolder: "~/.agents/skills", globalSkillCount: 2 },
+      {
+        id: "codex",
+        name: "Codex",
+        detected: false,
+        globalSkillFolder: "~/.agents/skills",
+        globalSkillCount: 2,
+        managedSkillCount: 0,
+      },
+      {
+        id: "agents",
+        name: ".agents",
+        detected: true,
+        globalSkillFolder: "~/.agents/skills",
+        globalSkillCount: 2,
+        managedSkillCount: 0,
+      },
     ]);
   });
 });

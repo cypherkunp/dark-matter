@@ -190,6 +190,8 @@ export const AgentScan = z.object({
   globalSkillFolders: z.array(z.object({ path: z.string(), exists: z.boolean() })),
   /** Global Skills it loads, counted once per real path. */
   globalSkillCount: z.int().nonnegative(),
+  /** Agent-managed Skills it loads. */
+  managedSkillCount: z.int().nonnegative().default(0),
 });
 export type AgentScan = z.infer<typeof AgentScan>;
 
@@ -232,6 +234,46 @@ export const ProjectScan = z.object({
 });
 export type ProjectScan = z.infer<typeof ProjectScan>;
 
+/**
+ * How an Agent-managed Skill can be turned off through its Agent's own global
+ * settings. `skill` turns off just this Skill; `plugin` the whole plugin it
+ * comes with; `bundled` every Skill bundled with the Agent.
+ */
+export const OffScope = z.enum(["skill", "plugin", "bundled"]);
+export type OffScope = z.infer<typeof OffScope>;
+
+export const OffSwitch = z.object({
+  scope: OffScope,
+  /** The config file it writes, home-relative. */
+  file: z.string(),
+  /** The setting it writes, as the user would read it in that file. */
+  setting: z.string(),
+});
+export type OffSwitch = z.infer<typeof OffSwitch>;
+
+/**
+ * A Skill an Agent installs and controls itself (plugin, bundled, synced or
+ * cached), found by a Scan. Dark Matter never moves it.
+ */
+export const ManagedSkill = z.object({
+  /** Stable across Scans: `managed-skill:<agent>:<path>`. */
+  id: z.string(),
+  agent: AgentId,
+  /** Frontmatter `name`, else the folder name. */
+  name: z.string(),
+  description: z.string(),
+  /** Its folder, home-relative. */
+  path: z.string(),
+  kind: z.enum(["plugin", "bundled", "synced", "cached"]),
+  /** The plugin it comes with, as the Agent names it (Claude Code: `plugin@marketplace`). */
+  plugin: z.string().nullable(),
+  /** Already turned off in the Agent's settings. */
+  off: z.boolean(),
+  /** Ways to turn it off, the narrowest first. Empty when the Agent has no off switch (Cursor). */
+  offSwitches: z.array(OffSwitch),
+});
+export type ManagedSkill = z.infer<typeof ManagedSkill>;
+
 /** Everything one Scan found. Cached in `state/`; rebuilt by scanning again. */
 export const ScanResult = z.object({
   scannedAt: z.iso.datetime(),
@@ -241,6 +283,7 @@ export const ScanResult = z.object({
   suggestedProjects: z.array(SuggestedProject).default([]),
   /** What the Scan read in each confirmed Project's skill folders. */
   projects: z.array(ProjectScan).default([]),
+  managedSkills: z.array(ManagedSkill).default([]),
 });
 export type ScanResult = z.infer<typeof ScanResult>;
 
@@ -260,11 +303,20 @@ export const InboxFolderGroup = z.object({
 });
 export type InboxFolderGroup = z.infer<typeof InboxFolderGroup>;
 
+/** One Agent's Agent-managed Skills, for the Inbox. */
+export const InboxManagedGroup = z.object({
+  agent: AgentId,
+  findings: z.array(ManagedSkill),
+});
+export type InboxManagedGroup = z.infer<typeof InboxManagedGroup>;
+
 /** Findings still waiting on a decision. Ignored findings are left out. */
 export const Inbox = z.object({
   /** The badge: findings waiting, across every kind. */
   count: z.int().nonnegative(),
   globalSkills: z.array(InboxFolderGroup),
+  /** Agent-managed Skills that are still on, by Agent. */
+  managedSkills: z.array(InboxManagedGroup),
   ignoredCount: z.int().nonnegative(),
   /** Suggested Projects waiting to be confirmed or dismissed (listed on the Suggested screen). */
   suggestedProjects: z.int().nonnegative(),
@@ -281,6 +333,8 @@ export const AgentCard = z.object({
   globalSkillFolder: z.string(),
   /** Null until the first Scan. */
   globalSkillCount: z.int().nonnegative().nullable(),
+  /** Null until the first Scan. */
+  managedSkillCount: z.int().nonnegative().nullable(),
 });
 export type AgentCard = z.infer<typeof AgentCard>;
 

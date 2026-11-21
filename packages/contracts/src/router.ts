@@ -12,6 +12,7 @@ import {
   type CoreNotification,
   Inbox,
   LibraryList,
+  OffScope,
   OwnedFileName,
   OwnedFileProblem,
   PreferencesPatch,
@@ -65,6 +66,13 @@ export interface CoreServices {
   };
   agents: {
     list(): AgentCard[];
+  };
+  managedSkills: {
+    /**
+     * "Turn off everywhere": turns an Agent-managed Skill off through its Agent's
+     * own global settings, with a targeted, format-preserving edit.
+     */
+    turnOff(input: { id: string; scope: OffScope }, client: ClientKind): Promise<void>;
   };
   scheduler: {
     status(): SchedulerStatus;
@@ -138,6 +146,11 @@ export const createAppRouter = (services: CoreServices) =>
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+    }),
+    managedSkills: t.router({
+      turnOff: t.procedure
+        .input(z.object({ id: z.string().min(1), scope: OffScope }))
+        .mutation(({ input, ctx }) => services.managedSkills.turnOff(input, ctx.client)),
     }),
     scheduler: t.router({
       status: t.procedure.output(SchedulerStatus).query(() => services.scheduler.status()),

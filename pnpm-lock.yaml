@@ -182,6 +182,9 @@ catalogs:
     '@dark-matter/contracts':
       specifier: workspace:^
       version: workspace:^
+    '@decimalturn/toml-patch':
+      specifier: 3.3.2
+      version: 3.3.2
     '@playwright/test':
       specifier: 1.65.1
       version: 1.65.1
@@ -236,6 +239,9 @@ catalogs:
     electron-vite:
       specifier: 6.0.0
       version: 6.0.0
+    jsonc-parser:
+      specifier: 3.3.1
+      version: 3.3.1
     knip:
       specifier: 6.47.0
       version: 6.47.0
@@ -320,9 +326,15 @@ importers:
       '@dark-matter/contracts':
         specifier: 'catalog:'
         version: link:../contracts
+      '@decimalturn/toml-patch':
+        specifier: 'catalog:'
+        version: 3.3.2
       '@trpc/server':
         specifier: 'catalog:'
         version: 11.29.5(@types/ws@8.18.2)(typescript@7.0.2)
+      jsonc-parser:
+        specifier: 'catalog:'
+        version: 3.3.1
       ws:
         specifier: 'catalog:'
         version: 8.23.0
@@ -657,6 +669,10 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
+
+  '@decimalturn/toml-patch@3.3.2':
+    resolution: {integrity: sha512-UUsjKkIJWC4JwhAK7IUMZeN4TjjtCWapAkdIuvllT3/fYcNooDQ0HtwgGDV77ew+arh/15hazN9M9/oSNV+PDg==}
+    engines: {node: '>=16'}
 
   '@dotenvx/dotenvx@1.75.1':
     resolution: {integrity: sha512-/BITOC9dmS/edY2zQwZNicQ059O6RKabtQfyEafV0nGtfYRNHYy1DIPiYVcov40+tob9hfmBnbR963dS+EQ1DQ==}
@@ -2617,6 +2633,9 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
+  jsonc-parser@3.3.1:
+    resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
+
   jsonfile@4.0.0:
     resolution: {integrity: sha512-m6F1R3z8jjlf2imQHS2Qez5sjKWQzbuuhuJ/FKYFRZvPE3PuHcSMVZzfsLhGVOkfd20obL5SWEBew5ShlquNxg==}
 
@@ -4013,6 +4032,8 @@ snapshots:
 
   '@biomejs/cli-win32-x64@2.6.8':
     optional: true
+
+  '@decimalturn/toml-patch@3.3.2': {}
 
   '@dotenvx/dotenvx@1.75.1':
     dependencies:
@@ -5790,6 +5811,8 @@ snapshots:
     optional: true
 
   json5@2.2.3: {}
+
+  jsonc-parser@3.3.1: {}
 
   jsonfile@4.0.0:
     optionalDependencies:

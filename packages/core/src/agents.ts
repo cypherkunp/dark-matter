@@ -1,6 +1,14 @@
 import { join } from "node:path";
 import type { AgentId } from "@dark-matter/contracts";
 import { claudeHistory, codexHistory, cursorHistory, opencodeHistory } from "./history";
+import {
+  type AgentManagedSkills,
+  claudeManaged,
+  codexManaged,
+  cursorManaged,
+  noManaged,
+  opencodeManaged,
+} from "./managed-skills";
 
 /** Where an adapter resolves its paths from. Grows as adapters need more (e.g. `CODEX_HOME`). */
 export interface AgentPathEnv {
@@ -22,7 +30,6 @@ export interface SkillFolder {
  * research, #2, checked November 2026). Adding an Agent means adding an adapter.
  *
  * Later tickets add sibling sections here rather than new registries:
- * `managed` (Agent-managed Skill locations and "Turn off everywhere") and
  * `mcp` (config locations, formats and translation).
  */
 export interface AgentAdapter {
@@ -52,6 +59,8 @@ export interface AgentAdapter {
      */
     projectFolders(env: AgentPathEnv): Promise<string[]>;
   };
+  /** Agent-managed Skill locations (read-only) and "Turn off everywhere" (managed-skills.ts). */
+  managed: AgentManagedSkills;
 }
 
 const claudeSkills = ({ home }: AgentPathEnv): SkillFolder => ({
@@ -76,6 +85,7 @@ const claudeCode: AgentAdapter = {
   },
   project: { markers: [".claude", "CLAUDE.md"] },
   history: { projectFolders: claudeHistory },
+  managed: claudeManaged,
 };
 
 const cursor: AgentAdapter = {
@@ -90,6 +100,7 @@ const cursor: AgentAdapter = {
   },
   project: { markers: [".cursor"] },
   history: { projectFolders: cursorHistory },
+  managed: cursorManaged,
 };
 
 const opencode: AgentAdapter = {
@@ -103,6 +114,7 @@ const opencode: AgentAdapter = {
   },
   project: { markers: [".opencode", "opencode.json", "opencode.jsonc"] },
   history: { projectFolders: opencodeHistory },
+  managed: opencodeManaged,
 };
 
 const codex: AgentAdapter = {
@@ -118,6 +130,7 @@ const codex: AgentAdapter = {
   },
   project: { markers: [".codex"] },
   history: { projectFolders: codexHistory },
+  managed: codexManaged,
 };
 
 const agents: AgentAdapter = {
@@ -132,6 +145,7 @@ const agents: AgentAdapter = {
   project: { markers: [".agents", "AGENTS.md"] },
   // The convention has no history of its own.
   history: { projectFolders: async () => [] },
+  managed: noManaged,
 };
 
 /** The v1 Agents, in the order screens list them. */
