@@ -11,14 +11,20 @@ import {
   AdoptPlan,
   AgentCard,
   AgentId,
+  AppliedCollection,
   ApplyAdoptInput,
+  ApplyCollectionInput,
   ApplyMcpAdoptInput,
   ApplyRenameNamespaceInput,
   type ClientKind,
+  Collection,
+  CollectionPlan,
+  CollectionPlanInput,
   CopyDiff,
   type CoreEvent,
   CoreInfo,
   type CoreNotification,
+  CreateCollectionInput,
   FulfilLockInput,
   Inbox,
   LibraryList,
@@ -37,6 +43,7 @@ import {
   ProjectSkillRef,
   ProjectSkills,
   ProjectSummary,
+  RenameCollectionInput,
   RenameNamespaceInput,
   RenameNamespacePlan,
   RepoSkills,
@@ -45,6 +52,7 @@ import {
   ScanResult,
   ScanStatus,
   SchedulerStatus,
+  SetCollectionItemsInput,
   SettingsFile,
   SkillDeletePlan,
   SkillDetail,
@@ -185,6 +193,18 @@ export interface CoreServices {
     fulfilLock(input: FulfilLockInput, client: ClientKind): Promise<ProjectSkills>;
     /** Resolves a Name Conflict: `key` wins and the other same-name Project Skills are removed. */
     resolveConflict(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+  };
+  collections: {
+    list(): Promise<Collection[]>;
+    create(input: CreateCollectionInput, client: ClientKind): Promise<Collection>;
+    rename(input: RenameCollectionInput, client: ClientKind): Promise<Collection>;
+    /** Replaces its items. Projects that used it don't change: a Collection is a template. */
+    setItems(input: SetCollectionItemsInput, client: ClientKind): Promise<Collection>;
+    delete(name: string, client: ClientKind): Promise<void>;
+    /** The dry run of adding it to Projects: per item and Project, what would happen. Writes nothing. */
+    plan(input: CollectionPlanInput): Promise<CollectionPlan>;
+    /** Adds the chosen items as ordinary Project Skills; items blocked in a Project are skipped and reported. */
+    apply(input: ApplyCollectionInput, client: ClientKind): Promise<AppliedCollection>;
   };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
@@ -381,6 +401,33 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ApplyRenameNamespaceInput)
         .output(RenameNamespacePlan)
         .mutation(({ input, ctx }) => services.namespace.rename(input, ctx.client)),
+    }),
+    collections: t.router({
+      list: t.procedure.output(Collection.array()).query(() => services.collections.list()),
+      create: t.procedure
+        .input(CreateCollectionInput)
+        .output(Collection)
+        .mutation(({ input, ctx }) => services.collections.create(input, ctx.client)),
+      rename: t.procedure
+        .input(RenameCollectionInput)
+        .output(Collection)
+        .mutation(({ input, ctx }) => services.collections.rename(input, ctx.client)),
+      setItems: t.procedure
+        .input(SetCollectionItemsInput)
+        .output(Collection)
+        .mutation(({ input, ctx }) => services.collections.setItems(input, ctx.client)),
+      delete: t.procedure
+        .input(z.object({ name: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.collections.delete(input.name, ctx.client)),
+      plan: t.procedure
+        .input(CollectionPlanInput)
+        .output(CollectionPlan)
+        .query(({ input }) => services.collections.plan(input)),
+      // `apply` is reserved by tRPC.
+      execute: t.procedure
+        .input(ApplyCollectionInput)
+        .output(AppliedCollection)
+        .mutation(({ input, ctx }) => services.collections.apply(input, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

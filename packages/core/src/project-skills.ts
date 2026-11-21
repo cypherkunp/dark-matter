@@ -3,9 +3,12 @@ import { lstat, realpath } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   type ActivitySubject,
+  type AddProjectSkill,
   type AgentId,
   type ClientKind,
+  type CollectionCell,
   CopyModifiedInRepo,
+  type DeliveryMode,
   type KeyRename,
   NameConflict,
   NotInLibrary,
@@ -229,6 +232,117 @@ export class ProjectSkillService {
     ).then(([result]) => result as ProjectSkills);
   }
 
+  /** Adds Library Skills to Projects and delivers them On, planning every Project before any write. */
+  async #add(skills: readonly AddProjectSkill[], wrote: Wrote): Promise<ProjectSkills[]> {
+    const { library } = this.options;
+    const paths = [...new Set(skills.map((skill) => skill.path))];
+    for (const { key } of skills) if (!(key in library.lock.value.skills)) throw new SkillNotFound(key);
+    const nexts = paths.map((path) => {
+      const record = this.#record(path);
+      const added = Object.fromEntries(
+        skills
+          .filter((skill) => skill.path === path)
+          .map((skill) => [skill.key, { mode: skill.mode ?? record.skills[skill.key]?.mode ?? "link", on: true }]),
+      );
+      return [path, { ...record, skills: { ...record.skills, ...added } }] as const;
+    });
+    // Plan every Project first, so one that can't take it (a Name Conflict) stops the lot before any write.
+    for (const [path, next] of nexts) {
+      const plan = await planDelivery(library, path, next, [], { previous: this.#record(path) });
+      for (const skill of plan.skills) {
+        const before = this.#record(path).skills[skill.key];
+        // Switching a Copy edited in the repo to a Link would delete the edits.
+        if (before?.mode === "copy" && skill.mode !== "copy") {
+          const current = (await planDelivery(library, path, this.#record(path))).skills.find(
+            (found) => found.key === skill.key,
+          );
+          if (current) guardEdits(path, current, false);
+        }
+      }
+    }
+    const results: ProjectSkills[] = [];
+    for (const [path, next] of nexts) results.push({ path, skills: await this.deliver(path, next, wrote) });
+    return results;
+  }
+
+  /**
+   * Adding Collection items (#36) to one Project, per item: "present" (it has
+   * it already), "missing" (not in the Library), "blocked" (a foreign entry
+   * holds its folder), "nameConflict" (it would be added in a Name Conflict)
+   * or "add". Writes nothing.
+   */
+  async preview(path: string, items: readonly { key: string; mode: DeliveryMode }[]): Promise<CollectionCell[]> {
+    const { library } = this.options;
+    const record = this.#record(path);
+    const cells = new Map<string, CollectionCell>();
+    const addable: CollectionCell[] = [];
+    for (const { key, mode } of items) {
+      const cell: CollectionCell = { path, key, mode, outcome: "add", conflictsWith: [], blockedBy: null };
+      const current = record.skills[key];
+      if (!(key in library.lock.value.skills)) cells.set(key, { ...cell, outcome: "missing" });
+      else if (current) cells.set(key, { ...cell, mode: current.mode, outcome: "present" });
+      else {
+        const alone = { ...record, skills: { ...record.skills, [key]: { mode, on: true } } };
+        try {
+          await planDelivery(library, path, alone, [], { previous: record });
+          addable.push(cell);
+        } catch (error) {
+          if (!(error instanceof NameConflict)) throw error;
+          cells.set(key, { ...cell, outcome: "blocked", blockedBy: error.path ?? null });
+        }
+      }
+    }
+    if (addable.length > 0) {
+      const added = Object.fromEntries(addable.map((cell) => [cell.key, { mode: cell.mode, on: true }]));
+      const plan = await planDelivery(library, path, { ...record, skills: { ...record.skills, ...added } }, [], {
+        previous: record,
+      });
+      for (const cell of addable) {
+        const planned = plan.skills.find((skill) => skill.key === cell.key);
+        const conflict = planned?.status === "nameConflict";
+        cells.set(cell.key, {
+          ...cell,
+          outcome: conflict ? "nameConflict" : "add",
+          conflictsWith: conflict ? planned.conflictsWith : [],
+        });
+      }
+    }
+    return items.flatMap(({ key }) => cells.get(key) ?? []);
+  }
+
+  /** Applies a Collection (#36): adds what each Project can take and reports every item's outcome. */
+  applyCollection(name: string, skills: readonly AddProjectSkill[], client: ClientKind) {
+    const paths = [...new Set(skills.map((skill) => skill.path))];
+    const subjects: ActivitySubject[] = [
+      { kind: "collection", id: name },
+      ...paths.map((id) => ({ kind: "project" as const, id })),
+      ...[...new Set(skills.map((skill) => skill.key))].map((id) => ({ kind: "skill" as const, id })),
+    ];
+    return this.#serial(() =>
+      this.options.activity.track({ client, action: "collections.apply", subjects }, async (wrote) => {
+        try {
+          const cells: CollectionCell[] = [];
+          for (const path of paths) {
+            const own = skills.filter((skill) => skill.path === path);
+            cells.push(
+              ...(await this.preview(
+                path,
+                own.map(({ key, mode }) => ({ key, mode: mode ?? "link" })),
+              )),
+            );
+          }
+          const adding = cells
+            .filter((cell) => cell.outcome === "add" || cell.outcome === "nameConflict")
+            .map(({ path, key, mode }) => ({ path, key, mode }));
+          const projects = adding.length > 0 ? await this.#add(adding, wrote) : [];
+          return { projects, cells };
+        } finally {
+          this.#changed();
+        }
+      }),
+    );
+  }
+
   async usage(): Promise<Map<string, SkillUsage>> {
     const usage = new Map<string, SkillUsage>();
     for (const [path, record] of Object.entries(this.options.projects.value.projects)) {
@@ -426,38 +540,7 @@ export class ProjectSkillService {
           ...paths.map((id) => ({ kind: "project" as const, id })),
           ...[...new Set(skills.map((skill) => skill.key))].map((id) => ({ kind: "skill" as const, id })),
         ];
-        return this.#change(client, "project.addSkills", subjects, async (wrote) => {
-          for (const { key } of skills) if (!(key in library.lock.value.skills)) throw new SkillNotFound(key);
-          const nexts = paths.map((path) => {
-            const record = this.#record(path);
-            const added = Object.fromEntries(
-              skills
-                .filter((skill) => skill.path === path)
-                .map((skill) => [
-                  skill.key,
-                  { mode: skill.mode ?? record.skills[skill.key]?.mode ?? "link", on: true },
-                ]),
-            );
-            return [path, { ...record, skills: { ...record.skills, ...added } }] as const;
-          });
-          // Plan every Project first, so one that can't take it (a Name Conflict) stops the lot before any write.
-          for (const [path, next] of nexts) {
-            const plan = await planDelivery(library, path, next, [], { previous: this.#record(path) });
-            for (const skill of plan.skills) {
-              const before = this.#record(path).skills[skill.key];
-              // Switching a Copy edited in the repo to a Link would delete the edits.
-              if (before?.mode === "copy" && skill.mode !== "copy") {
-                const current = (await planDelivery(library, path, this.#record(path))).skills.find(
-                  (found) => found.key === skill.key,
-                );
-                if (current) guardEdits(path, current, false);
-              }
-            }
-          }
-          const results: ProjectSkills[] = [];
-          for (const [path, next] of nexts) results.push({ path, skills: await this.deliver(path, next, wrote) });
-          return results;
-        });
+        return this.#change(client, "project.addSkills", subjects, (wrote) => this.#add(skills, wrote));
       },
 
       setSkillOn: ({ path, key, on, discardEdits }, client) =>

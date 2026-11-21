@@ -6,6 +6,7 @@ import { Adopt } from "./adopt";
 import { agentAdapters } from "./agents";
 import { openCache } from "./cache";
 import type { Clock } from "./clock";
+import { Collections } from "./collections";
 import { editConfigFile } from "./config-edit";
 import type { EventBus } from "./events";
 import { agentCards, inboxFrom } from "./inbox";
@@ -62,7 +63,10 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
   const library = new Library(libraryHome, home, libraryLock);
   const ownedFiles = [settings, projects, libraryLock];
   const ownedFileChanged = () =>
-    bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill"] });
+    bus.publish({
+      type: "invalidate",
+      domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill", "collections"],
+    });
   const env = { home };
   const scans = new Scans({
     env,
@@ -108,7 +112,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     library,
     activity,
     hooks: keyRenameHooks,
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project"] }),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project", "collections"] }),
   });
   const skillEditor = new SkillEditor({
     library,
@@ -159,9 +163,18 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
         mode,
         on,
       })),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project"] }),
+    onChange: () =>
+      bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project", "collections"] }),
   });
   dailyJobs.push(trash.job());
+  const collections = new Collections({
+    settings,
+    library,
+    activity,
+    projectSkills,
+    onChange: () => bus.publish({ type: "invalidate", domains: ["collections", "settings"] }),
+  });
+  keyRenameHooks.push(collections.keyRenameHook(home));
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
@@ -267,6 +280,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
       ...projectSkills.services(),
     },
+    collections: collections.services(),
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),
