@@ -46,6 +46,10 @@ export const LibrarySkill = z.object({
   localSource: z.string().nullable(),
   /** Where Adopt moved it from, home-relative; null if it wasn't Adopted. */
   adoptedFrom: z.string().nullable(),
+  /** How many Projects use it (On or Off). */
+  projects: z.int().nonnegative(),
+  /** It's in a Name Conflict in at least one Project. */
+  nameConflict: z.boolean(),
 });
 export type LibrarySkill = z.infer<typeof LibrarySkill>;
 
@@ -53,6 +57,24 @@ export const LibraryList = z.object({
   skills: z.array(LibrarySkill),
 });
 export type LibraryList = z.infer<typeof LibraryList>;
+
+/** SKILL.md frontmatter rules from the Agent Skills spec; problems are warnings, never errors. */
+export const SkillName = z
+  .string()
+  .max(64, "name must be at most 64 characters")
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "name must be lowercase letters, numbers and single hyphens");
+export const SkillDescription = z
+  .string()
+  .trim()
+  .min(1, "description is empty")
+  .max(1024, "description must be at most 1024 characters");
+
+/** A SKILL.md frontmatter problem shown as a warning. */
+export const FrontmatterWarning = z.object({
+  field: z.enum(["frontmatter", "name", "description"]),
+  message: z.string(),
+});
+export type FrontmatterWarning = z.infer<typeof FrontmatterWarning>;
 
 /** Activity Log retention: days of `activity/*.jsonl` kept, or forever (ADR-0005). */
 export const ActivityRetention = z.union([
@@ -136,6 +158,23 @@ export const LibraryLockFile = z.strictObject({
   skills: z.record(z.string(), LibraryLockEntry).default({}),
 });
 export type LibraryLockFile = z.infer<typeof LibraryLockFile>;
+
+/** One Library Skill as its page shows it (#24). */
+export const SkillDetail = z.object({
+  key: z.string(),
+  namespace: z.string(),
+  /** The folder name, the key's last segment. */
+  name: z.string(),
+  /** The Skill's folder in the Library, absolute (a symlink for a Local Source). */
+  path: z.string(),
+  /** The raw YAML between the `---` fences; null when SKILL.md has none. */
+  frontmatter: z.string().nullable(),
+  /** SKILL.md after the frontmatter. */
+  body: z.string(),
+  warnings: z.array(FrontmatterWarning),
+  entry: LibraryLockEntry,
+});
+export type SkillDetail = z.infer<typeof SkillDetail>;
 
 /** The owned files the core watches and validates. */
 export const OwnedFileName = z.enum(["settings.json", "projects.json", "library-lock.json"]);
@@ -549,6 +588,32 @@ export type AdoptInput = z.infer<typeof AdoptInput>;
 
 export const ApplyAdoptInput = AdoptInput.extend({ planId: z.string() });
 export type ApplyAdoptInput = z.infer<typeof ApplyAdoptInput>;
+/** A Namespace: `local`, or `owner/repo` like a GitHub Source. */
+export const NamespaceName = z.string().regex(/^(local|[\w.-]+\/[\w.-]+)$/, "A Namespace is local or owner/repo");
+
+/** A Library Skill's key before and after a change such as Rename Namespace. */
+export const KeyRename = z.object({ from: z.string(), to: z.string() });
+export type KeyRename = z.infer<typeof KeyRename>;
+
+export const RenameNamespaceInput = z
+  .object({ from: NamespaceName, to: NamespaceName })
+  .refine((input) => input.from !== input.to, {
+    message: "The new Namespace is the same as the old one",
+    path: ["to"],
+  });
+export type RenameNamespaceInput = z.infer<typeof RenameNamespaceInput>;
+
+export const ApplyRenameNamespaceInput = z.object({ from: NamespaceName, to: NamespaceName, planId: z.string() });
+export type ApplyRenameNamespaceInput = z.infer<typeof ApplyRenameNamespaceInput>;
+
+/** Rename Namespace's dry run: every Skill's new key, the folder moves, and Links to re-create (#27). */
+export const RenameNamespacePlan = PlanBase.extend({
+  from: z.string(),
+  to: z.string(),
+  renames: z.array(KeyRename),
+});
+export type RenameNamespacePlan = z.infer<typeof RenameNamespacePlan>;
+
 /** When the daily Scheduled Scan runs. */
 export const SchedulerStatus = z.object({
   /** The Scheduled Scan time, local `HH:MM`. */
@@ -582,6 +647,7 @@ export const Domain = z.enum([
   "scheduler",
   "project",
   "mcp",
+  "skill",
 ]);
 export type Domain = z.infer<typeof Domain>;
 
@@ -596,9 +662,22 @@ export type CoreEvent = z.infer<typeof CoreEvent>;
  * add Project Skills (#27), Project MCP Servers (#38) and the Grant as fields
  * with defaults, so older files stay valid.
  */
+/** How a Project Skill reaches the Project's Agents. #28 adds "copy". */
+export const DeliveryMode = z.enum(["link"]);
+export type DeliveryMode = z.infer<typeof DeliveryMode>;
+
+/** One Project Skill in `projects.json`: owned intent, keyed by Library key. Off keeps it here, undelivered. */
+export const ProjectSkillRecord = z.strictObject({
+  mode: DeliveryMode,
+  on: z.boolean(),
+});
+export type ProjectSkillRecord = z.infer<typeof ProjectSkillRecord>;
+
 export const ProjectRecord = z.strictObject({
   /** The Agents chosen for this Project; they decide which folders get written. */
   agents: z.array(AgentId).default([]),
+  /** Project Skills by Library key (#27). */
+  skills: z.record(z.string(), ProjectSkillRecord).default({}),
 });
 export type ProjectRecord = z.infer<typeof ProjectRecord>;
 
@@ -689,3 +768,40 @@ export type McpAdoptInput = z.infer<typeof McpAdoptInput>;
 
 export const ApplyMcpAdoptInput = McpAdoptInput.extend({ planId: z.string() });
 export type ApplyMcpAdoptInput = z.infer<typeof ApplyMcpAdoptInput>;
+/**
+ * A Project Skill as the Project page and the Skill page show it.
+ * `status`: "on" (delivered), "off", or "nameConflict" (another Project Skill
+ * with the same name wants the same Agent folders: Resolve, switch disabled).
+ */
+export const ProjectSkill = z.object({
+  key: z.string(),
+  namespace: z.string(),
+  /** The folder name it's delivered under: its SKILL.md `name`. */
+  name: z.string(),
+  mode: DeliveryMode,
+  on: z.boolean(),
+  status: z.enum(["on", "off", "nameConflict"]),
+  /** The other Library keys with the same name in this Project. */
+  conflictsWith: z.array(z.string()),
+  /** Project-relative paths it is (or would be) delivered at. */
+  paths: z.array(z.string()),
+});
+export type ProjectSkill = z.infer<typeof ProjectSkill>;
+
+/** One Project Skill to add; `mode` defaults to Link. */
+export const AddProjectSkill = ProjectPath.extend({ key: z.string().min(1), mode: DeliveryMode.optional() });
+export type AddProjectSkill = z.infer<typeof AddProjectSkill>;
+
+export const AddProjectSkills = z.object({ skills: z.array(AddProjectSkill).min(1) });
+export type AddProjectSkills = z.infer<typeof AddProjectSkills>;
+
+/** A Project's Project Skills after a change. */
+export const ProjectSkills = z.object({ path: z.string(), skills: z.array(ProjectSkill) });
+export type ProjectSkills = z.infer<typeof ProjectSkills>;
+
+/** One Project using a Library Skill, for the Skill page's Projects tab. */
+export const SkillProjectUse = ProjectSkill.extend({ path: z.string(), projectName: z.string() });
+export type SkillProjectUse = z.infer<typeof SkillProjectUse>;
+
+export const ProjectSkillRef = ProjectPath.extend({ key: z.string().min(1) });
+export type ProjectSkillRef = z.infer<typeof ProjectSkillRef>;

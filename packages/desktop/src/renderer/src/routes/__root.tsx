@@ -1,4 +1,5 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { CommandPalette } from "@/components/command-palette";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
 import { useCoreEvents } from "@/components/use-core-events";
@@ -19,6 +20,7 @@ function AppShell() {
           <Outlet />
         </div>
       </main>
+      <CommandPalette />
     </div>
   );
 }

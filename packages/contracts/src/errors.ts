@@ -122,14 +122,43 @@ export class PathTaken extends TaggedError<"PathTaken"> {
   }
 }
 
-/** An MCP Server name is already taken where it would go (a Library name, or an Agent config on Undo). */
+/**
+ * A Name Conflict: a name is already taken where Dark Matter would put a Skill.
+ * Either a Namespace rename would put two Library Skills under one key (`keys`),
+ * or a Project Skill can't be delivered because `path` in an Agent folder is
+ * taken by another Project Skill (Resolve first) or by something Dark Matter
+ * didn't put there. Nothing is overwritten.
+ */
 export class NameConflict extends TaggedError<"NameConflict"> {
   readonly _tag = "NameConflict";
   constructor(
-    readonly server: string,
-    readonly where: string,
+    readonly keys: string[],
+    readonly path?: string,
   ) {
-    super(`${server} is already taken in ${where}`);
+    super(
+      path === undefined
+        ? `${keys.join(", ")} already ${keys.length === 1 ? "exists" : "exist"} in the Library`
+        : `${keys.join(", ")} can't be delivered: ${path} is already taken`,
+    );
+  }
+}
+
+/** No Library Skill is in this Namespace. */
+export class NamespaceNotFound extends TaggedError<"NamespaceNotFound"> {
+  readonly _tag = "NamespaceNotFound";
+  constructor(readonly namespace: string) {
+    super(`No Library Skills in the Namespace ${namespace}`);
+  }
+}
+
+/** The Project hasn't added this Library Skill. */
+export class ProjectSkillNotFound extends TaggedError<"ProjectSkillNotFound"> {
+  readonly _tag = "ProjectSkillNotFound";
+  constructor(
+    readonly path: string,
+    readonly key: string,
+  ) {
+    super(`${path} has no Project Skill ${key}`);
   }
 }
 

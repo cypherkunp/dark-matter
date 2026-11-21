@@ -248,7 +248,7 @@ export class McpAdopt {
             const current = await readGlobalMcp(mcpOf, { home });
             if (current.problem) throw new InvalidOwnedFile(file, current.problem);
             if (lookupAt(mcpConfigEdits[mcpOf.format].read(current.text, file), origin.at) !== undefined) {
-              throw new NameConflict(origin.at.at(-1) ?? name, origin.file);
+              throw new NameConflict([origin.at.at(-1) ?? name], `${origin.file} › ${origin.at.join(".")}`);
             }
             const raw = (await fillSecrets(origin.entry, secrets)) as Record<string, unknown>;
             add({ kind: "editFile", path: origin.file, change: `restore ${origin.at.join(".")}` }, () =>
@@ -424,7 +424,7 @@ export class McpAdopt {
           change: server.isNew ? "create" : `record ${server.file.adoptedFrom?.length ?? 0} adoptions`,
         },
         async () => {
-          if (server.isNew && (await exists(path))) throw new NameConflict(name, "the Library");
+          if (server.isNew && (await exists(path))) throw new NameConflict([name]);
           return mcp.write(name, server.file);
         },
       );
@@ -452,7 +452,7 @@ export class McpAdopt {
       fit === "same" ? "merged" : base === "taken" ? "variant" : "moved";
     if (chosen) {
       const fit = fits(chosen);
-      if (fit === "taken") throw new NameConflict(chosen, "the Library");
+      if (fit === "taken") throw new NameConflict([chosen]);
       return { libraryName: chosen, outcome: variantOf(fit) };
     }
     if (base !== "taken") return { libraryName: entry.name, outcome: variantOf(base) };

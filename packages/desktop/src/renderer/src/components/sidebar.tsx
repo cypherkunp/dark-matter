@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, FolderGit2, Orbit, Search, Settings, TriangleAlert } from "lucide-react";
+import { Boxes, ChevronRight, FolderGit2, Orbit, Search, Settings, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { tildify } from "@/lib/paths";
@@ -47,6 +47,15 @@ const localClockTime = (iso: string) =>
 const Count = ({ value }: { value: number | undefined }) => (
   <span className="ml-auto text-muted-foreground text-xs tabular-nums">{value ?? "–"}</span>
 );
+
+/** One sidebar row per Namespace, `local` last, with its Skill count. */
+const namespaceCounts = (skills: { namespace: string }[]) => {
+  const counts = new Map<string, number>();
+  for (const skill of skills) counts.set(skill.namespace, (counts.get(skill.namespace) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort(([a], [b]) => (a === "local" ? 1 : b === "local" ? -1 : a.localeCompare(b)))
+    .map(([label, count]) => ({ label, count }));
+};
 
 export function Sidebar({ connected }: { connected: boolean }) {
   const trpc = useTRPC();
@@ -99,8 +108,11 @@ export function Sidebar({ connected }: { connected: boolean }) {
             section.title === "Projects"
               ? (projects.data ?? []).map((project) => ({ ...project, label: project.name })).filter(matches)
               : [];
+          const namespaceRows =
+            section.title === "Library" ? namespaceCounts(library.data?.skills ?? []).filter(matches) : [];
           const group = section.group && matches(section.group) ? section.group : undefined;
-          if (filter && items.length === 0 && projectRows.length === 0 && !group) return null;
+          if (filter && items.length === 0 && projectRows.length === 0 && namespaceRows.length === 0 && !group)
+            return null;
           return (
             <div key={section.title ?? "top"} className="flex flex-col gap-px">
               {section.title && (
@@ -124,6 +136,21 @@ export function Sidebar({ connected }: { connected: boolean }) {
                     item.path in counts && <Count value={counts[item.path]} />
                   )}
                 </NavLink>
+              ))}
+              {namespaceRows.map((namespace) => (
+                <Link
+                  key={namespace.label}
+                  to="/namespace"
+                  search={{ name: namespace.label }}
+                  data-testid="sidebar-namespace"
+                  className={rowClass}
+                  activeProps={{ className: activeRowClass }}
+                  activeOptions={{ exact: true, includeSearch: true }}
+                >
+                  <Boxes className="size-4 text-muted-foreground" />
+                  <span className="truncate font-mono text-[12px]">{namespace.label}</span>
+                  <Count value={namespace.count} />
+                </Link>
               ))}
               {projectRows.map((project) => (
                 <Link

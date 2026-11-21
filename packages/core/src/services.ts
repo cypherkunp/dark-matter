@@ -13,13 +13,16 @@ import { Library } from "./library";
 import { log } from "./log";
 import { managedSkillRef } from "./managed-skills";
 import { McpAdopt, McpLibrary } from "./mcp-library";
+import { type KeyRenameHook, NamespaceRename } from "./namespace-rename";
 import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
+import { ProjectSkillService } from "./project-skills";
 import { projectServices, waitingSuggestions } from "./projects";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
 import type { SecretStore } from "./secrets";
+import { skillServices } from "./skill-page";
 import { watchOwnedFiles } from "./watch-owned";
 
 export interface ServicesOptions {
@@ -53,7 +56,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
   const library = new Library(libraryHome, home, libraryLock);
   const ownedFiles = [settings, projects, libraryLock];
   const ownedFileChanged = () =>
-    bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "project", "library"] });
+    bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill"] });
   const env = { home };
   const scans = new Scans({
     env,
@@ -84,7 +87,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     activity,
     latestScan: () => scans.latest,
     rescan: () => scans.refresh(),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox"] }),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
   });
   const mcpLibrary = new McpLibrary(libraryHome);
   const mcpAdopt = new McpAdopt({
@@ -97,13 +100,23 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     rescan: () => scans.refresh(),
     onChange: () => bus.publish({ type: "invalidate", domains: ["mcp", "inbox"] }),
   });
+  /** What follows a Library Skill to a new key. Links (#27) push their hook here. */
+  const keyRenameHooks: KeyRenameHook[] = [];
+  const namespaceRename = new NamespaceRename({
+    home,
+    library,
+    activity,
+    hooks: keyRenameHooks,
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project"] }),
+  });
+  const projectSkills = new ProjectSkillService({ home, libraryHome, library, projects, activity, bus });
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
 
   const services: Omit<CoreServices, "events" | "notifications"> = {
     info,
-    library: { list: async () => ({ skills: await library.list() }) },
+    library: { list: async () => ({ skills: await library.list(await projectSkills.usage()) }) },
     settings: {
       get: () => settings.value,
       updatePreferences: (patch, client) =>
@@ -186,7 +199,15 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       undoAdopt: (name, client) => mcpAdopt.undo(name, client),
     },
     scheduler: { status: () => scheduler.status() },
-    project: projectServices({ env, projects, settings, activity, scans, bus }),
+    project: {
+      ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
+      ...projectSkills.services(),
+    },
+    skill: skillServices(library),
+    namespace: {
+      plan: (input) => namespaceRename.plan(input),
+      rename: (input, client) => namespaceRename.rename(input, client),
+    },
   };
   // A missed daily run Scans anyway, so it stands in for the catch-up Scan.
   if (!scheduler.due()) scans.catchUp();

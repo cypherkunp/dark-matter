@@ -98,7 +98,8 @@ export function AdoptDialog({ findings, onClose }: { findings: string[] | null; 
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(42rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
           <Dialog.Title className="font-semibold text-lg">Adopt {plural(count, "Skill")}</Dialog.Title>
           <Dialog.Description className="text-muted-foreground text-sm">
-            Each Skill moves into the Library. Nothing is deleted, and you can Undo Adopt from the Library.
+            Each Skill moves into the Library. Nothing is deleted, and you can Undo Adopt from the Skill's Provenance
+            tab.
           </Dialog.Description>
           {plan.data && (
             <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">

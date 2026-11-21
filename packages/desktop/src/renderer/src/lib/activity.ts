@@ -11,11 +11,17 @@ const actionLabels: Record<string, string> = {
   "project.setAgents": "Chose a Project's Agents",
   "project.locate": "Located a moved Project",
   "project.remove": "Removed a Project",
+  "project.addSkills": "Added Project Skills",
+  "project.skillOn": "Turned a Project Skill On",
+  "project.skillOff": "Turned a Project Skill Off",
+  "project.removeSkill": "Removed a Project Skill",
+  "project.resolveConflict": "Resolved a Name Conflict",
   "managedSkills.turnOff": "Turned off an Agent-managed Skill",
   "adopt.apply": "Adopted Skills",
   "adopt.undo": "Undid an Adopt",
   "mcp.adopt": "Adopted MCP Servers",
   "mcp.undoAdopt": "Undid an MCP Server Adopt",
+  "namespace.rename": "Renamed a Namespace",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;
