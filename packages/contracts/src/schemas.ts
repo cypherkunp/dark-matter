@@ -60,16 +60,20 @@ export const ActivityRetention = z.union([
 ]);
 export type ActivityRetention = z.infer<typeof ActivityRetention>;
 
-export const Preferences = z.strictObject({
+const preferenceFields = {
   /** Local time of the daily Scheduled Scan, `HH:MM`. */
-  scheduledScanTime: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use 24-hour HH:MM")
-    .default("09:00"),
-  startAtLogin: z.boolean().default(true),
+  scheduledScanTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use 24-hour HH:MM"),
+  startAtLogin: z.boolean(),
   /** Days a deleted Library Skill stays in `trash/`. */
-  trashRetentionDays: z.int().positive().default(30),
-  activityRetention: ActivityRetention.default(30),
+  trashRetentionDays: z.int().positive(),
+  activityRetention: ActivityRetention,
+};
+
+export const Preferences = z.strictObject({
+  scheduledScanTime: preferenceFields.scheduledScanTime.default("09:00"),
+  startAtLogin: preferenceFields.startAtLogin.default(true),
+  trashRetentionDays: preferenceFields.trashRetentionDays.default(30),
+  activityRetention: preferenceFields.activityRetention.default(30),
 });
 export type Preferences = z.infer<typeof Preferences>;
 
@@ -83,7 +87,8 @@ export const SettingsFile = z.strictObject({
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 
-export const PreferencesPatch = Preferences.partial();
+/** The preferences a save changes. No defaults here, so omitted fields stay as they are. */
+export const PreferencesPatch = z.strictObject(preferenceFields).partial();
 export type PreferencesPatch = z.infer<typeof PreferencesPatch>;
 
 /** The owned files the core watches and validates. */

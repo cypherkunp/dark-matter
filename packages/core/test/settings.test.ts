@@ -41,6 +41,20 @@ describe("settings.json", () => {
     expect((await trpc.settings.get.query()).preferences.scheduledScanTime).toBe("07:30");
   });
 
+  test("saving one preference leaves the others as they were", async () => {
+    const { home, libraryHome } = await tempHome();
+    const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome });
+    const { trpc } = connect(core);
+
+    await trpc.settings.updatePreferences.mutate({ scheduledScanTime: "07:30" });
+    await trpc.settings.updatePreferences.mutate({ startAtLogin: false });
+
+    expect((await trpc.settings.get.query()).preferences).toMatchObject({
+      scheduledScanTime: "07:30",
+      startAtLogin: false,
+    });
+  });
+
   test("a saved preference survives a restart", async () => {
     const { home, libraryHome } = await tempHome();
     const env = { HOME: home, DARK_MATTER_HOME: libraryHome };
