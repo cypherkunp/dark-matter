@@ -214,7 +214,28 @@ export const ActivityEntry = z.object({
 });
 export type ActivityEntry = z.infer<typeof ActivityEntry>;
 
-export const ActivityQuery = z.object({ limit: z.int().min(1).max(5_000).default(500) }).prefault({});
+/**
+ * A filtered view of the Activity Log. Every filter is optional and they all
+ * apply together; list filters match any of their values.
+ */
+export const ActivityFilter = z.object({
+  actions: z.array(z.string()).optional(),
+  clients: z.array(ActivityClient).optional(),
+  /** A Library Skill key: entries with that `skill` subject. */
+  skill: z.string().optional(),
+  /** A Project's absolute path: entries with that `project` subject. */
+  project: z.string().optional(),
+  failuresOnly: z.boolean().optional(),
+  /** Inclusive lower bound on `time`. */
+  from: z.iso.datetime().optional(),
+  /** Exclusive upper bound on `time`. */
+  to: z.iso.datetime().optional(),
+  /** Case-insensitive text in the action, client, subjects, files written or error. */
+  search: z.string().optional(),
+});
+export type ActivityFilter = z.infer<typeof ActivityFilter>;
+
+export const ActivityQuery = ActivityFilter.extend({ limit: z.int().min(1).max(5_000).default(500) }).prefault({});
 export type ActivityQuery = z.infer<typeof ActivityQuery>;
 
 export const ActivityList = z.object({
@@ -222,6 +243,14 @@ export const ActivityList = z.object({
   entries: z.array(ActivityEntry),
 });
 export type ActivityList = z.infer<typeof ActivityList>;
+
+/** The JSON export of a filtered Activity view: every matching entry, newest first. */
+export const ActivityExport = z.object({
+  exportedAt: z.iso.datetime(),
+  filter: ActivityFilter,
+  entries: z.array(ActivityEntry),
+});
+export type ActivityExport = z.infer<typeof ActivityExport>;
 
 /** A v1 Agent, as Dark Matter's adapters know it. */
 export const AgentId = z.enum(["claude-code", "cursor", "opencode", "codex", "agents"]);
