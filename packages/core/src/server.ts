@@ -16,6 +16,7 @@ import { acquireCoreLock } from "./lock";
 import { NotificationBus, type Notifier } from "./notifier";
 import { defaultSecretStore, type SecretStore } from "./secrets";
 import { createServices, type Services } from "./services";
+import { type SkillsShOptions, skillsShOptionsFrom } from "./skills-sh";
 
 export interface StartCoreOptions {
   env: CoreEnv;
@@ -27,6 +28,8 @@ export interface StartCoreOptions {
   secrets?: SecretStore;
   /** Defaults to api.github.com and `gh auth token` (`DARK_MATTER_GITHUB_API` for a fake); tests pass the fake. */
   github?: GitHubOptions;
+  /** Defaults to https://skills.sh (`DARK_MATTER_SKILLS_SH_API` for a fake); tests pass the fake. */
+  skillsSh?: SkillsShOptions;
 }
 
 export interface RunningCore {
@@ -51,6 +54,7 @@ export const startCore = async ({
   notifier,
   secrets,
   github,
+  skillsSh,
 }: StartCoreOptions): Promise<RunningCore> => {
   const libraryHome = resolveLibraryHome(env);
   const home = env.HOME || homedir();
@@ -69,6 +73,7 @@ export const startCore = async ({
       notifier: notifier ?? notifications,
       secrets: secrets ?? defaultSecretStore(env),
       github: github ?? githubOptionsFrom(env),
+      skillsSh: skillsSh ?? skillsShOptionsFrom(env),
       ...(env.DARK_MATTER_SYSTEM_ROOT && { systemRoot: env.DARK_MATTER_SYSTEM_ROOT }),
       info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
     });

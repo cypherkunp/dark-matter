@@ -11,6 +11,7 @@ import {
   type GitHubOptions,
   type RunningCore,
   type SecretStore,
+  type SkillsShOptions,
   startCore,
 } from "../src/index";
 
@@ -31,13 +32,20 @@ export const bootCore = async (
     notifier?: { notify(notification: CoreNotification): void };
     secrets?: SecretStore;
     github?: GitHubOptions;
+    skillsSh?: SkillsShOptions;
   } = {},
 ): Promise<RunningCore> => {
   // Never the real keychain, GitHub or `gh` login in tests (an unroutable API unless a test passes the fake),
   // nor the machine's /etc and /Library.
   const github: GitHubOptions = { api: "http://127.0.0.1:9", ghToken: async () => null, ...fakes.github };
+  const skillsSh: SkillsShOptions = { api: "http://127.0.0.1:9", ...fakes.skillsSh };
   const system = env.HOME ? { DARK_MATTER_SYSTEM_ROOT: join(dirname(env.HOME), "system") } : {};
-  const core = await startCore({ env: { DARK_MATTER_SECRETS: "memory", ...system, ...env }, ...fakes, github });
+  const core = await startCore({
+    env: { DARK_MATTER_SECRETS: "memory", ...system, ...env },
+    ...fakes,
+    github,
+    skillsSh,
+  });
   onTestFinished(() => core.stop());
   return core;
 };
