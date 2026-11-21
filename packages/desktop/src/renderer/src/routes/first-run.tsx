@@ -417,7 +417,7 @@ function Setup({ at }: { at: number }) {
     ...trpc.project.skills.queryOptions({ path: project?.path ?? "" }),
     enabled: project !== undefined,
   });
-  const [open, setOpen] = useState<{ keys: string[]; collection?: string } | null>(null);
+  const [open, setOpen] = useState<{ keys: string[]; servers?: string[]; collection?: string } | null>(null);
   if (projects.isPending) return null;
   if (!project)
     return (
@@ -458,6 +458,8 @@ function Setup({ at }: { at: number }) {
               setOpen({
                 collection: collection.name,
                 keys: collection.items.flatMap((item) => (item.kind === "skill" ? [item.key] : [])),
+                // A Collection's MCP Servers come too (story 92).
+                servers: collection.items.flatMap((item) => (item.kind === "mcpServer" ? [item.name] : [])),
               })
             }
           >
@@ -472,6 +474,7 @@ function Setup({ at }: { at: number }) {
       {open && (
         <AddToProjectsDialog
           keys={open.keys}
+          servers={open.servers ?? []}
           projects={[project.path]}
           {...(open.collection ? { collection: open.collection } : {})}
           title={open.collection ? `Add ${open.collection} to ${project.name}` : `Add Skills to ${project.name}`}
