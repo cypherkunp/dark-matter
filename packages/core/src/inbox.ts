@@ -26,7 +26,7 @@ export const inboxFrom = (
   untracked: readonly InboxProjectGroup[] = [],
   driftGroups: readonly InboxDriftGroup[] = [],
   newSkillGroups: readonly InboxNewSkillsGroup[] = [],
-): Inbox => {
+): Omit<Inbox, "requests"> => {
   const skipped = new Set(ignored);
   const all = scan?.globalSkills ?? [];
   const waiting = all.filter((finding) => !skipped.has(finding.id));
@@ -159,5 +159,6 @@ export const ignoredInbox = (all: Inbox, ignored: readonly string[]): Inbox => {
     (sum, groups: { findings: unknown[] }[]) => sum + groups.reduce((n, group) => n + group.findings.length, 0),
     0,
   );
-  return { ...inbox, count, ignoredCount: 0, suggestedProjects: 0 };
+  // Requests are never ignored: they're decided or they expire (#44).
+  return { ...inbox, count, ignoredCount: 0, suggestedProjects: 0, requests: [] };
 };

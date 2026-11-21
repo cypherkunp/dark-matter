@@ -14,6 +14,7 @@ import { EventBus } from "./events";
 import { type GitHubOptions, githubOptionsFrom } from "./github";
 import { acquireCoreLock } from "./lock";
 import { NotificationBus, type Notifier } from "./notifier";
+import { DEFAULT_REQUEST_WAIT_MS } from "./requests";
 import { defaultSecretStore, type SecretStore } from "./secrets";
 import { createServices, type Services } from "./services";
 import { type SkillsShOptions, skillsShOptionsFrom } from "./skills-sh";
@@ -28,6 +29,8 @@ export interface StartCoreOptions {
   secrets?: SecretStore;
   /** Defaults to api.github.com and `gh auth token` (`DARK_MATTER_GITHUB_API` for a fake); tests pass the fake. */
   github?: GitHubOptions;
+  /** How long an Agent's call waits for Approve or Deny (about a minute); tests shorten it. */
+  requestWaitMs?: number;
   /** Defaults to https://skills.sh (`DARK_MATTER_SKILLS_SH_API` for a fake); tests pass the fake. */
   skillsSh?: SkillsShOptions;
 }
@@ -54,6 +57,7 @@ export const startCore = async ({
   notifier,
   secrets,
   github,
+  requestWaitMs = DEFAULT_REQUEST_WAIT_MS,
   skillsSh,
 }: StartCoreOptions): Promise<RunningCore> => {
   const libraryHome = resolveLibraryHome(env);
@@ -73,6 +77,7 @@ export const startCore = async ({
       notifier: notifier ?? notifications,
       secrets: secrets ?? defaultSecretStore(env),
       github: github ?? githubOptionsFrom(env),
+      requestWaitMs,
       skillsSh: skillsSh ?? skillsShOptionsFrom(env),
       ...(env.DARK_MATTER_SYSTEM_ROOT && { systemRoot: env.DARK_MATTER_SYSTEM_ROOT }),
       info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
@@ -108,12 +113,24 @@ const serve = async (
     notifications: (signal) => notifications.subscribe(signal),
   });
 
+  // An approved Request is applied by calling its mutation again as the client that asked.
+  core.setRequestApplier((request) => {
+    const caller = router.createCaller({ client: request.client, agent: request.agent, approved: request.id });
+    const procedure = request.operation
+      .split(".")
+      .reduce<unknown>((at, key) => (at as Record<string, unknown>)[key], caller) as (
+      input: unknown,
+    ) => Promise<unknown>;
+    return procedure(request.input);
+  });
+
   const createContext = ({ info }: CreateWSSContextFnOptions): CoreContext => {
     const params = ConnectionParams.safeParse(info.connectionParams);
     if (!params.success || !sameToken(tokenBytes, params.data.token)) {
       throw new TRPCError({ code: "UNAUTHORIZED", cause: new Unauthorized() });
     }
-    return { client: params.data.client };
+    // Only the app is trusted; who else is calling decides what the consent check does (ADR-0006).
+    return { client: params.data.client, agent: params.data.agent };
   };
 
   const wss = new WebSocketServer({ host: "127.0.0.1", port: 0 });

@@ -24,8 +24,59 @@ export type CoreConnection = z.infer<typeof CoreConnection>;
 export const ConnectionParams = z.object({
   token: z.string(),
   client: ClientKind,
+  /** The Agent behind an `mcp` (or `cli`) client, by name, for Requests and the Activity Log (ADR-0006). */
+  agent: z.string().min(1).max(100).optional(),
 });
 export type ConnectionParams = z.infer<typeof ConnectionParams>;
+
+/** Where a Request is: waiting for you, or what became of it. */
+export const RequestStatus = z.enum(["pending", "applied", "denied", "failed", "expired"]);
+export type RequestStatus = z.infer<typeof RequestStatus>;
+
+/**
+ * Why a Request asks instead of going through on the Project's Grant: no Grant,
+ * or a change a Grant never covers (a Copy, a Shared or new MCP Server, an
+ * Import, discarding edits in the repo).
+ */
+export const RequestReason = z.enum(["noGrant", "copy", "sharedMcpServer", "mcpServer", "import", "discardEdits"]);
+export type RequestReason = z.infer<typeof RequestReason>;
+
+/**
+ * A Request (ADR-0006): a change a client other than the app asked for, kept
+ * in `requests.json` until it's decided and for 24 hours after it was made.
+ */
+export const RequestRecord = z.strictObject({
+  id: z.string(),
+  client: ClientKind,
+  agent: z.string().optional(),
+  /** The mutation asked for, by procedure path, e.g. `project.addSkills`. */
+  operation: z.string(),
+  /** Its input, exactly as asked. */
+  input: z.unknown(),
+  /** The Projects it changes, by absolute path. */
+  projects: z.array(z.string()),
+  /** The plan, in words. */
+  summary: z.string(),
+  reasons: z.array(RequestReason),
+  createdAt: z.iso.datetime(),
+  /** 24 hours after it was made; a pending Request then expires. */
+  expiresAt: z.iso.datetime(),
+  status: RequestStatus,
+  decidedAt: z.iso.datetime().optional(),
+  /** Why applying an approved Request failed (re-validated against the state then). */
+  error: z.object({ tag: z.string().nullable(), message: z.string() }).optional(),
+});
+export type RequestRecord = z.infer<typeof RequestRecord>;
+
+/** A pending Request as the Inbox lists it: its raw input stays with `requests.get`. */
+export const PendingRequest = RequestRecord.omit({ input: true });
+export type PendingRequest = z.infer<typeof PendingRequest>;
+
+/** `~/.dark-matter/requests.json`: Requests by id. */
+export const RequestsFile = z.strictObject({
+  requests: z.record(z.string(), RequestRecord).default({}),
+});
+export type RequestsFile = z.infer<typeof RequestsFile>;
 
 export const CoreInfo = z.object({
   version: z.string(),
@@ -268,7 +319,7 @@ export const SkillDeletePlan = z.object({
 export type SkillDeletePlan = z.infer<typeof SkillDeletePlan>;
 
 /** The owned files the core watches and validates. */
-export const OwnedFileName = z.enum(["settings.json", "projects.json", "library-lock.json"]);
+export const OwnedFileName = z.enum(["settings.json", "projects.json", "library-lock.json", "requests.json"]);
 export type OwnedFileName = z.infer<typeof OwnedFileName>;
 
 /** A hand edit the core is holding because it doesn't validate. */
@@ -285,7 +336,7 @@ export type ActivityClient = z.infer<typeof ActivityClient>;
 
 /** What an Activity entry is about; `id` is a Skill key, Project path, file name… */
 export const ActivitySubject = z.object({
-  kind: z.enum(["settings", "skill", "project", "mcpServer", "source", "finding", "collection"]),
+  kind: z.enum(["settings", "skill", "project", "mcpServer", "source", "finding", "collection", "request"]),
   id: z.string(),
 });
 export type ActivitySubject = z.infer<typeof ActivitySubject>;
@@ -295,6 +346,10 @@ export const ActivityEntry = z.object({
   id: z.string(),
   time: z.iso.datetime(),
   client: ActivityClient,
+  /** The Agent behind an `mcp` or `cli` client, when it gave its name (ADR-0006). */
+  agent: z.string().optional(),
+  /** The Request this change applied, if it was one. */
+  request: z.string().optional(),
   /** `<domain>.<operation>`, e.g. `settings.updatePreferences`. */
   action: z.string(),
   subjects: z.array(ActivitySubject),
@@ -770,6 +825,8 @@ export const Inbox = z.object({
   suggestedProjects: z.int().nonnegative(),
   /** Global MCP Servers, by Agent config file. */
   mcpServers: z.array(InboxMcpGroup).default([]),
+  /** Pending Requests from Agents and the CLI, oldest first (#44). Counted. */
+  requests: z.array(PendingRequest).default([]),
   /** Drift between `projects.json` and the disk, by Project (#42). */
   drift: z.array(InboxDriftGroup).default([]),
   /** Agent-managed MCP Servers that are still on, by Agent. */
@@ -923,6 +980,8 @@ export const CoreNotification = z.object({
   body: z.string(),
   /** The screen to open when it's clicked, e.g. `/inbox`. */
   path: z.string(),
+  /** A pending Request (#44): the notification offers Approve and Deny for it. */
+  request: z.string().optional(),
 });
 export type CoreNotification = z.infer<typeof CoreNotification>;
 
@@ -944,6 +1003,7 @@ export const Domain = z.enum([
   "collections",
   "importer",
   "favourites",
+  "requests",
 ]);
 export type Domain = z.infer<typeof Domain>;
 
@@ -1010,6 +1070,8 @@ export const ProjectRecord = z.strictObject({
   skills: z.record(z.string(), ProjectSkillRecord).default({}),
   /** Project MCP Servers by Library name (#38). Left out while there are none. */
   mcpServers: z.record(z.string(), ProjectMcpServerRecord).optional(),
+  /** The Grant (#44): Agents' low-risk Requests here go through without asking. Left out while off. */
+  grant: z.literal(true).optional(),
 });
 export type ProjectRecord = z.infer<typeof ProjectRecord>;
 
@@ -1054,6 +1116,8 @@ export const ProjectDetail = ProjectSummary.extend({
   folders: z.array(z.string()),
   /** Skills the last Scan saw in its skill folders; null before a Scan has read it. */
   skills: z.array(ProjectSkillEntry).nullable(),
+  /** Its Grant (#44): On/Off and adding or removing a Link go through without asking. */
+  grant: z.boolean().optional(),
 });
 export type ProjectDetail = z.infer<typeof ProjectDetail>;
 

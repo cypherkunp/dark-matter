@@ -1,6 +1,6 @@
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";
-import { isTaggedError } from "./errors";
+import { isTaggedError, RequestPending } from "./errors";
 import { Favourites, FavouritesView, StarSkillInput, StarSourceInput } from "./favourites";
 import {
   AppliedUpdates,
@@ -76,6 +76,7 @@ import {
   RenameNamespacePlan,
   RepoMcpServers,
   RepoSkills,
+  RequestRecord,
   SavedSkillFile,
   SaveSkillFileInput,
   ScanResult,
@@ -102,6 +103,18 @@ import { SkillsShGetInput, SkillsShSearch, SkillsShSearchInput } from "./skills-
 /** Per-connection context, built once when a connection authenticates. */
 export interface CoreContext {
   client: ClientKind;
+  /** The Agent behind an `mcp` or `cli` client, when it said (ADR-0006). */
+  agent?: string | undefined;
+  /** Set only by the core itself when it applies a Request you approved: that call needs no consent. */
+  approved?: string | undefined;
+}
+
+/** One mutation on its way in, for the consent check. */
+export interface GuardedCall extends CoreContext {
+  /** The procedure path, e.g. `project.addSkills`. */
+  path: string;
+  /** The input as sent, before validation. */
+  input: unknown;
 }
 
 /**
@@ -110,6 +123,20 @@ export interface CoreContext {
  * every client the `AppRouter` type without depending on the core.
  */
 export interface CoreServices {
+  /**
+   * The one policy check every mutation passes (ADR-0006), with the calling
+   * client: runs `next` (the mutation), turns it into a Request, or refuses it.
+   */
+  consent<T>(call: GuardedCall, next: () => Promise<T>): Promise<T>;
+  /** Requests from Agents and the CLI (#44). */
+  requests: {
+    /** Every Request still kept (pending, and decided ones until they're 24 hours old), newest first. */
+    list(): RequestRecord[];
+    get(id: string): RequestRecord;
+    /** Re-validates the Request against the current state and applies it. */
+    approve(id: string, client: ClientKind): Promise<RequestRecord>;
+    deny(id: string, client: ClientKind): Promise<RequestRecord>;
+  };
   info(): CoreInfo;
   library: {
     list(): Promise<LibraryList>;
@@ -312,6 +339,8 @@ export interface CoreServices {
     trustInCodex(path: string, client: ClientKind): Promise<ProjectMcpServers>;
     /** MCP entries in the Project Dark Matter didn't write: Vendored (committed) and untracked (Adoptable). */
     repoMcpServers(path: string): Promise<RepoMcpServers>;
+    /** Turns the Project's Grant on or off (#44). */
+    setGrant(input: { path: string; grant: boolean }, client: ClientKind): Promise<ProjectDetail>;
   };
   collections: {
     list(): Promise<Collection[]>;
@@ -336,15 +365,24 @@ export interface CoreServices {
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
 }
 
-const t = initTRPC.context<CoreContext>().create({
+const base = initTRPC.context<CoreContext>().create({
   errorFormatter({ shape, error }) {
     const tag = isTaggedError(error.cause) ? error.cause._tag : null;
-    return { ...shape, data: { ...shape.data, tag } };
+    // A pending Request isn't a failure: the caller gets its id and plan.
+    const request = error.cause instanceof RequestPending ? { request: error.cause.request } : {};
+    return { ...shape, data: { ...shape.data, tag, ...request } };
   },
 });
 
-export const createAppRouter = (services: CoreServices) =>
-  t.router({
+export const createAppRouter = (services: CoreServices) => {
+  // Every procedure is built on this one, so no mutation can skip the consent check (ADR-0006).
+  const t = {
+    router: base.router,
+    procedure: base.procedure.use(async ({ ctx, path, type, getRawInput, next }) =>
+      type === "mutation" ? services.consent({ ...ctx, path, input: await getRawInput() }, () => next()) : next(),
+    ),
+  };
+  return t.router({
     core: t.router({
       info: t.procedure.output(CoreInfo).query(() => services.info()),
     }),
@@ -572,6 +610,10 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ProjectPath)
         .output(RepoMcpServers)
         .query(({ input }) => services.project.repoMcpServers(input.path)),
+      setGrant: t.procedure
+        .input(ProjectPath.extend({ grant: z.boolean() }))
+        .output(ProjectDetail)
+        .mutation(({ input, ctx }) => services.project.setGrant(input, ctx.client)),
     }),
     skill: t.router({
       get: t.procedure
@@ -698,6 +740,22 @@ export const createAppRouter = (services: CoreServices) =>
     notifications: t.procedure.subscription(async function* ({ signal }) {
       yield* services.notifications(signal ?? new AbortController().signal);
     }),
+    requests: t.router({
+      list: t.procedure.output(RequestRecord.array()).query(() => services.requests.list()),
+      get: t.procedure
+        .input(z.object({ id: z.string().min(1) }))
+        .output(RequestRecord)
+        .query(({ input }) => services.requests.get(input.id)),
+      approve: t.procedure
+        .input(z.object({ id: z.string().min(1) }))
+        .output(RequestRecord)
+        .mutation(({ input, ctx }) => services.requests.approve(input.id, ctx.client)),
+      deny: t.procedure
+        .input(z.object({ id: z.string().min(1) }))
+        .output(RequestRecord)
+        .mutation(({ input, ctx }) => services.requests.deny(input.id, ctx.client)),
+    }),
   });
+};
 
 export type AppRouter = ReturnType<typeof createAppRouter>;

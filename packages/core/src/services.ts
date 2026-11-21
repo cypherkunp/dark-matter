@@ -1,9 +1,14 @@
 import { join } from "node:path";
 import {
   type CoreInfo,
+  type Inbox,
   LibraryLockFile,
+  type ProjectDetail,
+  ProjectNotFound,
   type ProjectRecord,
   ProjectsFile,
+  type RequestRecord,
+  RequestsFile,
   SettingsFile,
   UnknownFinding,
 } from "@dark-matter/contracts";
@@ -34,6 +39,7 @@ import { ProjectMcpService } from "./project-mcp";
 import { ProjectSkillService } from "./project-skills";
 import { projectServices, waitingSuggestions } from "./projects";
 import type { LockImporter } from "./repo-skills";
+import { type RequestApplier, Requests } from "./requests";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
@@ -58,8 +64,17 @@ export interface ServicesOptions {
   notifier: Notifier;
   secrets: SecretStore;
   github: GitHubOptions;
+  /** How long an Agent's call waits for Approve or Deny before it's told the Request is pending. */
+  requestWaitMs: number;
   skillsSh: SkillsShOptions;
 }
+
+/** Pending Requests join the Inbox and its count (#44). */
+const withRequests = (inbox: Omit<Inbox, "requests">, pending: RequestRecord[]): Inbox => ({
+  ...inbox,
+  requests: pending.map(({ input: _, ...request }) => request),
+  count: inbox.count + pending.length,
+});
 
 /** The core's service methods behind the router (ADR-0003): every action is one of these. */
 export const createServices = async ({
@@ -73,6 +88,7 @@ export const createServices = async ({
   github,
   skillsSh,
   systemRoot,
+  requestWaitMs,
 }: ServicesOptions) => {
   const cache = await openCache(libraryHome);
   const activity = await ActivityLog.open({
@@ -89,14 +105,29 @@ export const createServices = async ({
     join(libraryHome, "library-lock.json"),
     LibraryLockFile,
   );
+  const requestsFile = await OwnedFile.open("requests.json", join(libraryHome, "requests.json"), RequestsFile);
+  const requests = new Requests({
+    file: requestsFile,
+    projects,
+    activity,
+    clock,
+    notifier,
+    bus,
+    waitMs: requestWaitMs,
+  });
+  await requests.expire();
+  const stopExpiring = clock.every(
+    60_000,
+    () => void requests.expire().catch((error: unknown) => log(`expiring Requests: ${String(error)}`)),
+  );
   const activityRetention = () => settings.value.preferences.activityRetention;
   await activity.prune(activityRetention());
   const library = new Library(libraryHome, home, libraryLock);
-  const ownedFiles = [settings, projects, libraryLock];
+  const ownedFiles = [settings, projects, libraryLock, requestsFile];
   const ownedFileChanged = () =>
     bus.publish({
       type: "invalidate",
-      domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill", "collections", "favourites"],
+      domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill", "collections", "favourites", "requests"],
     });
   const env = { home, ...(systemRoot && { systemRoot }) };
   const scans = new Scans({
@@ -259,6 +290,10 @@ export const createServices = async ({
   });
   dailyJobs.push(updates.job());
   const projectProcedures = projectServices({ env, projects, settings, activity, scans, bus, deliver: deliverProject });
+  const withGrant = (detail: ProjectDetail): ProjectDetail => ({
+    ...detail,
+    grant: projects.value.projects[detail.path]?.grant === true,
+  });
   const drift = new Drift({
     home,
     libraryHome,
@@ -299,14 +334,17 @@ export const createServices = async ({
   });
   keyRenameHooks.push(collections.keyRenameHook(home));
   const listInbox = async (ignored = settings.value.ignoredFindings) =>
-    inboxFrom(
-      scans.latest,
-      ignored,
-      env,
-      waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
-      findUntracked(),
-      await drift.groups(),
-      favourites.inboxGroups(),
+    withRequests(
+      inboxFrom(
+        scans.latest,
+        ignored,
+        env,
+        waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
+        findUntracked(),
+        await drift.groups(),
+        favourites.inboxGroups(),
+      ),
+      requests.pending(),
     );
   const overview = new OverviewService({
     home,
@@ -320,6 +358,13 @@ export const createServices = async ({
   });
 
   const services: Omit<CoreServices, "events" | "notifications"> = {
+    consent: (call, next) => requests.consent(call, next),
+    requests: {
+      list: () => requests.list(),
+      get: (id) => requests.get(id),
+      approve: (id, client) => requests.approve(id, client),
+      deny: (id, client) => requests.deny(id, client),
+    },
     info,
     library: { list: async () => ({ skills: await library.list(await projectSkills.usage()) }) },
     settings: {
@@ -472,6 +517,29 @@ export const createServices = async ({
       },
       ...projectSkills.services(),
       ...projectMcp.services(),
+      get: async (path) => withGrant(await projectProcedures.get(path)),
+      setGrant: ({ path, grant }, client) =>
+        activity.track(
+          {
+            client,
+            action: grant ? "project.grant" : "project.revokeGrant",
+            subjects: [{ kind: "project", id: path }],
+          },
+          async (wrote) => {
+            if (!projects.value.projects[path]) throw new ProjectNotFound(path);
+            wrote(
+              await projects.update((current) => {
+                const { grant: _, ...record } = current.projects[path] ?? {};
+                return {
+                  ...current,
+                  projects: { ...current.projects, [path]: grant ? { ...record, grant: true } : record },
+                };
+              }),
+            );
+            bus.publish({ type: "invalidate", domains: ["project"] });
+            return withGrant(await projectProcedures.get(path));
+          },
+        ),
     },
     collections: collections.services(),
     favourites: {
@@ -504,7 +572,10 @@ export const createServices = async ({
 
   return {
     services,
+    /** The server hands in how to call a mutation, for applying Requests approved after their call stopped waiting. */
+    setRequestApplier: (applier: RequestApplier) => requests.setApplier(applier),
     close: async () => {
+      stopExpiring();
       await liveRefresh?.close();
       await scheduler.stop();
       await scans.settle();

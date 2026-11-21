@@ -53,6 +53,12 @@ const actionLabels: Record<string, string> = {
   "importer.import": "Imported Skills from GitHub",
   "importer.setToken": "Saved the GitHub token",
   "importer.removeToken": "Removed the GitHub token",
+  "request.create": "Asked for a change",
+  "request.approve": "Approved a Request",
+  "request.deny": "Denied a Request",
+  "request.expire": "A Request expired",
+  "project.grant": "Granted a Project to Agents",
+  "project.revokeGrant": "Revoked a Project's Grant",
   "importer.checkUpdates": "Checked for updates",
   "importer.applyUpdate": "Updated a Skill from its Source",
   "importer.keepMine": "Kept my version of a Skill",
@@ -73,6 +79,10 @@ const clientLabels: Record<ActivityEntry["client"], string> = {
 };
 
 export const clientLabel = (client: ActivityEntry["client"]) => clientLabels[client];
+
+/** Who made a change: the client, and the Agent by name when it gave one (ADR-0006). */
+export const requesterLabel = (entry: Pick<ActivityEntry, "client" | "agent">) =>
+  entry.agent ? `${clientLabels[entry.client]} · ${entry.agent}` : clientLabels[entry.client];
 
 export const activityClients = Object.keys(clientLabels) as ActivityClient[];
 

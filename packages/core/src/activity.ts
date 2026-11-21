@@ -13,6 +13,7 @@ import {
   type ActivitySubject,
   isTaggedError,
 } from "@dark-matter/contracts";
+import { currentCaller } from "./caller";
 import { homeRelative } from "./home-path";
 import type { DailyJob } from "./scheduler";
 
@@ -131,8 +132,11 @@ export class ActivityLog {
 
   /** Appends one entry to today's file and indexes it. */
   record(input: Omit<ActivityEntry, "id" | "time">): Promise<ActivityEntry> {
+    // The Agent and Request a change was made for (ADR-0006), read before queueing.
+    const caller = currentCaller();
     const run = this.#queue.then(async () => {
       const entry = ActivityEntry.parse({
+        ...caller,
         ...input,
         id: randomUUID(),
         time: this.#now().toISOString(),

@@ -122,7 +122,10 @@ export const projectServices = ({
   scans,
   bus,
   deliver,
-}: ProjectServiceOptions): Omit<CoreServices["project"], keyof ProjectSkillProcedures | keyof ProjectMcpProcedures> => {
+}: ProjectServiceOptions): Omit<
+  CoreServices["project"],
+  keyof ProjectSkillProcedures | keyof ProjectMcpProcedures | "setGrant"
+> => {
   const changed = () => bus.publish({ type: "invalidate", domains: ["project", "inbox"] });
 
   const detectedAgents = async (path: string): Promise<AgentId[]> => {
