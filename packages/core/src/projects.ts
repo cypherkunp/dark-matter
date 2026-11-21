@@ -21,7 +21,7 @@ import type { ProjectMcpProcedures } from "./project-mcp";
 import type { ProjectSkillProcedures } from "./project-skills";
 import { scanProject } from "./scanner";
 import type { Scans } from "./scans";
-import { readProjectLock } from "./skill-lock";
+import { projectLockSources } from "./skill-lock";
 
 const isDirectory = (path: string) =>
   stat(path).then(
@@ -191,7 +191,7 @@ export const projectServices = ({
           async ({ path, name }) => {
             const { skills } = await scanProject(path, agentAdapters);
             // The Namespace Adopt would give each one (review #18): its Source in the Project's skills-lock.json.
-            const lock = await readProjectLock(path);
+            const lock = await projectLockSources(path);
             const inside = (real: string) => real === path || real.startsWith(`${path}${sep}`);
             return {
               path,

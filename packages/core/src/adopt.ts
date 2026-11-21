@@ -28,7 +28,7 @@ import { applySteps, planId } from "./plan";
 import { readFrontmatter } from "./scanner";
 import { diffSkillFiles } from "./skill-diff";
 import { computeSkillFolderHash, fingerprintSkillFolder, readSkillFiles, type SkillFile } from "./skill-hash";
-import { editGlobalLock, type GlobalLockEntry, readGlobalLock, readProjectLock } from "./skill-lock";
+import { editGlobalLock, type GlobalLockEntry, projectLockSources, readGlobalLock } from "./skill-lock";
 import { WriteQueue } from "./write-queue";
 
 const VISIBILITY_WARNING = (count: number) =>
@@ -315,7 +315,7 @@ export class Adopt {
             .filter((location) => location.folder === agentsFolder)
             .map((location) => basename(location.path))
             .find((candidate) => globalLock?.entries[candidate] !== undefined);
-      const projectLock = finding.project ? await readProjectLock(finding.project) : {};
+      const projectLock = finding.project ? await projectLockSources(finding.project) : {};
       const lockEntry = lockName
         ? globalLock?.entries[lockName]
         : finding.locations.map((location) => projectLock[basename(location.path)]).find(Boolean);

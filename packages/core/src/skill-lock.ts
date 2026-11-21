@@ -86,7 +86,7 @@ export const editGlobalLock = async (
  * their Source (the Namespace an untracked Skill is Adopted into, #29). Empty
  * when it's missing or doesn't parse.
  */
-export const readProjectLock = async (project: string): Promise<Record<string, GlobalLockEntry>> => {
+export const projectLockSources = async (project: string): Promise<Record<string, GlobalLockEntry>> => {
   try {
     const lock = GlobalLock.safeParse(JSON.parse(await readFile(join(project, "skills-lock.json"), "utf8")));
     if (!lock.success) return {};
