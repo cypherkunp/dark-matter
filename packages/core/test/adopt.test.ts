@@ -58,6 +58,7 @@ describe("Adopt", () => {
         modified: false,
         projects: 0,
         nameConflict: false,
+        orphaned: false,
       },
     ]);
     expect((await trpc.inbox.list.query()).count).toBe(0);

@@ -52,6 +52,8 @@ export const LibrarySkill = z.object({
   projects: z.int().nonnegative(),
   /** It's in a Name Conflict in at least one Project. */
   nameConflict: z.boolean(),
+  /** Its upstream is gone (#33): kept as is until you Detach or re-point it. */
+  orphaned: z.boolean().default(false),
 });
 export type LibrarySkill = z.infer<typeof LibrarySkill>;
 
@@ -180,6 +182,14 @@ export const LibraryLockEntry = z.strictObject({
   keptLinks: z.array(z.string()).optional(),
   /** Imported (#30): the GitHub tree SHA of the Skill's folder at `commit`, so update checks compare folders, not commits. */
   skillFolderHash: z.string().optional(),
+  /** Updates (#33): `tag` when `ref` is a tag, so it only moves when re-pointed. Absent = a branch. */
+  refType: z.enum(["branch", "tag"]).optional(),
+  /** Keep mine (#33): the upstream folder tree SHA you skipped; you're asked again only for a newer one. */
+  skippedUpdate: z.string().optional(),
+  /** Orphaned (#33): why the upstream can't be found any more. Cleared when it comes back or is re-pointed. */
+  orphaned: z.string().optional(),
+  /** Detach (#33): where a `local` Skill came from before it was cut off. */
+  detachedFrom: z.strictObject({ key: z.string(), source: z.string(), skillPath: z.string().optional() }).optional(),
 });
 export type LibraryLockEntry = z.infer<typeof LibraryLockEntry>;
 

@@ -48,6 +48,7 @@ export class Library {
           modified: await this.modified(key),
           projects: usage.get(key)?.projects ?? 0,
           nameConflict: usage.get(key)?.nameConflict ?? false,
+          orphaned: !!entry.orphaned,
         };
       }),
     );

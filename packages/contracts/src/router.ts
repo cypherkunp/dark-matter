@@ -2,12 +2,20 @@ import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { isTaggedError } from "./errors";
 import {
+  AppliedUpdates,
+  ApplyUpdatesInput,
+  CheckUpdatesInput,
+  DetachResult,
   GitHubAuthStatus,
   ImportPreview,
   ImportResult,
   ImportSkillsInput,
   ImportSourceInput,
+  RepointInput,
   SetGitHubTokenInput,
+  SkillKeyInput,
+  UpdateDiff,
+  UpdatesView,
 } from "./importer";
 import {
   ActivityExport,
@@ -192,6 +200,18 @@ export interface CoreServices {
     auth(): Promise<GitHubAuthStatus>;
     /** Stores (or with null removes) the GitHub PAT in the keychain. */
     setToken(input: SetGitHubTokenInput, client: ClientKind): Promise<GitHubAuthStatus>;
+    /** Check for updates (#33): one head call per Source, then folder tree SHAs. Never applies anything. */
+    checkUpdates(input: CheckUpdatesInput, client: ClientKind): Promise<UpdatesView>;
+    /** The Updates list from the last checks, plus Orphaned Skills. */
+    updates(): Promise<UpdatesView>;
+    /** The diff between the Library's folder and the waiting upstream version. */
+    updateDiff(key: string): Promise<UpdateDiff>;
+    /** Applies updates per Skill; a Modified Skill needs a choice. */
+    applyUpdates(input: ApplyUpdatesInput, client: ClientKind): Promise<AppliedUpdates>;
+    /** Detach: the Skill becomes `local/<name>`, its Source is dropped and its Links re-created. */
+    detach(key: string, client: ClientKind): Promise<DetachResult>;
+    /** Points a Skill at another repo, path or tag and takes that version (yours goes to `trash/`). */
+    repoint(input: RepointInput, client: ClientKind): Promise<void>;
   };
   /** OS notifications for the app to show, from now on, until `signal` aborts. */
   notifications(signal: AbortSignal): AsyncIterable<CoreNotification>;
@@ -525,6 +545,26 @@ export const createAppRouter = (services: CoreServices) =>
         .input(SetGitHubTokenInput)
         .output(GitHubAuthStatus)
         .mutation(({ input, ctx }) => services.importer.setToken(input, ctx.client)),
+      checkUpdates: t.procedure
+        .input(CheckUpdatesInput)
+        .output(UpdatesView)
+        .mutation(({ input, ctx }) => services.importer.checkUpdates(input, ctx.client)),
+      updates: t.procedure.output(UpdatesView).query(() => services.importer.updates()),
+      updateDiff: t.procedure
+        .input(SkillKeyInput)
+        .output(UpdateDiff)
+        .query(({ input }) => services.importer.updateDiff(input.key)),
+      applyUpdates: t.procedure
+        .input(ApplyUpdatesInput)
+        .output(AppliedUpdates)
+        .mutation(({ input, ctx }) => services.importer.applyUpdates(input, ctx.client)),
+      detach: t.procedure
+        .input(SkillKeyInput)
+        .output(DetachResult)
+        .mutation(({ input, ctx }) => services.importer.detach(input.key, ctx.client)),
+      repoint: t.procedure
+        .input(RepointInput)
+        .mutation(({ input, ctx }) => services.importer.repoint(input, ctx.client)),
     }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);

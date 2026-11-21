@@ -36,8 +36,10 @@ import { type DailyJob, Scheduler } from "./scheduler";
 import type { SecretStore } from "./secrets";
 import { SkillEditor } from "./skill-editor";
 import { skillServices } from "./skill-page";
+import { SourceChecks } from "./source-check";
 import { Trash } from "./trash";
 import { untrackedSkills } from "./untracked";
+import { Updates } from "./updates";
 import { watchOwnedFiles } from "./watch-owned";
 
 export interface ServicesOptions {
@@ -206,6 +208,22 @@ export const createServices = async ({
       bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project", "collections"] }),
   });
   dailyJobs.push(trash.job());
+  /** Updates for Imported Skills (#33); `sourceChecks` is the per-Source check #35 reuses for starred Sources. */
+  const sourceChecks = new SourceChecks(cache, clock);
+  const updates = new Updates({
+    home,
+    library,
+    importer,
+    activity,
+    checks: sourceChecks,
+    cache,
+    clock,
+    trash,
+    hooks: keyRenameHooks,
+    onChange: () =>
+      bus.publish({ type: "invalidate", domains: ["importer", "library", "skill", "project", "collections"] }),
+  });
+  dailyJobs.push(updates.job());
   const collections = new Collections({
     settings,
     library,
@@ -338,7 +356,15 @@ export const createServices = async ({
       ...projectMcp.services(),
     },
     collections: collections.services(),
-    importer: importerServices(importer),
+    importer: {
+      ...importerServices(importer),
+      checkUpdates: (input, client) => updates.check(input, client),
+      updates: () => updates.view(),
+      updateDiff: (key) => updates.diff(key),
+      applyUpdates: (input, client) => updates.apply(input, client),
+      detach: (key, client) => updates.detach(key, client),
+      repoint: (input, client) => updates.repoint(input, client),
+    },
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),

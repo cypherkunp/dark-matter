@@ -42,6 +42,36 @@ export const installedName = (name: string) =>
 export const updateAvailable = (entry: LibraryLockEntry | undefined, headFolderSha: string | undefined): boolean =>
   !!entry && !!headFolderSha && entry.skillFolderHash !== headFolderSha;
 
+/**
+ * Copies picked Skills out of a fetched Source the way `npx skills add` does
+ * (into the staging folder beside the checkout). Returns their folders by repo path.
+ */
+export const installFetched = async (
+  fetched: FetchedSource,
+  candidates: readonly ImportCandidate[],
+): Promise<Map<string, string>> => {
+  if (!fetched.found) throw new ImportSkillNotFound(fetched.fullName, candidates[0]?.path ?? ".");
+  const result = await installSkills(fetched.found, {
+    cwd: join(fetched.checkout, "..", "out"),
+    skills: candidates.map((candidate) => candidate.name),
+    agents: ["universal"],
+    mode: "copy",
+    scope: "project",
+    lockfile: false,
+    telemetry: false,
+    symlinks: "reject",
+  });
+  const failure = result.failed[0];
+  if (failure) throw new Error(`${failure.skill}: ${failure.message}`);
+  return new Map(
+    candidates.map((candidate) => {
+      const installed = result.installed.find((target) => target.skill === candidate.name);
+      if (!installed) throw new Error(`${candidate.name} wasn't fetched`);
+      return [candidate.path, installed.path] as const;
+    }),
+  );
+};
+
 /** A skills-lock v2 `skillPath`: the SKILL.md inside the repo. */
 export const skillPathOf = (folder: string) => (folder === "." ? "SKILL.md" : `${folder}/SKILL.md`);
 
@@ -49,6 +79,8 @@ export const skillPathOf = (folder: string) => (folder === "." ? "SKILL.md" : `$
 export interface FetchedSource {
   fullName: string;
   ref: string;
+  /** A tag only moves when re-pointed (#33). */
+  refType: "branch" | "tag" | "commit";
   commit: string;
   subpath: string | null;
   /** The repo checkout under `staging/`. */
@@ -161,23 +193,10 @@ export class Importer {
             const entries: Record<string, LibraryLockEntry> = {};
             const steps: PlanStep[] = [];
             if (fresh.length > 0 && fetched.found) {
-              const out = join(fetched.checkout, "..", "out");
-              const result = await installSkills(fetched.found, {
-                cwd: out,
-                skills: fresh.map((candidate) => candidate.name),
-                agents: ["universal"],
-                mode: "copy",
-                scope: "project",
-                lockfile: false,
-                telemetry: false,
-                symlinks: "reject",
-              });
-              const failure = result.failed[0];
-              if (failure) throw new Error(`${failure.skill}: ${failure.message}`);
+              const installed = await installFetched(fetched, fresh);
               for (const candidate of fresh) {
-                const installed = result.installed.find((target) => target.skill === candidate.name);
-                if (!installed) throw new Error(`${candidate.name} wasn't fetched`);
-                const computedHash = await computeSkillFolderHash(installed.path);
+                const path = installed.get(candidate.path) ?? "";
+                const computedHash = await computeSkillFolderHash(path);
                 const skillFolderHash = folders.get(candidate.path);
                 entries[candidate.key] = {
                   source: fetched.fullName,
@@ -187,10 +206,11 @@ export class Importer {
                   skillPath: skillPathOf(candidate.path),
                   computedHash,
                   ...(skillFolderHash ? { skillFolderHash } : {}),
+                  ...(fetched.refType === "tag" && { refType: "tag" as const }),
                 };
                 steps.push({
                   kind: "move",
-                  from: homeRelative(home, installed.path),
+                  from: homeRelative(home, path),
                   to: homeRelative(home, library.folder(candidate.key)),
                 });
               }
@@ -283,9 +303,18 @@ export class Importer {
    * Downloads `commit` (default: the tracked ref's head) into `staging/` and
    * finds its Skills. #31 (skills.sh Get) and re-pointing reuse this.
    */
-  async fetch(session: GitHubSession, source: ImportSource, commit?: string): Promise<FetchedSource> {
-    const repo = await session.repo(source.fullName);
-    const ref = source.ref ?? repo.defaultBranch;
+  async fetch(session: GitHubSession, input: ImportSource, commit?: string): Promise<FetchedSource> {
+    const repo = await session.repo(input.fullName);
+    const resolved = input.treePath
+      ? await session.resolveTreeRef(repo.fullName, input.treePath)
+      : input.ref && input.refType
+        ? { ref: input.ref, refType: input.refType, subpath: input.subpath }
+        : input.ref
+          ? await session.resolveTreeRef(repo.fullName, input.ref)
+          : null;
+    const source = { ...input, subpath: input.treePath ? (resolved?.subpath ?? null) : input.subpath };
+    const ref = resolved?.ref ?? repo.defaultBranch;
+    const refType = resolved?.refType ?? "branch";
     const sha = commit ?? (await session.commit(repo.fullName, ref)).sha;
     const staging = join(this.#options.libraryHome, "staging", randomUUID());
     const dispose = async () => {
@@ -326,6 +355,7 @@ export class Importer {
       return {
         fullName: repo.fullName,
         ref,
+        refType,
         commit: sha,
         subpath: source.subpath,
         checkout,
@@ -360,7 +390,9 @@ export class Importer {
 }
 
 /** The `importer` RPC domain. */
-export const importerServices = (importer: Importer): CoreServices["importer"] => {
+export const importerServices = (
+  importer: Importer,
+): Pick<CoreServices["importer"], "preview" | "import" | "auth" | "setToken"> => {
   const { github, activity } = importer.options;
   return {
     preview: ({ input }) => importer.preview(input),
