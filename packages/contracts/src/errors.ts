@@ -329,6 +329,19 @@ export class McpFileShared extends TaggedError<"McpFileShared"> {
   }
 }
 
+/** A Shared (committed) delivery would put a value that is or looks like a Secret into the repo, in a place that can't hold a reference. */
+export class McpSecretInShared extends TaggedError<"McpSecretInShared"> {
+  readonly _tag = "McpSecretInShared";
+  constructor(
+    readonly server: string,
+    readonly where: string,
+  ) {
+    super(
+      `${server} can't be Shared: its ${where} holds what looks like a Secret, which would be committed. Move it into an env var or header as a Secret reference first, or deliver it as Personal`,
+    );
+  }
+}
+
 /** A Secret that On Personal deliveries still use can't be deleted: turn them Off or edit the definitions first. */
 export class SecretInUse extends TaggedError<"SecretInUse"> {
   readonly _tag = "SecretInUse";

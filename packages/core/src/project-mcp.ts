@@ -32,6 +32,7 @@ import {
   type McpPlanOptions,
   mcpDeliveryModes,
   planMcpDelivery,
+  sharedDefinition,
   sharedEnvVars,
 } from "./mcp-delivery";
 import { definitionOf, type McpLibrary } from "./mcp-library";
@@ -384,10 +385,34 @@ export class ProjectMcpService {
                 const secret = secretOf.get(variable);
                 return secret ? `\${secret:${secret}}` : ref;
               });
-            const definition = mapStrings(pulled, back);
+            // An env or header value still as Dark Matter wrote it goes back to the Library's own value (story 98
+            // turned literals into references too), so pulling never loses a literal or a Secret reference.
+            const original = definitionOf(stored);
+            const written = sharedDefinition(original);
+            const restore = (
+              pulledValues: Record<string, string> | undefined,
+              writtenValues: Record<string, string> | undefined,
+              originalValues: Record<string, string> | undefined,
+            ) =>
+              pulledValues &&
+              Object.fromEntries(
+                Object.entries(pulledValues).map(([key, value]) =>
+                  writtenValues?.[key] === value && originalValues?.[key] !== undefined
+                    ? [key, originalValues[key]]
+                    : [key, back(value)],
+                ),
+              );
+            const mapped = mapStrings(pulled, back);
+            const env = restore(pulled.env, written.env, original.env);
+            const headers = restore(pulled.headers, written.headers, original.headers);
+            const definition = { ...mapped, ...(env && { env }), ...(headers && { headers }) };
             await this.#saveDefinition(name, stored, definition, wrote);
             await this.#rewritePersonal((server) => server === name, wrote);
-            return { path, servers: await this.#deliver(path, this.#record(path), wrote, {}, { refresh: [name] }) };
+            // The edit is in the Library now; the entry is rewritten from it (a literal becomes a reference).
+            return {
+              path,
+              servers: await this.#deliver(path, this.#record(path), wrote, {}, { refresh: [name], discard: [name] }),
+            };
           },
         ),
 

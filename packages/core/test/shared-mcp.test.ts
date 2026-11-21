@@ -90,7 +90,7 @@ describe("Shared Project MCP Servers", () => {
       ],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "\${GITHUB_PERSONAL_ACCESS_TOKEN}",
-        "LOG": "info"
+        "LOG": "\${LOG}"
       }
     },
     "linear": {
@@ -117,7 +117,7 @@ describe("Shared Project MCP Servers", () => {
         mode: "shared",
         on: true,
         secrets: ["github.GITHUB_PERSONAL_ACCESS_TOKEN"],
-        envVars: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+        envVars: ["GITHUB_PERSONAL_ACCESS_TOKEN", "LOG"],
         deliveries: [{ agent: "claude-code", file: "~/code/app/.mcp.json", status: "delivered", approval: "approved" }],
       },
       {
@@ -153,7 +153,7 @@ trust_level = "trusted"
         github: {
           command: "npx",
           args: ["-y", "@modelcontextprotocol/server-github"],
-          env: { GITHUB_PERSONAL_ACCESS_TOKEN: "${env:GITHUB_PERSONAL_ACCESS_TOKEN}", LOG: "info" },
+          env: { GITHUB_PERSONAL_ACCESS_TOKEN: "${env:GITHUB_PERSONAL_ACCESS_TOKEN}", LOG: "${env:LOG}" },
         },
         linear: { url: "https://mcp.linear.app/mcp", headers: { Authorization: "Bearer ${env:LINEAR_AUTHORIZATION}" } },
       },
@@ -164,7 +164,7 @@ trust_level = "trusted"
           github: {
             type: "local",
             command: ["npx", "-y", "@modelcontextprotocol/server-github"],
-            environment: { GITHUB_PERSONAL_ACCESS_TOKEN: "{env:GITHUB_PERSONAL_ACCESS_TOKEN}", LOG: "info" },
+            environment: { GITHUB_PERSONAL_ACCESS_TOKEN: "{env:GITHUB_PERSONAL_ACCESS_TOKEN}", LOG: "{env:LOG}" },
           },
           linear: {
             type: "remote",
@@ -177,8 +177,7 @@ trust_level = "trusted"
     expect(await read(join(app, ".codex/config.toml"))).toBe(`[mcp_servers.github]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
-env = { LOG = "info" }
-env_vars = ["GITHUB_PERSONAL_ACCESS_TOKEN"]
+env_vars = ["GITHUB_PERSONAL_ACCESS_TOKEN", "LOG"]
 
 [mcp_servers.linear]
 url = "https://mcp.linear.app/mcp"
@@ -290,7 +289,7 @@ trust_level = "trusted"
         { path: other, name: "github", mode: "shared" },
       ],
     });
-    const edited = (await read(join(app, ".mcp.json"))).replace('"LOG": "info"', '"LOG": "debug"');
+    const edited = (await read(join(app, ".mcp.json"))).replace('"-y"', '"--yes"');
     await writeFile(join(app, ".mcp.json"), edited);
 
     expect((await trpc.project.mcpServers.query({ path: app }))[0]?.deliveries[0]?.status).toBe("modifiedInRepo");
@@ -309,7 +308,7 @@ trust_level = "trusted"
     await trpc.project.pullMcpServer.mutate({ path: app, name: "github", agent: "claude-code" });
     expect(await readJson(join(libraryHome, "mcp/github.json"))).toEqual({
       ...github,
-      env: { ...github.env, LOG: "debug" },
+      args: ["--yes", "@modelcontextprotocol/server-github"],
     });
     expect((await trpc.project.mcpServers.query({ path: app }))[0]?.deliveries[0]?.status).toBe("delivered");
     expect((await trpc.project.mcpServers.query({ path: other }))[0]?.deliveries[0]?.status).toBe("outdated");
@@ -317,7 +316,7 @@ trust_level = "trusted"
     // Take Library version, after confirming, discards a hand edit.
     await writeFile(join(other, ".mcp.json"), (await read(join(other, ".mcp.json"))).replace("npx", "bunx"));
     await trpc.project.updateMcpServer.mutate({ path: other, name: "github", discardEdits: true });
-    expect((await readJson(join(other, ".mcp.json"))).mcpServers.github.env.LOG).toBe("debug");
+    expect((await readJson(join(other, ".mcp.json"))).mcpServers.github.args[0]).toBe("--yes");
     expect((await readJson(join(other, ".mcp.json"))).mcpServers.github.command).toBe("npx");
   });
 
@@ -344,6 +343,71 @@ trust_level = "trusted"
     );
     expect(await read(join(app, ".git/info/exclude"))).not.toContain(".cursor/mcp.json");
     await expectNoSecretIn(app);
+  });
+});
+
+describe("Shared files never hold a literal value (story 98)", () => {
+  const database = {
+    transport: "stdio" as const,
+    command: "db-mcp",
+    env: { DATABASE_URL: "postgres://app:hunter2@db.internal/app", LOG: "debug" },
+  };
+  const tenant = {
+    transport: "http" as const,
+    url: "https://mcp.example.com/mcp",
+    headers: { "X-Tenant": "acme-tenant-77", Authorization: "Bearer ${secret:tenant.Authorization}" },
+  };
+
+  test("every env and header value becomes a reference, whatever its name, and is listed for teammates", async () => {
+    const { trpc, project } = await setup({ database, tenant });
+    const app = await project("code/app", ["claude-code", "cursor"]);
+
+    const [added] = await trpc.project.addMcpServers.mutate({
+      servers: [
+        { path: app, name: "database", mode: "shared" },
+        { path: app, name: "tenant", mode: "shared" },
+      ],
+    });
+
+    for (const { file, text } of await committable(app))
+      for (const value of ["hunter2", "debug", "acme-tenant-77"])
+        expect(text, `${file} holds a literal value`).not.toContain(value);
+    expect((await readJson(join(app, ".mcp.json"))).mcpServers).toMatchObject({
+      database: { env: { DATABASE_URL: "${DATABASE_URL}", LOG: "${LOG}" } },
+      tenant: { headers: { "X-Tenant": "${X_TENANT}", Authorization: "Bearer ${TENANT_AUTHORIZATION}" } },
+    });
+    expect((await readJson(join(app, ".cursor/mcp.json"))).mcpServers.database.env).toEqual({
+      DATABASE_URL: "${env:DATABASE_URL}",
+      LOG: "${env:LOG}",
+    });
+    expect(added?.servers.map((server) => [server.name, server.envVars])).toEqual([
+      ["database", ["DATABASE_URL", "LOG"]],
+      ["tenant", ["TENANT_AUTHORIZATION", "X_TENANT"]],
+    ]);
+  });
+
+  test("a Secret-looking value in args or the URL blocks Shared delivery with a clear error, and nothing is written", async () => {
+    const inArgs = {
+      transport: "stdio" as const,
+      command: "npx",
+      args: ["-y", "some-mcp", "--api-key", "sk_live_51HxQz8a7b6c5d4e3f2g1h0"],
+    };
+    const inUrl = { transport: "http" as const, url: "https://mcp.example.com/mcp?token=abc123def456" };
+    const withPassword = { transport: "sse" as const, url: "https://bot:pa55word@mcp.example.com/sse" };
+    const { trpc, project } = await setup({ inArgs, inUrl, withPassword });
+    const app = await project("code/app", ["claude-code"]);
+
+    for (const name of ["inArgs", "inUrl", "withPassword"]) {
+      await expect(
+        trpc.project.addMcpServers.mutate({ servers: [{ path: app, name, mode: "shared" }] }),
+      ).rejects.toMatchObject({ data: { tag: "McpSecretInShared" } });
+      const plan = trpc.project.mcpPlan.query({ path: app, name, mode: "shared" });
+      await expect(plan).rejects.toMatchObject({ data: { tag: "McpSecretInShared" } });
+    }
+    expect(await readdir(app)).not.toContain(".mcp.json");
+    expect(await trpc.project.mcpServers.query({ path: app })).toEqual([]);
+    // Personal is still fine: it's never committed.
+    await trpc.project.addMcpServers.mutate({ servers: [{ path: app, name: "inArgs" }] });
   });
 });
 
