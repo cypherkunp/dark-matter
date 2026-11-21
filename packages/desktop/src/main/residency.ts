@@ -66,14 +66,31 @@ export const startResidency = ({ connection, showWindow, log }: ResidencyOptions
   });
 
   trpc.notifications.subscribe(undefined, {
-    onData: ({ title, body, path }) => {
+    onData: ({ title, body, path, request }) => {
       if (!Notification.isSupported()) return;
-      const notification = new Notification({ title, body });
+      // A Request (ADR-0006) offers Approve and Deny right on the notification (macOS); it's also in the Inbox.
+      const notification = new Notification({
+        title,
+        body,
+        ...(request && {
+          actions: [
+            { type: "button" as const, text: "Approve" },
+            { type: "button" as const, text: "Deny" },
+          ],
+        }),
+      });
       shown.add(notification);
       notification.on("click", () => {
         shown.delete(notification);
         showWindow(path);
       });
+      if (request) {
+        notification.on("action", (_event, index) => {
+          shown.delete(notification);
+          const decide = index === 0 ? trpc.requests.approve : trpc.requests.deny;
+          void decide.mutate({ id: request }).catch(report("deciding a Request"));
+        });
+      }
       notification.on("close", () => shown.delete(notification));
       notification.show();
     },

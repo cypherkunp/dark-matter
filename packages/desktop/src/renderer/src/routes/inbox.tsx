@@ -16,6 +16,7 @@ import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { AdoptDialog } from "@/components/adopt-dialog";
 import { InboxDrift } from "@/components/inbox-drift";
 import { InboxMcpServers } from "@/components/inbox-mcp";
+import { InboxRequests } from "@/components/inbox-requests";
 import { ManagedMcpGroups } from "@/components/managed-mcp";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
@@ -277,6 +278,7 @@ function Inbox() {
               <ChevronRight className="size-4 text-muted-foreground" />
             </Link>
           )}
+          <InboxRequests requests={inbox.data?.requests ?? []} />
           <InboxDrift groups={inbox.data?.drift ?? []} />
           {groups.length > 0 && (
             <div className="flex items-start gap-4">

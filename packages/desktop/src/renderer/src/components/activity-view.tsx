@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import {
   type ActivitySearch,
   actionLabel,
-  clientLabel,
   groupByDay,
+  requesterLabel,
   saveJson,
   subjectLink,
   toActivityFilter,
@@ -52,7 +52,7 @@ function SubjectLinks({ subjects }: { subjects: ActivitySubject[] }) {
 function Detail({ entry }: { entry: ActivityEntry }) {
   const rows: [string, React.ReactNode][] = [
     ["time", new Date(entry.time).toLocaleString()],
-    ["client", clientLabel(entry.client)],
+    ["client", requesterLabel(entry)],
     ["action", entry.action],
   ];
   return (
@@ -124,7 +124,7 @@ function Entry({ entry, expanded, onToggle }: { entry: ActivityEntry; expanded: 
         {expanded && <Detail entry={entry} />}
       </div>
       <div className="flex shrink-0 items-center gap-3 text-muted-foreground text-xs">
-        <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px]">{clientLabel(entry.client)}</span>
+        <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px]">{requesterLabel(entry)}</span>
         <time dateTime={entry.time} className="w-12 text-right tabular-nums">
           {new Date(entry.time).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
         </time>
