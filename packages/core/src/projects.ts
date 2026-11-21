@@ -117,7 +117,7 @@ export const projectServices = ({
   deliver,
 }: ProjectServiceOptions): Omit<
   CoreServices["project"],
-  keyof ProjectSkillProcedures | keyof ProjectMcpProcedures | "setGrant" | "removePlan"
+  keyof ProjectSkillProcedures | keyof ProjectMcpProcedures | "removePlan"
 > => {
   const changed = () => bus.publish({ type: "invalidate", domains: ["project", "inbox"] });
 
@@ -161,6 +161,7 @@ export const projectServices = ({
       folders: deliveryFolders(agents),
       skills: scans.latest?.projects.find((scanned) => scanned.path === path)?.skills ?? null,
       mcpServers: scans.latest?.projects.find((scanned) => scanned.path === path)?.mcpServers ?? null,
+      grant: record(path).grant === true,
     };
   };
 
@@ -280,6 +281,23 @@ export const projectServices = ({
         },
       );
     },
+
+    /** The Grant (#44): On/Off and adding or removing a Link go through without asking. */
+    setGrant: ({ path, grant }, client) =>
+      activity.track(
+        { client, action: grant ? "project.grant" : "project.revokeGrant", subjects: [{ kind: "project", id: path }] },
+        async (wrote) => {
+          record(path);
+          wrote(
+            await projects.update((current) => {
+              const { grant: _, ...kept } = current.projects[path] ?? {};
+              return { ...current, projects: { ...current.projects, [path]: grant ? { ...kept, grant: true } : kept } };
+            }),
+          );
+          bus.invalidate("project");
+          return detail(path);
+        },
+      ),
 
     remove: (path, client) =>
       activity.track({ client, action: "project.remove", subjects: [{ kind: "project", id: path }] }, async (wrote) => {

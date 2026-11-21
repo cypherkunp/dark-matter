@@ -4,15 +4,12 @@ import {
   type CoreInfo,
   type Inbox,
   LibraryLockFile,
-  type ProjectDetail,
-  ProjectNotFound,
   type ProjectRecord,
   ProjectsFile,
   type RequestRecord,
   RequestsFile,
   SettingsFile,
   StarredSourcesFile,
-  UnknownFinding,
 } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import { ActivityLog, retentionJob, type Wrote } from "./activity";
@@ -21,7 +18,6 @@ import { type AgentPathEnv, agentAdapters } from "./agents";
 import { openCache } from "./cache";
 import type { Clock } from "./clock";
 import { Collections } from "./collections";
-import { editConfigFile } from "./config-edit";
 import { Drift } from "./drift";
 import type { EventBus } from "./events";
 import { Favourites } from "./favourites";
@@ -47,11 +43,13 @@ import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
 import type { SecretStore } from "./secrets";
+import { settingsServices } from "./settings-service";
 import { SkillEditor } from "./skill-editor";
 import { skillServices } from "./skill-page";
 import { SkillsSh, type SkillsShOptions } from "./skills-sh";
 import { SourceChecks } from "./source-check";
 import { Trash } from "./trash";
+import { turnOffManaged } from "./turn-off";
 import { untrackedSkills } from "./untracked";
 import { Updates } from "./updates";
 import { WriteQueue } from "./write-queue";
@@ -83,6 +81,16 @@ const withRequests = (inbox: Omit<Inbox, "requests">, pending: RequestRecord[]):
 });
 
 /** The core's service methods behind the router (ADR-0003): every action is one of these. */
+/**
+ * A service's methods, bound, for procedures that only pass through (review #22).
+ * The procedure types check that each one's signature matches.
+ */
+const bound = <T extends object, K extends keyof T>(target: T, ...keys: K[]): Pick<T, K> =>
+  Object.fromEntries(keys.map((key) => [key, (target[key] as (...args: unknown[]) => unknown).bind(target)])) as Pick<
+    T,
+    K
+  >;
+
 export const createServices = async ({
   libraryHome,
   home,
@@ -102,7 +110,7 @@ export const createServices = async ({
     libraryHome,
     home,
     cache,
-    onRecorded: () => bus.publish({ type: "invalidate", domains: ["activity"] }),
+    onRecorded: bus.invalidator("activity"),
     now: () => clock.now(),
   });
   const settings = await OwnedFile.open("settings.json", join(libraryHome, "settings.json"), SettingsFile);
@@ -138,21 +146,17 @@ export const createServices = async ({
   /** Every Library-mutating operation runs on this one queue (review #8). */
   const writes = new WriteQueue();
   const ownedFiles = [settings, projects, libraryLock, requestsFile, starredSources];
-  const ownedFileChanged = () =>
-    bus.publish({
-      type: "invalidate",
-      domains: [
-        "settings",
-        "ownedFiles",
-        "inbox",
-        "project",
-        "library",
-        "skill",
-        "collections",
-        "favourites",
-        "requests",
-      ],
-    });
+  const ownedFileChanged = bus.invalidator(
+    "settings",
+    "ownedFiles",
+    "inbox",
+    "project",
+    "library",
+    "skill",
+    "collections",
+    "favourites",
+    "requests",
+  );
   const env: AgentPathEnv = { home, ...(systemRoot && { systemRoot }), ...agentDirs };
   const scans = new Scans({
     env,
@@ -165,7 +169,7 @@ export const createServices = async ({
     },
     exclude: [libraryHome],
     onChange: () => {
-      bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents", "project", "scheduler"] });
+      bus.invalidate("scan", "inbox", "agents", "project", "scheduler");
       // After the first Scan, the Agents' folders are watched too.
       void liveRefresh?.sync();
     },
@@ -186,7 +190,7 @@ export const createServices = async ({
       const scanned = activity.latest({ action: "scan.run" });
       return scanned && { at: scanned, scheduled: false };
     },
-    onChange: () => bus.publish({ type: "invalidate", domains: ["scheduler"] }),
+    onChange: bus.invalidator("scheduler"),
   });
   const mcpLibrary = new McpLibrary(libraryHome);
   const mcpAdopt = new McpAdopt({
@@ -199,7 +203,7 @@ export const createServices = async ({
     activity,
     latestScan: () => scans.latest,
     rescan: () => scans.refresh(),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["mcp", "inbox", "project", "collections"] }),
+    onChange: bus.invalidator("mcp", "inbox", "project", "collections"),
     projectFindings: () => projectMcp.findings(),
     keepPersonal: {
       keep: (path, name, wrote) => projectMcp.keepPersonal(path, name, wrote),
@@ -214,13 +218,13 @@ export const createServices = async ({
     library,
     activity,
     hooks: keyRenameHooks,
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project", "collections"] }),
+    onChange: bus.invalidator("library", "skill", "project", "collections"),
   });
   const skillEditor = new SkillEditor({
     writes,
     library,
     activity,
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill"] }),
+    onChange: bus.invalidator("library", "skill"),
   });
   /** Untracked Project Skills (#29) from the latest Scan; a Copy (#28) not yet committed isn't one. */
   const findUntracked = () =>
@@ -302,7 +306,7 @@ export const createServices = async ({
     activity,
     latestScan: () => scans.latest,
     rescan: () => scans.refresh(),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
+    onChange: bus.invalidator("library", "inbox", "skill"),
     untracked: () => findUntracked().flatMap((group) => group.findings),
     keepLinks: projectSkills.keepLinks(),
     usage: skillImpact,
@@ -316,8 +320,7 @@ export const createServices = async ({
     retentionDays: () => settings.value.preferences.trashRetentionDays,
     usage: skillImpact,
     release: (key, wrote) => projectSkills.forgetEverywhere([key], wrote),
-    onChange: () =>
-      bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project", "collections", "trash"] }),
+    onChange: bus.invalidator("library", "skill", "inbox", "project", "collections", "trash"),
   });
   dailyJobs.push(trash.job());
   /** Updates for Imported Skills (#33); `sourceChecks` is the per-Source check #35 reuses for starred Sources. */
@@ -331,7 +334,7 @@ export const createServices = async ({
     starred: starredSources,
     clock,
     librarySkills: async () => library.list(await projectSkills.usage()),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["favourites", "settings", "inbox"] }),
+    onChange: bus.invalidator("favourites", "settings", "inbox"),
   });
   // Before the Collections hook, which claims every settings.json step.
   keyRenameHooks.unshift(favourites.keyRenameHook(home));
@@ -347,18 +350,10 @@ export const createServices = async ({
     trash,
     hooks: keyRenameHooks,
     starred: favourites.starredSourceCheck(),
-    onChange: () =>
-      bus.publish({
-        type: "invalidate",
-        domains: ["importer", "library", "skill", "project", "collections", "favourites"],
-      }),
+    onChange: bus.invalidator("importer", "library", "skill", "project", "collections", "favourites"),
   });
   dailyJobs.push(updates.job());
   const projectProcedures = projectServices({ env, projects, settings, activity, scans, bus, deliver: deliverProject });
-  const withGrant = (detail: ProjectDetail): ProjectDetail => ({
-    ...detail,
-    grant: projects.value.projects[detail.path]?.grant === true,
-  });
   const drift = new Drift({
     home,
     libraryHome,
@@ -409,7 +404,7 @@ export const createServices = async ({
     mcp: mcpLibrary,
     projectSkills,
     projectMcp,
-    onChange: () => bus.publish({ type: "invalidate", domains: ["collections", "settings"] }),
+    onChange: bus.invalidator("collections", "settings"),
   });
   keyRenameHooks.push(collections.keyRenameHook(home));
   const listInbox = async (ignored = settings.value.ignoredFindings) =>
@@ -436,44 +431,23 @@ export const createServices = async ({
     libraryUpdates: async () => (await updates.view()).updates.length,
   });
 
+  const ownSettings = settingsServices({
+    settings,
+    activity,
+    clock,
+    bus,
+    onPreferencesSaved: async () => {
+      scheduler.check();
+      await activity.prune(activityRetention());
+    },
+  });
+
   const services: Omit<CoreServices, "events" | "notifications"> = {
     consent: (call, next) => requests.consent(call, next),
-    requests: {
-      list: () => requests.list(),
-      get: (id) => requests.get(id),
-      approve: (id, client) => requests.approve(id, client),
-      deny: (id, client) => requests.deny(id, client),
-    },
+    requests: bound(requests, "list", "get", "approve", "deny"),
     info,
     library: { list: async () => ({ skills: await library.list(await projectSkills.usage()) }) },
-    settings: {
-      get: () => settings.value,
-      updatePreferences: async (patch, client) => {
-        const saved = await activity.track(
-          { client, action: "settings.updatePreferences", subjects: [{ kind: "settings", id: "preferences" }] },
-          async (wrote) => {
-            wrote(
-              await settings.update((current) => ({ ...current, preferences: { ...current.preferences, ...patch } })),
-            );
-            bus.publish({ type: "invalidate", domains: ["settings", "scheduler"] });
-            scheduler.check();
-            return settings.value;
-          },
-        );
-        await activity.prune(activityRetention());
-        return saved;
-      },
-      completeFirstRun: (client) =>
-        activity.track(
-          { client, action: "settings.completeFirstRun", subjects: [{ kind: "settings", id: "firstRun" }] },
-          async (wrote) => {
-            const completedAt = clock.now().toISOString();
-            wrote(await settings.update((current) => ({ ...current, firstRun: current.firstRun ?? { completedAt } })));
-            bus.publish({ type: "invalidate", domains: ["settings"] });
-            return settings.value;
-          },
-        ),
-    },
+    settings: ownSettings.settings,
     ownedFiles: {
       problems: () => ownedFiles.flatMap((file) => (file.problem ? [file.problem] : [])),
       discard: (name, client) =>
@@ -499,65 +473,45 @@ export const createServices = async ({
     inbox: {
       list: () => listInbox(),
       ignored: async () => ignoredInbox(await listInbox([]), settings.value.ignoredFindings),
-      unignore: (id, client) =>
-        activity.track({ client, action: "inbox.unignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
-          wrote(
-            await settings.update((current) => ({
-              ...current,
-              ignoredFindings: current.ignoredFindings.filter((ignored) => ignored !== id),
-            })),
-          );
-          bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
-        }),
-      ignore: (id, client) =>
-        activity.track({ client, action: "inbox.ignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {
-          wrote(
-            await settings.update((current) => ({
-              ...current,
-              ignoredFindings: [...new Set([...current.ignoredFindings, id])].sort(),
-            })),
-          );
-          bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
-        }),
+      ...ownSettings.findings,
     },
-    overview: { get: () => overview.get() },
-    drift: {
-      restore: (id, client) => drift.restore(id, client),
-      accept: (id, client) => drift.accept(id, client),
-    },
+    overview: bound(overview, "get"),
+    drift: bound(drift, "restore", "accept"),
     agents: {
       list: () => agentCards(scans.latest, env),
       managedMcp: () => scans.latest?.managedMcpServers ?? [],
     },
     managedSkills: {
       turnOff: ({ id, scope }, client) =>
-        activity.track(
-          { client, action: "managedSkills.turnOff", subjects: [{ kind: "finding", id }] },
-          async (wrote) => {
+        turnOffManaged({
+          activity,
+          action: "managedSkills.turnOff",
+          id,
+          client,
+          rescan: () => scans.refresh(),
+          find: () => {
             const skill = scans.latest?.managedSkills.find((found) => found.id === id);
             const off = agentAdapters.find((adapter) => adapter.id === skill?.agent)?.managed.off;
-            if (!skill || !off || !skill.offSwitches.some((offSwitch) => offSwitch.scope === scope)) {
-              throw new UnknownFinding(id);
-            }
+            if (!skill || !off || !skill.offSwitches.some((offSwitch) => offSwitch.scope === scope)) return null;
             const ref = managedSkillRef(skill, home);
-            const file = await off.file(env);
-            const written = await editConfigFile(file, (text) => off.turnOff(text, ref, scope));
-            if (written) wrote(written);
-            await scans.refresh();
+            return { file: () => off.file(env), turnOff: (text) => off.turnOff(text, ref, scope) };
           },
-        ),
+        }),
     },
     managedMcp: {
       turnOff: ({ id, scope }, client) =>
-        activity.track({ client, action: "managedMcp.turnOff", subjects: [{ kind: "finding", id }] }, async (wrote) => {
-          const server = scans.latest?.managedMcpServers.find((found) => found.id === id);
-          const off = agentAdapters.find((adapter) => adapter.id === server?.agent)?.managedMcp?.off;
-          if (!server || !off || !server.offSwitches.some((offSwitch) => offSwitch.scope === scope)) {
-            throw new UnknownFinding(id);
-          }
-          const written = await editConfigFile(off.file(env), (text) => off.turnOff(text, server, scope));
-          if (written) wrote(written);
-          await scans.refresh();
+        turnOffManaged({
+          activity,
+          action: "managedMcp.turnOff",
+          id,
+          client,
+          rescan: () => scans.refresh(),
+          find: () => {
+            const server = scans.latest?.managedMcpServers.find((found) => found.id === id);
+            const off = agentAdapters.find((adapter) => adapter.id === server?.agent)?.managedMcp?.off;
+            if (!server || !off || !server.offSwitches.some((offSwitch) => offSwitch.scope === scope)) return null;
+            return { file: () => off.file(env), turnOff: (text) => off.turnOff(text, server, scope) };
+          },
         }),
     },
     adopt: {
@@ -573,7 +527,7 @@ export const createServices = async ({
       undoAdopt: (name, client) => mcpAdopt.undo(name, client),
       ...projectMcp.mcpServices(),
     },
-    scheduler: { status: () => scheduler.status() },
+    scheduler: bound(scheduler, "status"),
     skill: {
       ...skillServices(library),
       files: (key) => skillEditor.files(key),
@@ -597,46 +551,15 @@ export const createServices = async ({
       },
       ...projectSkills.services(),
       ...projectMcp.services(),
-      get: async (path) => withGrant(await projectProcedures.get(path)),
       removePlan: async (path) => ({
         path,
         ...(await projectSkills.releasePlan(path)),
         ...projectMcp.releasePlan(path),
       }),
-      setGrant: ({ path, grant }, client) =>
-        activity.track(
-          {
-            client,
-            action: grant ? "project.grant" : "project.revokeGrant",
-            subjects: [{ kind: "project", id: path }],
-          },
-          async (wrote) => {
-            if (!projects.value.projects[path]) throw new ProjectNotFound(path);
-            wrote(
-              await projects.update((current) => {
-                const { grant: _, ...record } = current.projects[path] ?? {};
-                return {
-                  ...current,
-                  projects: { ...current.projects, [path]: grant ? { ...record, grant: true } : record },
-                };
-              }),
-            );
-            bus.publish({ type: "invalidate", domains: ["project"] });
-            return withGrant(await projectProcedures.get(path));
-          },
-        ),
     },
-    trash: {
-      list: () => trash.list(),
-      restore: ({ id }, client) => trash.restore(id, client),
-    },
+    trash: { ...bound(trash, "list"), restore: ({ id }, client) => trash.restore(id, client) },
     collections: collections.services(),
-    favourites: {
-      get: () => favourites.get(),
-      view: () => favourites.view(),
-      setSkill: (input, client) => favourites.setSkill(input, client),
-      setSource: (input, client) => favourites.setSource(input, client),
-    },
+    favourites: bound(favourites, "get", "view", "setSkill", "setSource"),
     importer: {
       ...importerServices(importer),
       checkUpdates: (input, client) => updates.check(input, client),
@@ -650,10 +573,7 @@ export const createServices = async ({
       search: ({ query }) => skillsShSearch.search(query),
       get: ({ id }, client) => skillsShSearch.get(id, client),
     },
-    namespace: {
-      plan: (input) => namespaceRename.plan(input),
-      rename: (input, client) => namespaceRename.rename(input, client),
-    },
+    namespace: bound(namespaceRename, "plan", "rename"),
   };
   // A missed daily run Scans anyway, so it stands in for the catch-up Scan.
   if (!scheduler.due()) scans.catchUp();
