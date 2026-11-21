@@ -70,7 +70,7 @@ const targetsOf = (steps: readonly PlanStep[]): string[] => {
   const targets: string[] = [];
   for (const step of steps) {
     if (step.kind === "move") freed.add(step.from);
-    if (step.kind === "removeLink" || step.kind === "removeCopy") freed.add(step.path);
+    if (step.kind === "removeLink" || step.kind === "removeCopy" || step.kind === "removeFolder") freed.add(step.path);
     const target =
       step.kind === "move" || step.kind === "copy" ? step.to : step.kind === "createLink" ? step.path : null;
     if (target && !freed.has(target)) targets.push(target);
@@ -124,6 +124,14 @@ export const applySteps = async (steps: readonly PlanStep[], context: ApplyConte
         if ((await fingerprintSkillFolder(path)) !== (await fingerprintSkillFolder(abs(step.sameAs)))) {
           throw new Error(`${path} no longer matches ${step.sameAs}; nothing was removed`);
         }
+        await rm(path, { recursive: true });
+        context.wrote(path);
+        break;
+      }
+      case "removeFolder": {
+        const path = abs(step.path);
+        const info = await lstat(path);
+        if (info.isSymbolicLink() || !info.isDirectory()) throw new Error(`${path} is no longer a folder`);
         await rm(path, { recursive: true });
         context.wrote(path);
         break;

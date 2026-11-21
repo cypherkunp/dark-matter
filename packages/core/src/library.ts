@@ -43,6 +43,7 @@ export class Library {
           name: meta.name ?? name,
           description: meta.description ?? "",
           localSource: entry.localSource ?? null,
+          ...(entry.modified && { modified: true }),
           adoptedFrom: entry.adoptedFrom ?? null,
           projects: usage.get(key)?.projects ?? 0,
           nameConflict: usage.get(key)?.nameConflict ?? false,

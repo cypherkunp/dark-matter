@@ -17,6 +17,7 @@ import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
 import { ProjectSkillService } from "./project-skills";
 import { projectServices, waitingSuggestions } from "./projects";
+import type { LockImporter } from "./repo-skills";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
@@ -86,7 +87,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     rescan: () => scans.refresh(),
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
   });
-  /** What follows a Library Skill to a new key. Links (#27) push their hook here. */
+  /** What follows a Library Skill to a new key. Project Skills (Links and Copies) push their hook below. */
   const keyRenameHooks: KeyRenameHook[] = [];
   const namespaceRename = new NamespaceRename({
     home,
@@ -95,7 +96,18 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     hooks: keyRenameHooks,
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project"] }),
   });
-  const projectSkills = new ProjectSkillService({ home, libraryHome, library, projects, activity, bus });
+  /** Imports a `skills-lock.json` entry missing from the Library while fulfilling it. GitHub Import (#30) sets it. */
+  const lockImporter: LockImporter | null = null;
+  const projectSkills = new ProjectSkillService({
+    home,
+    libraryHome,
+    library,
+    projects,
+    activity,
+    bus,
+    importer: () => lockImporter,
+  });
+  keyRenameHooks.push(projectSkills.keyRenameHook());
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
