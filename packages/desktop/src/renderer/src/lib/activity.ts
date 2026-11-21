@@ -39,6 +39,9 @@ const actionLabels: Record<string, string> = {
   "collections.setItems": "Edited a Collection",
   "collections.delete": "Deleted a Collection",
   "collections.apply": "Added a Collection to Projects",
+  "importer.import": "Imported Skills from GitHub",
+  "importer.setToken": "Saved the GitHub token",
+  "importer.removeToken": "Removed the GitHub token",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;

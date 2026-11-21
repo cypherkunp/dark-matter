@@ -24,6 +24,7 @@ const builtPaths = new Set([
   "/computer/activity",
   "/computer/mcp-servers",
   "/projects/suggested",
+  "/get/github",
 ] as const);
 type BuiltPath = typeof builtPaths extends Set<infer P> ? P : never;
 const isBuilt = (path: string): path is BuiltPath => builtPaths.has(path as BuiltPath);
