@@ -69,6 +69,7 @@ export const startCore = async ({
       notifier: notifier ?? notifications,
       secrets: secrets ?? defaultSecretStore(env),
       github: github ?? githubOptionsFrom(env),
+      ...(env.DARK_MATTER_SYSTEM_ROOT && { systemRoot: env.DARK_MATTER_SYSTEM_ROOT }),
       info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
     });
     try {

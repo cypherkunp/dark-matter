@@ -3,7 +3,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { memorySecrets } from "../src/index";
-import { agentHome } from "./agent-home";
+import { agentHome, gitRepo } from "./agent-home";
 import { fakeGitHub, skillMd } from "./fake-github";
 import { bootCore, connect, tempHome } from "./harness";
 
@@ -230,5 +230,36 @@ describe("GitHub Import", () => {
     await expect(trpc.importer.preview.query({ input: "acme/skills" })).rejects.toMatchObject({
       data: { tag: "RateLimited" },
     });
+  });
+
+  test("fulfilling a Project's skills-lock.json entry that isn't in the Library Imports it at the team's commit", async () => {
+    const { github, trpc, home, lock } = await setup();
+    const repo = await github.repo("acme/skills", acmeSkills);
+    const pinned = repo.head();
+    await repo.commit({ "skills/pdf/SKILL.md": skillMd("pdf", "PDFs v2") });
+    const app = await gitRepo(home, "code/team");
+    const teamLock = {
+      version: 2,
+      skills: {
+        pdf: {
+          source: "acme/skills",
+          sourceType: "github",
+          ref: "main",
+          commit: pinned,
+          skillPath: "skills/pdf/SKILL.md",
+          computedHash: "",
+        },
+      },
+    };
+    await writeFile(join(app, "skills-lock.json"), `${JSON.stringify(teamLock, null, 2)}\n`);
+    await trpc.project.add.mutate({ path: app, agents: ["codex"] });
+
+    const result = await trpc.project.fulfilLock.mutate({ path: app, names: ["pdf"] });
+
+    expect(result.skills).toMatchObject([{ key: "acme/skills/pdf", mode: "copy", on: true }]);
+    expect((await lock()).skills["acme/skills/pdf"]).toMatchObject({ commit: pinned, ref: "main" });
+    expect(await readFile(join(app, ".agents/skills/pdf/SKILL.md"), "utf8")).toBe(
+      skillMd("pdf", "Work with PDFs", "Use pdftotext.\n"),
+    );
   });
 });

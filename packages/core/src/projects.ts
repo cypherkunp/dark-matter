@@ -16,6 +16,7 @@ import type { ActivityLog, Wrote } from "./activity";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters } from "./agents";
 import type { EventBus } from "./events";
 import type { OwnedFile } from "./owned-file";
+import type { ProjectMcpProcedures } from "./project-mcp";
 import type { ProjectSkillProcedures } from "./project-skills";
 import type { Scans } from "./scans";
 
@@ -120,7 +121,7 @@ export const projectServices = ({
   scans,
   bus,
   deliver,
-}: ProjectServiceOptions): Omit<CoreServices["project"], keyof ProjectSkillProcedures> => {
+}: ProjectServiceOptions): Omit<CoreServices["project"], keyof ProjectSkillProcedures | keyof ProjectMcpProcedures> => {
   const changed = () => bus.publish({ type: "invalidate", domains: ["project", "inbox"] });
 
   const detectedAgents = async (path: string): Promise<AgentId[]> => {

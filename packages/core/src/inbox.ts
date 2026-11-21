@@ -3,6 +3,7 @@ import type {
   Inbox,
   InboxFolderGroup,
   InboxManagedGroup,
+  InboxManagedMcpGroup,
   InboxMcpGroup,
   InboxProjectGroup,
   ScanResult,
@@ -59,8 +60,20 @@ export const inboxFrom = (
     const first = findings[0];
     return first ? [{ agent: adapter.id, file: first.file, findings }] : [];
   });
+  const managedMcp = (scan?.managedMcpServers ?? []).filter((finding) => !finding.off);
+  const managedMcpWaiting = managedMcp.filter((finding) => !skipped.has(finding.id));
+  const managedMcpServers: InboxManagedMcpGroup[] = agentAdapters.flatMap((adapter) => {
+    const findings = managedMcpWaiting.filter((finding) => finding.agent === adapter.id);
+    return findings.length > 0 ? [{ agent: adapter.id, findings }] : [];
+  });
   return {
-    count: waiting.length + managedWaiting.length + mcpWaiting.length + untrackedWaiting + suggestedProjects,
+    count:
+      waiting.length +
+      managedWaiting.length +
+      mcpWaiting.length +
+      untrackedWaiting +
+      managedMcpWaiting.length +
+      suggestedProjects,
     untrackedSkills,
     globalSkills: [...groups.values()],
     managedSkills,
@@ -72,9 +85,12 @@ export const inboxFrom = (
       mcp.length -
       mcpWaiting.length +
       untrackedAll -
-      untrackedWaiting,
+      untrackedWaiting +
+      managedMcp.length -
+      managedMcpWaiting.length,
     suggestedProjects,
     mcpServers,
+    managedMcpServers,
   };
 };
 
@@ -92,5 +108,7 @@ export const agentCards = (scan: ScanResult | null, env: AgentPathEnv): AgentCar
       managedSkillCount: seen?.managedSkillCount ?? null,
       mcpConfig: seen?.mcpConfig ?? null,
       globalMcpServerCount: adapter.mcp ? (seen?.globalMcpServerCount ?? null) : null,
+      managedMcpServerCount: adapter.managedMcp ? (seen?.managedMcpServerCount ?? null) : null,
+      managedMcpNotes: [...(adapter.managedMcp?.notes ?? [])],
     };
   });

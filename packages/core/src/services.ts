@@ -1,7 +1,14 @@
 import { join } from "node:path";
-import { type CoreInfo, LibraryLockFile, ProjectsFile, SettingsFile, UnknownFinding } from "@dark-matter/contracts";
+import {
+  type CoreInfo,
+  LibraryLockFile,
+  type ProjectRecord,
+  ProjectsFile,
+  SettingsFile,
+  UnknownFinding,
+} from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
-import { ActivityLog } from "./activity";
+import { ActivityLog, retentionJob, type Wrote } from "./activity";
 import { Adopt } from "./adopt";
 import { agentAdapters } from "./agents";
 import { openCache } from "./cache";
@@ -9,7 +16,7 @@ import type { Clock } from "./clock";
 import { editConfigFile } from "./config-edit";
 import type { EventBus } from "./events";
 import { GitHubAccess, type GitHubOptions } from "./github";
-import { importerServices } from "./importer";
+import { Importer, importerServices } from "./importer";
 import { agentCards, inboxFrom } from "./inbox";
 import { Library } from "./library";
 import { log } from "./log";
@@ -18,8 +25,10 @@ import { McpAdopt, McpLibrary } from "./mcp-library";
 import { type KeyRenameHook, NamespaceRename } from "./namespace-rename";
 import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
+import { ProjectMcpService } from "./project-mcp";
 import { ProjectSkillService } from "./project-skills";
 import { projectServices, waitingSuggestions } from "./projects";
+import type { LockImporter } from "./repo-skills";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
@@ -37,6 +46,8 @@ export interface ServicesOptions {
   info: () => CoreInfo;
   bus: EventBus;
   clock: Clock;
+  /** Where system-wide Agent config is read from (`/` outside tests). */
+  systemRoot?: string;
   notifier: Notifier;
   secrets: SecretStore;
   github: GitHubOptions;
@@ -52,6 +63,7 @@ export const createServices = async ({
   notifier,
   secrets,
   github,
+  systemRoot,
 }: ServicesOptions) => {
   const cache = await openCache(libraryHome);
   const activity = await ActivityLog.open({
@@ -68,11 +80,13 @@ export const createServices = async ({
     join(libraryHome, "library-lock.json"),
     LibraryLockFile,
   );
+  const activityRetention = () => settings.value.preferences.activityRetention;
+  await activity.prune(activityRetention());
   const library = new Library(libraryHome, home, libraryLock);
   const ownedFiles = [settings, projects, libraryLock];
   const ownedFileChanged = () =>
     bus.publish({ type: "invalidate", domains: ["settings", "ownedFiles", "inbox", "project", "library", "skill"] });
-  const env = { home };
+  const env = { home, ...(systemRoot && { systemRoot }) };
   const scans = new Scans({
     env,
     cache,
@@ -82,7 +96,10 @@ export const createServices = async ({
     onChange: () => bus.publish({ type: "invalidate", domains: ["scan", "inbox", "agents", "project", "scheduler"] }),
   });
   /** The daily run, in order. Later jobs (update checks, starred Sources) are added here. */
-  const dailyJobs: DailyJob[] = [scanJob(scans, () => settings.value.ignoredFindings)];
+  const dailyJobs: DailyJob[] = [
+    scanJob(scans, () => settings.value.ignoredFindings),
+    retentionJob(activity, activityRetention),
+  ];
   const scheduler = new Scheduler({
     clock,
     notifier,
@@ -107,7 +124,7 @@ export const createServices = async ({
     rescan: () => scans.refresh(),
     onChange: () => bus.publish({ type: "invalidate", domains: ["mcp", "inbox"] }),
   });
-  /** What follows a Library Skill to a new key. Links (#27) push their hook here. */
+  /** What follows a Library Skill to a new key. Project Skills (Links and Copies) push their hook below. */
   const keyRenameHooks: KeyRenameHook[] = [];
   const namespaceRename = new NamespaceRename({
     home,
@@ -121,17 +138,44 @@ export const createServices = async ({
     activity,
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill"] }),
   });
-  /** Untracked Project Skills (#29) from the latest Scan. */
+  /** Untracked Project Skills (#29) from the latest Scan; a Copy (#28) not yet committed isn't one. */
   const findUntracked = () =>
-    untrackedSkills(
-      scans.latest,
-      env,
-      libraryHome,
-      Object.values(libraryLock.value.skills).flatMap((entry) =>
+    untrackedSkills(scans.latest, env, libraryHome, [
+      ...Object.values(libraryLock.value.skills).flatMap((entry) =>
         entry.localSource ? [library.absolute(entry.localSource)] : [],
       ),
-    );
-  const projectSkills = new ProjectSkillService({ home, libraryHome, library, projects, activity, bus });
+      ...projectSkills.copyFolders(),
+    ]);
+  /** GitHub Import (#30); it also Imports `skills-lock.json` entries missing from the Library while fulfilling them. */
+  const importer = new Importer({
+    home,
+    libraryHome,
+    library,
+    activity,
+    github: new GitHubAccess(github, secrets),
+    onChange: (domains) => bus.publish({ type: "invalidate", domains }),
+  });
+  const lockImporter: LockImporter | null = importer.lockImporter();
+  const projectSkills = new ProjectSkillService({
+    home,
+    libraryHome,
+    library,
+    projects,
+    activity,
+    bus,
+    importer: () => lockImporter,
+  });
+  keyRenameHooks.push(projectSkills.keyRenameHook());
+  const projectMcp = new ProjectMcpService({ home, mcp: mcpLibrary, secrets, projects, activity, bus });
+  /** A changed record (e.g. Agents) re-delivers Project Skills, then Project MCP Servers. */
+  const deliverProject = {
+    deliver: async (path: string, next: ProjectRecord, wrote: Wrote) => {
+      await projectSkills.deliver(path, next, wrote);
+      await projectMcp.redeliver(path, wrote);
+    },
+  };
+  // Learns where Copies are, so untracked Skills (#29) leave them out.
+  void projectSkills.usage().catch(() => {});
   const adopt = new Adopt({
     home,
     library,
@@ -166,8 +210,8 @@ export const createServices = async ({
     library: { list: async () => ({ skills: await library.list(await projectSkills.usage()) }) },
     settings: {
       get: () => settings.value,
-      updatePreferences: (patch, client) =>
-        activity.track(
+      updatePreferences: async (patch, client) => {
+        const saved = await activity.track(
           { client, action: "settings.updatePreferences", subjects: [{ kind: "settings", id: "preferences" }] },
           async (wrote) => {
             wrote(
@@ -177,7 +221,10 @@ export const createServices = async ({
             scheduler.check();
             return settings.value;
           },
-        ),
+        );
+        await activity.prune(activityRetention());
+        return saved;
+      },
     },
     ownedFiles: {
       problems: () => ownedFiles.flatMap((file) => (file.problem ? [file.problem] : [])),
@@ -191,7 +238,7 @@ export const createServices = async ({
           },
         ),
     },
-    activity: { list: (query) => activity.list(query) },
+    activity: { list: (query) => activity.list(query), export: (filter) => activity.export(filter) },
     scan: {
       run: (client) => scans.run(client),
       status: () => scans.status(),
@@ -216,7 +263,10 @@ export const createServices = async ({
           bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
         }),
     },
-    agents: { list: () => agentCards(scans.latest, env) },
+    agents: {
+      list: () => agentCards(scans.latest, env),
+      managedMcp: () => scans.latest?.managedMcpServers ?? [],
+    },
     managedSkills: {
       turnOff: ({ id, scope }, client) =>
         activity.track(
@@ -235,16 +285,30 @@ export const createServices = async ({
           },
         ),
     },
+    managedMcp: {
+      turnOff: ({ id, scope }, client) =>
+        activity.track({ client, action: "managedMcp.turnOff", subjects: [{ kind: "finding", id }] }, async (wrote) => {
+          const server = scans.latest?.managedMcpServers.find((found) => found.id === id);
+          const off = agentAdapters.find((adapter) => adapter.id === server?.agent)?.managedMcp?.off;
+          if (!server || !off || !server.offSwitches.some((offSwitch) => offSwitch.scope === scope)) {
+            throw new UnknownFinding(id);
+          }
+          const written = await editConfigFile(off.file(env), (text) => off.turnOff(text, server, scope));
+          if (written) wrote(written);
+          await scans.refresh();
+        }),
+    },
     adopt: {
       plan: ({ findings }) => adopt.plan(findings),
       apply: ({ findings, planId }, client) => adopt.apply(findings, planId, client),
       undo: (key, client) => adopt.undo(key, client),
     },
     mcp: {
-      list: async () => ({ servers: await mcpLibrary.list(home) }),
+      list: async () => ({ servers: await mcpLibrary.list(home, secrets) }),
       adoptPlan: ({ findings, names }) => mcpAdopt.plan(findings, names),
       adoptExecute: ({ findings, names, planId }, client) => mcpAdopt.apply(findings, names, planId, client),
       undoAdopt: (name, client) => mcpAdopt.undo(name, client),
+      ...projectMcp.mcpServices(),
     },
     scheduler: { status: () => scheduler.status() },
     skill: {
@@ -256,17 +320,11 @@ export const createServices = async ({
       delete: (key, client) => trash.delete(key, client),
     },
     project: {
-      ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
+      ...projectServices({ env, projects, settings, activity, scans, bus, deliver: deliverProject }),
       ...projectSkills.services(),
+      ...projectMcp.services(),
     },
-    importer: importerServices({
-      home,
-      libraryHome,
-      library,
-      activity,
-      github: new GitHubAccess(github, secrets),
-      onChange: (domains) => bus.publish({ type: "invalidate", domains }),
-    }),
+    importer: importerServices(importer),
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),

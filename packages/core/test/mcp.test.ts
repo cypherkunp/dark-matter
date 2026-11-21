@@ -286,6 +286,7 @@ describe("Adopt Global MCP Servers", () => {
           env: { GITHUB_PERSONAL_ACCESS_TOKEN: "${secret:github.GITHUB_PERSONAL_ACCESS_TOKEN}" },
         },
         secrets: ["github.GITHUB_PERSONAL_ACCESS_TOKEN"],
+        missingSecrets: [],
         adoptedFrom: [{ agent: "claude-code", file: "~/.claude.json" }],
         file: "~/.dark-matter/mcp/github.json",
         problem: null,
@@ -338,8 +339,7 @@ trust_level = "trusted"
   "$schema": "https://opencode.ai/config.json",
   // MCP servers I use everywhere
   "mcp": {
-    "servers": {
-    },
+    "servers": {},
   },
   "theme": "system",
 }

@@ -26,6 +26,8 @@ export const stepText = (step: PlanStep): string => {
       return `remove symlink ${step.path}`;
     case "removeCopy":
       return `remove identical copy ${step.path}`;
+    case "removeFolder":
+      return `remove folder ${step.path}`;
     case "editFile":
       return `edit ${step.path}: ${step.change}${step.backup ? ` (backup ${step.backup})` : ""}`;
     case "storeSecret":

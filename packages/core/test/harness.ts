@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { type CoreConnection, CoreFile } from "@dark-matter/contracts";
 import { type CoreClient, type CoreClientOptions, createCoreClient } from "@dark-matter/contracts/client";
 import { onTestFinished } from "vitest";
@@ -33,9 +33,11 @@ export const bootCore = async (
     github?: GitHubOptions;
   } = {},
 ): Promise<RunningCore> => {
-  // Never the real keychain, GitHub or `gh` login in tests: an unroutable API unless a test passes the fake.
+  // Never the real keychain, GitHub or `gh` login in tests (an unroutable API unless a test passes the fake),
+  // nor the machine's /etc and /Library.
   const github: GitHubOptions = { api: "http://127.0.0.1:9", ghToken: async () => null, ...fakes.github };
-  const core = await startCore({ env: { DARK_MATTER_SECRETS: "memory", ...env }, ...fakes, github });
+  const system = env.HOME ? { DARK_MATTER_SYSTEM_ROOT: join(dirname(env.HOME), "system") } : {};
+  const core = await startCore({ env: { DARK_MATTER_SECRETS: "memory", ...system, ...env }, ...fakes, github });
   onTestFinished(() => core.stop());
   return core;
 };

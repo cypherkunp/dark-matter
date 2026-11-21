@@ -11,6 +11,7 @@ import {
   type ImportSkillsInput,
   InvalidOwnedFile,
   type LibraryLockEntry,
+  NotInLibrary,
   type PlanStep,
   SourceUnreachable,
 } from "@dark-matter/contracts";
@@ -22,6 +23,7 @@ import { homeRelative } from "./home-path";
 import { type ImportSource, parseImportSource } from "./import-source";
 import type { Library } from "./library";
 import { applySteps } from "./plan";
+import type { LockImporter } from "./repo-skills";
 import { computeSkillFolderHash } from "./skill-hash";
 
 /** The folder name the `skills` package installs a Skill under (its `sanitizeName`), so keys match `npx skills add`. */
@@ -81,22 +83,65 @@ export class Importer {
     this.#options = options;
   }
 
+  get options(): ImporterOptions {
+    return this.#options;
+  }
+
   /**
    * Imports the picked Skills at exactly the previewed commit. A Skill already
    * Imported from the same Source and path isn't duplicated: it gets an update
    * check (its folder's tree SHA at the tracked ref's head) and is left as is.
    */
   import({ input, commit, paths }: ImportSkillsInput, client: ClientKind): Promise<ImportResult> {
+    return this.importFrom(parseImportSource(input), commit, client, (fetched) =>
+      [...new Set(paths)].map((path) => {
+        const candidate = fetched.candidates.find((found) => found.path === path);
+        if (!candidate) throw new ImportSkillNotFound(fetched.fullName, path);
+        return candidate;
+      }),
+    );
+  }
+
+  /**
+   * #28's hook: fulfilling a Project's `skills-lock.json` entry that isn't in
+   * the Library Imports it first, at the entry's own commit (so the Copy
+   * matches what the team pinned) and following its ref.
+   */
+  lockImporter(): LockImporter {
+    return {
+      importEntry: async (name, entry) => {
+        const source = entry.sourceType === undefined || entry.sourceType === "github" ? entry.source : null;
+        const parsed = source ? parseImportSource(source) : null;
+        if (!parsed) throw new NotInLibrary(name, entry.source);
+        const folder = entry.skillPath ? posix.dirname(entry.skillPath) : null;
+        const commit = entry.commit && /^[0-9a-f]{40}$/.test(entry.commit) ? entry.commit : undefined;
+        const result = await this.importFrom({ ...parsed, ref: entry.ref ?? null }, commit, "app", (fetched) => {
+          const candidate =
+            fetched.candidates.find((found) => folder !== null && found.path === folder) ??
+            fetched.candidates.find((found) => installedName(found.name) === name);
+          if (!candidate) throw new ImportSkillNotFound(fetched.fullName, folder ?? name);
+          return [candidate];
+        });
+        const key = result.skills[0]?.key;
+        if (!key) throw new NotInLibrary(name, entry.source);
+        return key;
+      },
+    };
+  }
+
+  /** Fetches `source` (at `commit`, else its tracked ref's head), then Imports what `pick` chooses from it. */
+  importFrom(
+    source: ImportSource,
+    commit: string | undefined,
+    client: ClientKind,
+    pick: (fetched: FetchedSource) => ImportCandidate[],
+  ): Promise<ImportResult> {
     return this.#serial(async () => {
       const { home, library, activity } = this.#options;
       const session = await this.#options.github.session();
-      const fetched = await this.fetch(session, parseImportSource(input), commit);
+      const fetched = await this.fetch(session, source, commit);
       try {
-        const picked = [...new Set(paths)].map((path) => {
-          const candidate = fetched.candidates.find((found) => found.path === path);
-          if (!candidate) throw new ImportSkillNotFound(fetched.fullName, path);
-          return candidate;
-        });
+        const picked = pick(fetched);
         const fresh = picked.filter((candidate) => !candidate.inLibrary);
         const folders = await this.#folderShas(session, fetched);
         const head =
@@ -315,9 +360,8 @@ export class Importer {
 }
 
 /** The `importer` RPC domain. */
-export const importerServices = (options: ImporterOptions): CoreServices["importer"] => {
-  const importer = new Importer(options);
-  const { github, activity } = options;
+export const importerServices = (importer: Importer): CoreServices["importer"] => {
+  const { github, activity } = importer.options;
   return {
     preview: ({ input }) => importer.preview(input),
     import: (input, client) => importer.import(input, client),
@@ -331,7 +375,7 @@ export const importerServices = (options: ImporterOptions): CoreServices["import
         },
         async () => {
           await github.setToken(token);
-          options.onChange(["importer"]);
+          importer.options.onChange(["importer"]);
           return github.status();
         },
       ),

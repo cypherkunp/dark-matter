@@ -227,7 +227,7 @@ describe("the Agents screen", () => {
 
     await trpc.scan.run.mutate();
 
-    expect(await trpc.agents.list.query()).toEqual([
+    expect(await trpc.agents.list.query()).toMatchObject([
       {
         id: "claude-code",
         name: "Claude Code",

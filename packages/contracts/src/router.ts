@@ -10,8 +10,11 @@ import {
   SetGitHubTokenInput,
 } from "./importer";
 import {
+  ActivityExport,
+  ActivityFilter,
   ActivityList,
   ActivityQuery,
+  AddProjectMcpServers,
   AddProjectSkills,
   AdoptInput,
   AdoptPlan,
@@ -21,32 +24,43 @@ import {
   ApplyMcpAdoptInput,
   ApplyRenameNamespaceInput,
   type ClientKind,
+  CopyDiff,
   type CoreEvent,
   CoreInfo,
   type CoreNotification,
+  FulfilLockInput,
   Inbox,
   LibraryList,
   LibraryMcpList,
+  ManagedMcpServer,
   McpAdoptInput,
   McpAdoptPlan,
+  McpOffScope,
   McpServerName,
+  McpTarget,
   OffScope,
   OwnedFileName,
   OwnedFileProblem,
   PreferencesPatch,
   ProjectDetail,
+  ProjectMcpServer,
+  ProjectMcpServerRef,
+  ProjectMcpServers,
   ProjectPath,
   ProjectSkill,
+  ProjectSkillChange,
   ProjectSkillRef,
   ProjectSkills,
   ProjectSummary,
   RenameNamespaceInput,
   RenameNamespacePlan,
+  RepoSkills,
   SavedSkillFile,
   SaveSkillFileInput,
   ScanResult,
   ScanStatus,
   SchedulerStatus,
+  SetSecretInput,
   SettingsFile,
   SkillDeletePlan,
   SkillDetail,
@@ -55,6 +69,7 @@ import {
   SkillFiles,
   SkillProjectUse,
   SuggestedProjects,
+  UpdateMcpDefinitionInput,
 } from "./schemas";
 
 /** Per-connection context, built once when a connection authenticates. */
@@ -84,6 +99,8 @@ export interface CoreServices {
   };
   activity: {
     list(query: ActivityQuery): ActivityList;
+    /** Every entry matching the filter, for saving as JSON. Not recorded, like any view. */
+    export(filter: ActivityFilter): ActivityExport;
   };
   scan: {
     /** Runs a read-only Scan, or joins the one already running. */
@@ -97,6 +114,8 @@ export interface CoreServices {
   };
   agents: {
     list(): AgentCard[];
+    /** Every Agent-managed MCP Server the latest Scan found, off ones included (#40). */
+    managedMcp(): ManagedMcpServer[];
   };
   managedSkills: {
     /**
@@ -104,6 +123,13 @@ export interface CoreServices {
      * own global settings, with a targeted, format-preserving edit.
      */
     turnOff(input: { id: string; scope: OffScope }, client: ClientKind): Promise<void>;
+  };
+  managedMcp: {
+    /**
+     * "Turn off everywhere" for an Agent-managed MCP Server, through its Agent's
+     * own documented global setting, with a targeted, format-preserving edit.
+     */
+    turnOff(input: { id: string; scope: McpOffScope }, client: ClientKind): Promise<void>;
   };
   adopt: {
     /** The dry run: what Adopting these findings would do. Writes nothing. */
@@ -125,6 +151,10 @@ export interface CoreServices {
     adoptExecute(input: ApplyMcpAdoptInput, client: ClientKind): Promise<McpAdoptPlan>;
     /** Undo Adopt: puts every entry it came from back into its Agent config and removes it from the Library. */
     undoAdopt(name: string, client: ClientKind): Promise<void>;
+    /** Stores or rotates a Secret in the keychain, then rewrites the Personal deliveries that use it. */
+    setSecret(input: SetSecretInput, client: ClientKind): Promise<void>;
+    /** Replaces a Library MCP Server's definition, then rewrites its Personal deliveries. */
+    updateDefinition(input: UpdateMcpDefinitionInput, client: ClientKind): Promise<void>;
   };
   skill: {
     /** A Library Skill's page: SKILL.md split into frontmatter and body, warnings and its Library Lock entry. */
@@ -180,11 +210,31 @@ export interface CoreServices {
     /** Adds Library Skills to Projects (Link by default) and delivers them On. Re-adding one turns it On. */
     addSkills(input: AddProjectSkills, client: ClientKind): Promise<ProjectSkills[]>;
     /** On re-delivers a Project Skill; Off removes its delivery but keeps it in `projects.json`. */
-    setSkillOn(input: ProjectSkillRef & { on: boolean }, client: ClientKind): Promise<ProjectSkills>;
+    setSkillOn(input: ProjectSkillChange & { on: boolean }, client: ClientKind): Promise<ProjectSkills>;
     /** Removes a Project Skill: its delivery goes and the Project forgets it. */
-    removeSkill(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    removeSkill(input: ProjectSkillChange, client: ClientKind): Promise<ProjectSkills>;
+    /** Replaces an On Copy's files and lock entry with the Library's version (Update, Take Library version). */
+    updateCopy(input: ProjectSkillChange, client: ClientKind): Promise<ProjectSkills>;
+    /** A Copy's edits against the Library. */
+    copyDiff(input: ProjectSkillRef): Promise<CopyDiff>;
+    /** Copies a Copy's files into its Library Skill (marked Modified when it has a Source); other Copies become outdated. */
+    pullCopy(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    /** Committed Skills it didn't create (Vendored) and `skills-lock.json` entries waiting to be fulfilled. Read-only. */
+    repoSkills(path: string): Promise<RepoSkills>;
+    /** Makes `skills-lock.json` entries Copies of their Library Skills; a committed folder is kept as is. */
+    fulfilLock(input: FulfilLockInput, client: ClientKind): Promise<ProjectSkills>;
     /** Resolves a Name Conflict: `key` wins and the other same-name Project Skills are removed. */
     resolveConflict(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    /** Its Project MCP Servers, with each Agent's delivery (#38). */
+    mcpServers(path: string): Promise<ProjectMcpServer[]>;
+    /** Where Personal would write for each of its Agents, and whether it's offered there. */
+    mcpTargets(path: string): Promise<McpTarget[]>;
+    /** Adds Library MCP Servers to Projects (Personal by default) and delivers them On. Re-adding one turns it On. */
+    addMcpServers(input: AddProjectMcpServers, client: ClientKind): Promise<ProjectMcpServers[]>;
+    /** On writes its entries back; Off removes them but keeps it (mode included) in `projects.json`. */
+    setMcpServerOn(input: ProjectMcpServerRef & { on: boolean }, client: ClientKind): Promise<ProjectMcpServers>;
+    /** Removes a Project MCP Server: its entries go and the Project forgets it. */
+    removeMcpServer(input: ProjectMcpServerRef, client: ClientKind): Promise<ProjectMcpServers>;
   };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
@@ -223,6 +273,10 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ActivityQuery)
         .output(ActivityList)
         .query(({ input }) => services.activity.list(input)),
+      export: t.procedure
+        .input(ActivityFilter)
+        .output(ActivityExport)
+        .query(({ input }) => services.activity.export(input)),
     }),
     scan: t.router({
       run: t.procedure.output(ScanResult).mutation(({ ctx }) => services.scan.run(ctx.client)),
@@ -236,11 +290,17 @@ export const createAppRouter = (services: CoreServices) =>
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+      managedMcp: t.procedure.output(ManagedMcpServer.array()).query(() => services.agents.managedMcp()),
     }),
     managedSkills: t.router({
       turnOff: t.procedure
         .input(z.object({ id: z.string().min(1), scope: OffScope }))
         .mutation(({ input, ctx }) => services.managedSkills.turnOff(input, ctx.client)),
+    }),
+    managedMcp: t.router({
+      turnOff: t.procedure
+        .input(z.object({ id: z.string().min(1), scope: McpOffScope }))
+        .mutation(({ input, ctx }) => services.managedMcp.turnOff(input, ctx.client)),
     }),
     adopt: t.router({
       plan: t.procedure
@@ -269,6 +329,12 @@ export const createAppRouter = (services: CoreServices) =>
       undoAdopt: t.procedure
         .input(z.object({ name: McpServerName }))
         .mutation(({ input, ctx }) => services.mcp.undoAdopt(input.name, ctx.client)),
+      setSecret: t.procedure
+        .input(SetSecretInput)
+        .mutation(({ input, ctx }) => services.mcp.setSecret(input, ctx.client)),
+      updateDefinition: t.procedure
+        .input(UpdateMcpDefinitionInput)
+        .mutation(({ input, ctx }) => services.mcp.updateDefinition(input, ctx.client)),
     }),
     scheduler: t.router({
       status: t.procedure.output(SchedulerStatus).query(() => services.scheduler.status()),
@@ -311,17 +377,57 @@ export const createAppRouter = (services: CoreServices) =>
         .output(ProjectSkills.array())
         .mutation(({ input, ctx }) => services.project.addSkills(input, ctx.client)),
       setSkillOn: t.procedure
-        .input(ProjectSkillRef.extend({ on: z.boolean() }))
+        .input(ProjectSkillChange.extend({ on: z.boolean() }))
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.setSkillOn(input, ctx.client)),
       removeSkill: t.procedure
-        .input(ProjectSkillRef)
+        .input(ProjectSkillChange)
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.removeSkill(input, ctx.client)),
+      updateCopy: t.procedure
+        .input(ProjectSkillChange)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.updateCopy(input, ctx.client)),
+      copyDiff: t.procedure
+        .input(ProjectSkillRef)
+        .output(CopyDiff)
+        .query(({ input }) => services.project.copyDiff(input)),
+      pullCopy: t.procedure
+        .input(ProjectSkillRef)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.pullCopy(input, ctx.client)),
+      repoSkills: t.procedure
+        .input(ProjectPath)
+        .output(RepoSkills)
+        .query(({ input }) => services.project.repoSkills(input.path)),
+      fulfilLock: t.procedure
+        .input(FulfilLockInput)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.fulfilLock(input, ctx.client)),
       resolveConflict: t.procedure
         .input(ProjectSkillRef)
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.resolveConflict(input, ctx.client)),
+      mcpServers: t.procedure
+        .input(ProjectPath)
+        .output(ProjectMcpServer.array())
+        .query(({ input }) => services.project.mcpServers(input.path)),
+      mcpTargets: t.procedure
+        .input(ProjectPath)
+        .output(McpTarget.array())
+        .query(({ input }) => services.project.mcpTargets(input.path)),
+      addMcpServers: t.procedure
+        .input(AddProjectMcpServers)
+        .output(ProjectMcpServers.array())
+        .mutation(({ input, ctx }) => services.project.addMcpServers(input, ctx.client)),
+      setMcpServerOn: t.procedure
+        .input(ProjectMcpServerRef.extend({ on: z.boolean() }))
+        .output(ProjectMcpServers)
+        .mutation(({ input, ctx }) => services.project.setMcpServerOn(input, ctx.client)),
+      removeMcpServer: t.procedure
+        .input(ProjectMcpServerRef)
+        .output(ProjectMcpServers)
+        .mutation(({ input, ctx }) => services.project.removeMcpServer(input, ctx.client)),
     }),
     skill: t.router({
       get: t.procedure
