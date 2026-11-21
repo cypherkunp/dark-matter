@@ -20,14 +20,15 @@ import {
   type ScanResult,
   SecretMissing,
 } from "@dark-matter/contracts";
-import type { ActivityLog } from "./activity";
+import type { ActivityLog, Wrote } from "./activity";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { writeFileAtomic } from "./atomic";
-import { editConfigFile } from "./config-edit";
+import { editConfigFile, readConfigText } from "./config-edit";
 import { fromHomeRelative, homeRelative } from "./home-path";
 import { type McpEntry, mcpConfigEdits, readGlobalMcp } from "./mcp-agents";
 import { type InlineSecret, maskSecrets, secretNames } from "./mcp-secrets";
 import { applySteps, planId } from "./plan";
+import type { ProjectMcpFinding } from "./repo-mcp";
 import type { SecretStore } from "./secrets";
 import { diffSkillFiles } from "./skill-diff";
 import { toSortedJson } from "./sorted-json";
@@ -180,7 +181,7 @@ interface Known {
 interface Planned {
   plan: McpAdoptPlan;
   /** What each `editFile` and `storeSecret` step does, by step. */
-  actions: Map<string, () => Promise<string | null>>;
+  actions: Map<string, () => Promise<string | string[] | null>>;
 }
 
 const stepKey = (step: PlanStep) => toSortedJson(step);
@@ -194,6 +195,13 @@ export interface McpAdoptOptions {
   latestScan: () => ScanResult | null;
   rescan: () => Promise<unknown>;
   onChange: () => void;
+  /** Untracked and Claude local-scope entries in Projects (#39), Adopted by their `project-mcp:` ids. */
+  projectFindings?: () => Promise<ProjectMcpFinding[]>;
+  /** Puts an Adopted Project entry back as Personal, and releases it on Undo (#39). */
+  keepPersonal?: {
+    keep(project: string, name: string, wrote: Wrote): Promise<void>;
+    release(project: string, name: string, wrote: Wrote): Promise<void>;
+  };
 }
 
 /**
@@ -249,9 +257,12 @@ export class McpAdopt {
           if (stored.problem || !stored.value) throw new InvalidOwnedFile(stored.path, stored.problem ?? "invalid");
           const from = stored.value.adoptedFrom ?? [];
           if (from.length === 0) throw new NotAdopted(name);
+          // A Project entry kept as Personal goes first, so the original can go back in its place.
+          for (const origin of from)
+            if (origin.project) await this.#options.keepPersonal?.release(origin.project, name, wrote);
           const steps: PlanStep[] = [];
-          const actions = new Map<string, () => Promise<string | null>>();
-          const add = (step: PlanStep, action: () => Promise<string | null>) => {
+          const actions = new Map<string, () => Promise<string | string[] | null>>();
+          const add = (step: PlanStep, action: () => Promise<string | string[] | null>) => {
             steps.push(step);
             actions.set(stepKey(step), action);
           };
@@ -259,9 +270,8 @@ export class McpAdopt {
             const mcpOf = agentAdapters.find((adapter) => adapter.id === origin.agent)?.mcp;
             if (!mcpOf) throw new NotAdopted(name);
             const file = fromHomeRelative(home, origin.file);
-            const current = await readGlobalMcp(mcpOf, { home });
-            if (current.problem) throw new InvalidOwnedFile(file, current.problem);
-            if (lookupAt(mcpConfigEdits[mcpOf.format].read(current.text, file), origin.at) !== undefined) {
+            const current = await readConfigText(file);
+            if (lookupAt(mcpConfigEdits[mcpOf.format].read(current ?? "", file), origin.at) !== undefined) {
               throw new NameConflict([origin.at.at(-1) ?? name], `${origin.file} › ${origin.at.join(".")}`);
             }
             const raw = (await fillSecrets(origin.entry, secrets)) as Record<string, unknown>;
@@ -295,7 +305,7 @@ export class McpAdopt {
 
   async #run(
     steps: PlanStep[],
-    actions: Map<string, () => Promise<string | null>>,
+    actions: Map<string, () => Promise<string | string[] | null>>,
     wrote: (path: string | null) => void,
   ) {
     const act = async (step: PlanStep) => {
@@ -309,7 +319,7 @@ export class McpAdopt {
       wrote,
       editFile: async (step) => {
         const path = await act(step);
-        return path ? [path] : [];
+        return Array.isArray(path) ? path : path ? [path] : [];
       },
       secret: async (step) => void (await act(step)),
     });
@@ -319,10 +329,15 @@ export class McpAdopt {
     const { home, mcp, secrets } = this.#options;
     const env: AgentPathEnv = { home };
     const scan = this.#options.latestScan();
+    const inProjects = ids.some((id) => id.startsWith("project-mcp:"))
+      ? ((await this.#options.projectFindings?.()) ?? []).filter((finding) => !finding.tracked)
+      : [];
     const findings = [...new Set(ids)].map((id) => {
       const finding = scan?.globalMcpServers.find((server) => server.id === id);
-      if (!finding) throw new FindingNotFound(id);
-      return finding;
+      const inProject = inProjects.find((candidate) => candidate.id === id);
+      if (finding) return { id, agent: finding.agent, name: finding.name, project: null };
+      if (inProject) return { id, agent: inProject.agent, name: inProject.entry.name, project: inProject };
+      throw new FindingNotFound(id);
     });
 
     // Every Library MCP Server, compared by its definition with Secrets filled in.
@@ -346,7 +361,8 @@ export class McpAdopt {
 
     const configs = new Map<string, Awaited<ReturnType<typeof readGlobalMcp>>>();
     const servers: McpAdoptPlanServer[] = [];
-    const removals: { step: PlanStep; action: () => Promise<string | null> }[] = [];
+    const removals: { step: PlanStep; action: () => Promise<string | string[] | null> }[] = [];
+    const keptBack: { step: PlanStep; action: () => Promise<string[]> }[] = [];
     const secretValues = new Map<string, string>();
     const touched = new Set<string>();
     const digest = createHash("sha256");
@@ -355,9 +371,13 @@ export class McpAdopt {
       const adapter = agentAdapters.find((candidate) => candidate.id === finding.agent);
       const mcpOf = adapter?.mcp;
       if (!mcpOf) throw new FindingNotFound(finding.id);
-      const config = configs.get(finding.agent) ?? (await readGlobalMcp(mcpOf, env));
-      configs.set(finding.agent, config);
-      if (config.problem) throw new InvalidOwnedFile(config.file, config.problem);
+      let config = { file: finding.project?.file ?? "", entries: finding.project ? [finding.project.entry] : [] };
+      if (!finding.project) {
+        const global = configs.get(finding.agent) ?? (await readGlobalMcp(mcpOf, env));
+        configs.set(finding.agent, global);
+        if (global.problem) throw new InvalidOwnedFile(global.file, global.problem);
+        config = global;
+      }
       const entry: McpEntry | undefined = config.entries.find((candidate) => candidate.name === finding.name);
       if (!entry) throw new PlanStale();
       digest.update(toSortedJson(entry.raw));
@@ -372,6 +392,7 @@ export class McpAdopt {
         file: homeRelative(home, config.file),
         at: entry.at,
         entry: hideSecrets(entry.raw, masked.secrets),
+        ...(finding.project && { project: finding.project.project }),
       };
       if (outcome === "merged" && into) {
         into.file = { ...into.file, adoptedFrom: [...(into.file.adoptedFrom ?? []), adoption] };
@@ -410,11 +431,30 @@ export class McpAdopt {
         step: { kind: "editFile", path: homeRelative(home, file), change: `remove ${entry.at.join(".")}` },
         action: () => editConfigFile(file, (text) => mcpConfigEdits[mcpOf.format].remove(text, entry.at)),
       });
+      const keep = this.#options.keepPersonal;
+      const project = finding.project?.project;
+      if (keep && project) {
+        // Back as a Personal Project MCP Server, so nothing changes for the Agent.
+        keptBack.push({
+          step: {
+            kind: "editFile",
+            path: homeRelative(home, file),
+            change: `put ${libraryName} back as Personal in ${homeRelative(home, project)}`,
+          },
+          action: async () => {
+            const files: string[] = [];
+            await keep.keep(project, libraryName, (path) => {
+              if (path) files.push(path);
+            });
+            return files;
+          },
+        });
+      }
     }
 
     const steps: PlanStep[] = [];
-    const actions = new Map<string, () => Promise<string | null>>();
-    const add = (step: PlanStep, action: () => Promise<string | null>) => {
+    const actions = new Map<string, () => Promise<string | string[] | null>>();
+    const add = (step: PlanStep, action: () => Promise<string | string[] | null>) => {
       steps.push(step);
       actions.set(stepKey(step), action);
     };
@@ -444,6 +484,7 @@ export class McpAdopt {
       );
     }
     for (const removal of removals) add(removal.step, removal.action);
+    for (const kept of keptBack) add(kept.step, kept.action);
 
     const body = {
       findings: findings.map((finding) => finding.id),

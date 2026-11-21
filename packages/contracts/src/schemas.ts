@@ -492,6 +492,8 @@ export const McpAdoptedFrom = z.strictObject({
   at: z.array(z.string()).min(1),
   /** The entry as the Agent wrote it, with each inline Secret replaced by `${secret:NAME}`. */
   entry: z.unknown(),
+  /** The Project it came from, when it was put back there as Personal (#39); Undo releases it first. */
+  project: z.string().optional(),
 });
 export type McpAdoptedFrom = z.infer<typeof McpAdoptedFrom>;
 
@@ -913,8 +915,11 @@ export const ProjectSkillRecord = z.strictObject({
 });
 export type ProjectSkillRecord = z.infer<typeof ProjectSkillRecord>;
 
-/** How a Project MCP Server reaches the Project's Agents. #39 adds "shared". */
-export const McpDeliveryMode = z.enum(["personal"]);
+/**
+ * How a Project MCP Server reaches the Project's Agents: "personal" (never
+ * committed, real Secrets) or "shared" (#39: committed config, env references only).
+ */
+export const McpDeliveryMode = z.enum(["personal", "shared"]);
 export type McpDeliveryMode = z.infer<typeof McpDeliveryMode>;
 
 /** One entry Dark Matter wrote for a Project MCP Server: how it tells its own entries apart. */
@@ -924,6 +929,11 @@ export const McpDelivered = z.strictObject({
   file: z.string(),
   /** The entry's key path in that file, e.g. `["mcpServers", "github"]`. */
   at: z.array(z.string()).min(1),
+  /**
+   * Shared only (#39): a hash of the entry as Dark Matter wrote it, so a hand
+   * edit in the repo shows as "modified in repo" instead of being overwritten.
+   */
+  written: z.string().optional(),
 });
 export type McpDelivered = z.infer<typeof McpDelivered>;
 
@@ -1181,14 +1191,22 @@ export type CollectionCell = z.infer<typeof CollectionCell>;
 
 /**
  * One Agent's delivery of a Project MCP Server: "delivered" (its entry is
- * written), "off", or "tracked" (its Project config file is committed, so
- * Personal isn't offered for that Agent).
+ * written), "off", "tracked" (its Project config file is committed, so
+ * Personal isn't offered for that Agent), and for Shared (#39) "outdated" (the
+ * Library definition changed: Update) or "modifiedInRepo" (hand-edited: Take
+ * Library version or Pull into Library).
  */
 export const McpDeliveryStatus = z.object({
   agent: AgentId,
   /** The config file, home-relative. */
   file: z.string(),
-  status: z.enum(["delivered", "off", "tracked"]),
+  status: z.enum(["delivered", "off", "tracked", "outdated", "modifiedInRepo"]),
+  /**
+   * The Agent's own gate on a written entry (#39), when it has one: "approved",
+   * "needsApproval" (Cursor; Claude Code when Dark Matter couldn't record it),
+   * or "untrusted" (Codex: delivered, inactive until the Project is trusted).
+   */
+  approval: z.enum(["approved", "needsApproval", "untrusted"]).optional(),
 });
 export type McpDeliveryStatus = z.infer<typeof McpDeliveryStatus>;
 
@@ -1201,6 +1219,8 @@ export const ProjectMcpServer = z.object({
   secrets: z.array(z.string()),
   /** One per chosen Agent with an MCP surface (never `.agents`). */
   deliveries: z.array(McpDeliveryStatus),
+  /** Shared only (#39): the environment variables each teammate must set. */
+  envVars: z.array(z.string()).optional(),
 });
 export type ProjectMcpServer = z.infer<typeof ProjectMcpServer>;
 
@@ -1217,8 +1237,11 @@ export type AddProjectMcpServers = z.infer<typeof AddProjectMcpServers>;
 export const ProjectMcpServerRef = ProjectPath.extend({ name: McpServerName });
 export type ProjectMcpServerRef = z.infer<typeof ProjectMcpServerRef>;
 
-/** Where Personal would write for each of a Project's Agents, and whether it's offered (not tracked by git). */
-export const McpTarget = z.object({ agent: AgentId, file: z.string(), personal: z.boolean() });
+/**
+ * Where Personal would write for each of a Project's Agents, and whether it's
+ * offered (not tracked by git); `shared` is the committed file Shared writes (#39).
+ */
+export const McpTarget = z.object({ agent: AgentId, file: z.string(), personal: z.boolean(), shared: z.string() });
 export type McpTarget = z.infer<typeof McpTarget>;
 
 /** A Secret's new value (entered or rotated). It goes straight into the keychain. */
@@ -1273,3 +1296,72 @@ export const AppliedCollection = z.object({
   mcpCells: z.array(CollectionMcpCell),
 });
 export type AppliedCollection = z.infer<typeof AppliedCollection>;
+
+/** Turning a Project MCP Server On or Off; `discardEdits` confirms dropping a Shared entry modified in repo (#39). */
+export const SetProjectMcpServerOn = ProjectMcpServerRef.extend({
+  on: z.boolean(),
+  discardEdits: z.boolean().optional(),
+});
+export type SetProjectMcpServerOn = z.infer<typeof SetProjectMcpServerOn>;
+
+export const RemoveProjectMcpServer = ProjectMcpServerRef.extend({ discardEdits: z.boolean().optional() });
+export type RemoveProjectMcpServer = z.infer<typeof RemoveProjectMcpServer>;
+
+export const SetProjectMcpServerMode = ProjectMcpServerRef.extend({
+  mode: McpDeliveryMode,
+  discardEdits: z.boolean().optional(),
+});
+export type SetProjectMcpServerMode = z.infer<typeof SetProjectMcpServerMode>;
+
+/** Update a Shared delivery to the Library version; `discardEdits` confirms dropping an edit made in the repo. */
+export const UpdateProjectMcpServer = ProjectMcpServerRef.extend({ discardEdits: z.boolean().optional() });
+export type UpdateProjectMcpServer = z.infer<typeof UpdateProjectMcpServer>;
+
+/** Pull one Agent's hand-edited Shared entry back into the Library definition. */
+export const PullProjectMcpServer = ProjectMcpServerRef.extend({ agent: AgentId });
+export type PullProjectMcpServer = z.infer<typeof PullProjectMcpServer>;
+
+/**
+ * A change to one Project MCP Server to dry-run (#39): add it or change its
+ * mode (`mode`), On/Off (`on`), `remove` it, or `update` a Shared delivery.
+ * Left out, `mode` and `on` keep what the Project has (Personal and On for a new one).
+ */
+export const McpChangeInput = ProjectMcpServerRef.extend({
+  mode: McpDeliveryMode.optional(),
+  on: z.boolean().optional(),
+  remove: z.boolean().optional(),
+  update: z.boolean().optional(),
+  discardEdits: z.boolean().optional(),
+});
+export type McpChangeInput = z.infer<typeof McpChangeInput>;
+
+/** What a change would write, before anything is written. */
+export const McpChangePlan = z.object({
+  edits: z.array(z.object({ file: z.string(), change: z.string() })),
+  /** The env vars teammates must set for it (Shared), else empty. */
+  envVars: z.array(z.string()),
+  /** It edits a committed (Shared) config file: everyone on the team gets the change. */
+  teamChange: z.boolean(),
+});
+export type McpChangePlan = z.infer<typeof McpChangePlan>;
+
+/**
+ * An MCP Server entry already in a Project's config that Dark Matter didn't
+ * write (#39): Vendored when its file is tracked by git (shown, left alone),
+ * else untracked (or Claude Code local scope), which Adopt moves into the
+ * Library and puts back as Personal. The id is the Adopt finding id.
+ */
+export const RepoMcpServer = z.object({
+  /** `project-mcp:<agent>:<project path>:<name>`. */
+  id: z.string(),
+  agent: AgentId,
+  name: z.string(),
+  /** The config file, home-relative. */
+  file: z.string(),
+  /** Inline secrets masked as `${secret:…}`. */
+  definition: McpDefinition,
+});
+export type RepoMcpServer = z.infer<typeof RepoMcpServer>;
+
+export const RepoMcpServers = z.object({ vendored: z.array(RepoMcpServer), untracked: z.array(RepoMcpServer) });
+export type RepoMcpServers = z.infer<typeof RepoMcpServers>;

@@ -5,7 +5,9 @@ import {
   type CollectionMcpCell,
   InvalidOwnedFile,
   isTaggedError,
+  type McpDefinition,
   type McpDeliveryMode,
+  McpModifiedInRepo,
   McpServerFile,
   McpServerNotFound,
   NameConflict,
@@ -15,16 +17,27 @@ import {
   ProjectNotFound,
   type ProjectRecord,
   type ProjectsFile,
+  SecretInUse,
 } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import type { ActivityLog, Wrote } from "./activity";
 import { agentAdapters } from "./agents";
+import { editConfigFile, readConfigText, toml } from "./config-edit";
 import type { EventBus } from "./events";
-import { homeRelative } from "./home-path";
-import { applyMcpDelivery, mcpDeliveryModes, planMcpDelivery } from "./mcp-delivery";
+import { fromHomeRelative, homeRelative } from "./home-path";
+import { codexUserConfig, mcpConfigEdits } from "./mcp-agents";
+import {
+  applyMcpDelivery,
+  entryHash,
+  type McpPlanOptions,
+  mcpDeliveryModes,
+  planMcpDelivery,
+  sharedEnvVars,
+} from "./mcp-delivery";
 import { definitionOf, type McpLibrary } from "./mcp-library";
 import { secretNames } from "./mcp-secrets";
 import type { OwnedFile } from "./owned-file";
+import { type ProjectMcpFinding, projectMcpFindings, repoMcpServers } from "./repo-mcp";
 import type { SecretStore } from "./secrets";
 
 export interface ProjectMcpOptions {
@@ -39,11 +52,21 @@ export interface ProjectMcpOptions {
 /** The `project` procedures for Project MCP Servers. */
 export type ProjectMcpProcedures = Pick<
   CoreServices["project"],
-  "mcpServers" | "mcpTargets" | "addMcpServers" | "setMcpServerOn" | "removeMcpServer"
+  | "mcpServers"
+  | "mcpTargets"
+  | "addMcpServers"
+  | "setMcpServerOn"
+  | "removeMcpServer"
+  | "setMcpServerMode"
+  | "mcpPlan"
+  | "updateMcpServer"
+  | "pullMcpServer"
+  | "trustInCodex"
+  | "repoMcpServers"
 >;
 
 /** The `mcp` procedures that rewrite Personal deliveries. */
-export type McpRewriteProcedures = Pick<CoreServices["mcp"], "setSecret" | "updateDefinition">;
+export type McpRewriteProcedures = Pick<CoreServices["mcp"], "setSecret" | "updateDefinition" | "deleteSecret">;
 
 /**
  * Project MCP Servers (#38): adding Library MCP Servers to Projects, On/Off and
@@ -77,8 +100,14 @@ export class ProjectMcpService {
    * Delivers `next.mcpServers` into the Project and saves only that field, so a
    * concurrent Project Skill change to the same record isn't undone.
    */
-  async #deliver(path: string, next: ProjectRecord, wrote: Wrote, removed: ProjectMcpServerRecord[] = []) {
-    const plan = await planMcpDelivery(this.#context, path, next, removed);
+  async #deliver(
+    path: string,
+    next: ProjectRecord,
+    wrote: Wrote,
+    removed: Record<string, ProjectMcpServerRecord> = {},
+    options: McpPlanOptions = {},
+  ) {
+    const plan = await planMcpDelivery(this.#context, path, next, removed, options);
     await applyMcpDelivery(plan, wrote);
     wrote(
       await this.options.projects.update((file) => {
@@ -124,7 +153,7 @@ export class ProjectMcpService {
     edit: (
       record: ProjectRecord,
       current: ProjectMcpServerRecord,
-    ) => { next: ProjectRecord; removed?: ProjectMcpServerRecord[] },
+    ) => { next: ProjectRecord; removed?: Record<string, ProjectMcpServerRecord>; options?: McpPlanOptions },
   ): Promise<ProjectMcpServers> {
     return this.#change(
       client,
@@ -137,8 +166,8 @@ export class ProjectMcpService {
         const record = this.#record(path);
         const current = record.mcpServers?.[name];
         if (!current) throw new ProjectMcpServerNotFound(path, name);
-        const { next, removed } = edit(record, current);
-        return { path, servers: await this.#deliver(path, next, wrote, removed) };
+        const { next, removed, options } = edit(record, current);
+        return { path, servers: await this.#deliver(path, next, wrote, removed, options) };
       },
     );
   }
@@ -254,6 +283,7 @@ export class ProjectMcpService {
             agent: adapter.id,
             file: homeRelative(home, target.file),
             personal: await mcpDeliveryModes.personal.offered(target, path),
+            shared: homeRelative(home, (await mcpDeliveryModes.shared.target(adapter.mcp, path, { home })).file),
           });
         }
         return targets;
@@ -268,17 +298,165 @@ export class ProjectMcpService {
         return this.#change(client, "project.addMcpServers", subjects, (wrote) => this.#add(servers, wrote));
       },
 
-      setMcpServerOn: ({ path, name, on }, client) =>
+      setMcpServerOn: ({ path, name, on, discardEdits }, client) =>
         this.#changeOne(client, on ? "project.mcpServerOn" : "project.mcpServerOff", path, name, (record, current) => ({
           next: { ...record, mcpServers: { ...record.mcpServers, [name]: { ...current, on } } },
+          options: { discard: discardEdits ? [name] : [] },
         })),
 
-      removeMcpServer: ({ path, name }, client) =>
+      removeMcpServer: ({ path, name, discardEdits }, client) =>
         this.#changeOne(client, "project.removeMcpServer", path, name, (record, current) => {
           const { [name]: _gone, ...rest } = record.mcpServers ?? {};
-          return { next: { ...record, mcpServers: rest }, removed: [current] };
+          return {
+            next: { ...record, mcpServers: rest },
+            removed: { [name]: current },
+            options: { discard: discardEdits ? [name] : [] },
+          };
+        }),
+
+      setMcpServerMode: ({ path, name, mode, discardEdits }, client) =>
+        this.#changeOne(client, "project.mcpServerMode", path, name, (record, current) => ({
+          next: { ...record, mcpServers: { ...record.mcpServers, [name]: { ...current, mode } } },
+          options: { refresh: [name], discard: discardEdits ? [name] : [] },
+        })),
+
+      mcpPlan: async ({ path, name, mode, on, remove, update, discardEdits }) => {
+        if (!(await this.options.mcp.read(name))) throw new McpServerNotFound(name);
+        const record = this.#record(path);
+        const current = record.mcpServers?.[name];
+        if ((remove || update) && !current) throw new ProjectMcpServerNotFound(path, name);
+        const { [name]: _changed, ...others } = record.mcpServers ?? {};
+        const nextMode = mode ?? current?.mode ?? "personal";
+        const next: ProjectRecord = remove
+          ? { ...record, mcpServers: others }
+          : {
+              ...record,
+              mcpServers: {
+                ...others,
+                [name]: { mode: nextMode, on: on ?? current?.on ?? true, delivered: current?.delivered ?? [] },
+              },
+            };
+        const plan = await planMcpDelivery(this.#context, path, next, remove && current ? { [name]: current } : {}, {
+          refresh: update || (current && nextMode !== current.mode) ? [name] : [],
+          discard: discardEdits ? [name] : [],
+        });
+        const server = plan.servers.find((found) => found.name === name);
+        return {
+          edits: plan.edits.map(({ file, change }) => ({ file, change })),
+          envVars: server?.envVars ?? [],
+          teamChange: plan.edits.some((edit) => edit.team),
+        };
+      },
+
+      updateMcpServer: ({ path, name, discardEdits }, client) =>
+        this.#changeOne(client, "project.updateMcpServer", path, name, (record) => ({
+          next: record,
+          options: { refresh: [name], discard: discardEdits ? [name] : [] },
+        })),
+
+      pullMcpServer: ({ path, name, agent }, client) =>
+        this.#change(
+          client,
+          "project.pullMcpServer",
+          [
+            { kind: "project", id: path },
+            { kind: "mcpServer", id: name },
+          ],
+          async (wrote) => {
+            const record = this.#record(path);
+            const current = record.mcpServers?.[name];
+            if (!current) throw new ProjectMcpServerNotFound(path, name);
+            const delivered = current.delivered.find((entry) => entry.agent === agent);
+            const adapter = agentAdapters.find((candidate) => candidate.id === agent)?.mcp;
+            if (!delivered || !adapter) throw new ProjectMcpServerNotFound(path, name);
+            const file = fromHomeRelative(home, delivered.file);
+            const text = (await readConfigText(file)) ?? "";
+            const raw = lookupAt(mcpConfigEdits[adapter.format].read(text, file), delivered.at);
+            const pulled = isRecord(raw) ? adapter.read(raw) : null;
+            if (!pulled || (delivered.written !== undefined && entryHash(raw) === delivered.written)) {
+              throw new McpModifiedInRepo(name, delivered.file);
+            }
+            const stored = await this.#stored(name);
+            // Env vars that stand for Secrets go back to `${secret:…}` references: no value enters the Library.
+            const secretOf = sharedEnvVars(definitionOf(stored));
+            const back = (value: string) =>
+              value.replace(/\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g, (ref, variable: string) => {
+                const secret = secretOf.get(variable);
+                return secret ? `\${secret:${secret}}` : ref;
+              });
+            const definition = mapStrings(pulled, back);
+            await this.#saveDefinition(name, stored, definition, wrote);
+            await this.#rewritePersonal((server) => server === name, wrote);
+            return { path, servers: await this.#deliver(path, this.#record(path), wrote, {}, { refresh: [name] }) };
+          },
+        ),
+
+      repoMcpServers: async (path) => repoMcpServers({ home }, path, this.#record(path)),
+
+      trustInCodex: (path, client) =>
+        this.#change(client, "project.trustInCodex", [{ kind: "project", id: path }], async (wrote) => {
+          const record = this.#record(path);
+          const written = await editConfigFile(codexUserConfig({ home }), (text) =>
+            toml.set(text, ["projects", path], "trust_level", "trusted"),
+          );
+          if (written) wrote(written);
+          return { path, servers: (await planMcpDelivery(this.#context, path, record)).servers };
         }),
     };
+  }
+
+  async #stored(name: string) {
+    const stored = await this.options.mcp.read(name);
+    if (!stored) throw new McpServerNotFound(name);
+    if (!stored.value) throw new InvalidOwnedFile(stored.path, stored.problem ?? "invalid");
+    return stored.value;
+  }
+
+  async #saveDefinition(name: string, stored: McpServerFile, definition: McpDefinition, wrote: Wrote) {
+    const { adoptedFrom } = stored;
+    wrote(
+      await this.options.mcp.write(name, McpServerFile.parse({ ...definition, ...(adoptedFrom && { adoptedFrom }) })),
+    );
+  }
+
+  /** Every untracked or Vendored MCP entry in every Project, for Adopt (#39). */
+  async findings(): Promise<ProjectMcpFinding[]> {
+    const found: ProjectMcpFinding[] = [];
+    for (const [path, record] of Object.entries(this.options.projects.value.projects))
+      found.push(...(await projectMcpFindings({ home: this.options.home }, path, record)));
+    return found;
+  }
+
+  /**
+   * Adopt of an untracked or Claude local-scope entry (#39) puts it back as a
+   * Personal Project MCP Server, On, so nothing changes for the Agent.
+   */
+  keepPersonal(path: string, name: string, wrote: Wrote) {
+    return this.#serial(async () => {
+      const record = this.#record(path);
+      const current = record.mcpServers?.[name];
+      const next: ProjectRecord = {
+        ...record,
+        mcpServers: {
+          ...record.mcpServers,
+          [name]: { mode: "personal", on: true, delivered: current?.delivered ?? [] },
+        },
+      };
+      await this.#deliver(path, next, wrote);
+      this.#changed();
+    });
+  }
+
+  /** Undo Adopt: the Project forgets a server it kept as Personal, and its entries go. */
+  release(path: string, name: string, wrote: Wrote) {
+    return this.#serial(async () => {
+      const record = this.options.projects.value.projects[path];
+      const current = record?.mcpServers?.[name];
+      if (!record || !current) return;
+      const { [name]: _gone, ...rest } = record.mcpServers ?? {};
+      await this.#deliver(path, { ...record, mcpServers: rest }, wrote, { [name]: current });
+      this.#changed();
+    });
   }
 
   /** Secrets and definitions: changing either rewrites Personal deliveries straight away. */
@@ -300,15 +478,50 @@ export class ProjectMcpService {
         );
       },
 
+      // Shared deliveries are left as they are: they show as outdated until each Project updates.
       updateDefinition: ({ name, definition }, client) =>
         this.#change(client, "mcp.updateDefinition", [{ kind: "mcpServer", id: name }], async (wrote) => {
-          const stored = await mcp.read(name);
-          if (!stored) throw new McpServerNotFound(name);
-          if (!stored.value) throw new InvalidOwnedFile(stored.path, stored.problem ?? "invalid");
-          const { adoptedFrom } = stored.value;
-          wrote(await mcp.write(name, McpServerFile.parse({ ...definition, ...(adoptedFrom && { adoptedFrom }) })));
+          await this.#saveDefinition(name, await this.#stored(name), definition, wrote);
           await this.#rewritePersonal((server) => server === name, wrote);
         }),
+
+      deleteSecret: async ({ name }, client) => {
+        const users = (await usersOf(name)).map((stored) => stored.name);
+        return this.#change(
+          client,
+          "mcp.deleteSecret",
+          users.map((id) => ({ kind: "mcpServer" as const, id })),
+          async () => {
+            const delivering = new Set<string>();
+            for (const record of Object.values(this.options.projects.value.projects))
+              for (const [server, wanted] of Object.entries(record.mcpServers ?? {}))
+                if (users.includes(server) && wanted.mode === "personal" && wanted.on) delivering.add(server);
+            if (delivering.size > 0) throw new SecretInUse(name, [...delivering].sort());
+            await secrets.delete(name);
+          },
+        );
+      },
     };
   }
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const lookupAt = (doc: unknown, at: readonly string[]): unknown =>
+  at.reduce<unknown>((value, key) => (isRecord(value) ? value[key] : undefined), doc);
+
+/** The definition with `fn` applied to every string value. */
+const mapStrings = (definition: McpDefinition, fn: (value: string) => string): McpDefinition => {
+  const map = (values: Record<string, string> | undefined) =>
+    values && Object.fromEntries(Object.entries(values).map(([key, value]) => [key, fn(value)]));
+  return {
+    ...definition,
+    ...(definition.command !== undefined && { command: fn(definition.command) }),
+    ...(definition.args && { args: definition.args.map(fn) }),
+    ...(definition.env && { env: map(definition.env) }),
+    ...(definition.cwd !== undefined && { cwd: fn(definition.cwd) }),
+    ...(definition.url !== undefined && { url: fn(definition.url) }),
+    ...(definition.headers && { headers: map(definition.headers) }),
+  };
+};

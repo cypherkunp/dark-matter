@@ -48,7 +48,8 @@ test("a Library MCP Server added to a Project as Personal gets its Secret, and c
 
   const row = window.getByTestId("project-mcp-row");
   await expect(row).toContainText("Personal");
-  await expect(row.getByTestId("project-mcp-delivery")).toHaveText("Cursor ~/code/app/.cursor/mcp.json");
+  await expect(row.getByTestId("project-mcp-delivery")).toContainText("Cursor ~/code/app/.cursor/mcp.json");
+  await expect(row.getByTestId("mcp-approval")).toHaveText("needs approval in Cursor");
   await expect.poll(() => readOrNull(config)).toContain("Bearer lin_e2e");
 
   await row.getByRole("switch").click();
