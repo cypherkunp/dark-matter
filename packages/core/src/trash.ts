@@ -8,7 +8,7 @@ import {
   SkillNotFound,
 } from "@dark-matter/contracts";
 import { z } from "zod";
-import type { ActivityLog } from "./activity";
+import type { ActivityLog, Wrote } from "./activity";
 import { writeFileAtomic } from "./atomic";
 import type { Clock } from "./clock";
 import { type Library, splitKey } from "./library";
@@ -31,6 +31,8 @@ export interface TrashOptions {
   clock: Clock;
   retentionDays: () => number;
   usage: SkillUsage;
+  /** Removes the Skill's Links and Project records everywhere first (Copies stay). */
+  release: (key: string, wrote: Wrote) => Promise<void>;
   onChange: () => void;
 }
 
@@ -61,6 +63,8 @@ export class Trash {
   delete(key: string, client: ActivityClient): Promise<void> {
     const { library, activity } = this.options;
     return activity.track({ client, action: "skill.delete", subjects: [{ kind: "skill", id: key }] }, async (wrote) => {
+      this.entry(key);
+      await this.options.release(key, wrote);
       const folder = library.folder(key);
       const { into, trashed } = await this.moveIn(key);
       try {

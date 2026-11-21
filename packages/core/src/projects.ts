@@ -96,7 +96,11 @@ export interface ProjectServiceOptions {
   scans: Scans;
   bus: EventBus;
   /** Re-delivers a Project's Skills for a changed record and saves it (#27). */
-  deliver?: { deliver(path: string, next: ProjectRecord, wrote: Wrote): Promise<unknown> };
+  deliver?: {
+    deliver(path: string, next: ProjectRecord, wrote: Wrote): Promise<unknown>;
+    /** Removes Dark Matter's own deliveries before a Project is forgotten (review #5). */
+    release(path: string, wrote: Wrote): Promise<void>;
+  };
 }
 
 /** Suggested Projects waiting on a decision: not confirmed, not dismissed. */
@@ -124,7 +128,7 @@ export const projectServices = ({
   deliver,
 }: ProjectServiceOptions): Omit<
   CoreServices["project"],
-  keyof ProjectSkillProcedures | keyof ProjectMcpProcedures | "setGrant"
+  keyof ProjectSkillProcedures | keyof ProjectMcpProcedures | "setGrant" | "removePlan"
 > => {
   const changed = () => bus.publish({ type: "invalidate", domains: ["project", "inbox"] });
 
@@ -282,6 +286,7 @@ export const projectServices = ({
     remove: (path, client) =>
       activity.track({ client, action: "project.remove", subjects: [{ kind: "project", id: path }] }, async (wrote) => {
         record(path);
+        await deliver?.release(path, wrote);
         wrote(
           await projects.update((file) => {
             const { [path]: _removed, ...rest } = file.projects;

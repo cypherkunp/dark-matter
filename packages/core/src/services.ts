@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type CoreInfo,
@@ -237,9 +238,30 @@ export const createServices = async ({
       await projectSkills.deliver(path, next, wrote);
       await projectMcp.redeliver(path, wrote);
     },
+    release: async (path: string, wrote: Wrote) => {
+      const record = projects.value.projects[path];
+      // A Project whose folder is gone has nothing left in it to remove; its Personal entries elsewhere still go.
+      const present = await stat(path).then(
+        (info) => info.isDirectory(),
+        () => false,
+      );
+      if (record && present) await projectSkills.forget(path, Object.keys(record.skills), wrote);
+      await projectMcp.forgetAll(path, wrote).catch((error: unknown) => {
+        if (present) throw error;
+        log(`removing ${path}'s Personal MCP entries: ${String(error)}`);
+      });
+    },
   };
   // Learns where Copies are, so untracked Skills (#29) leave them out.
   void projectSkills.usage().catch(() => {});
+  /** The Projects a Library Skill is in, for deleting it or undoing its Adopt. */
+  const skillImpact = async (key: string) =>
+    (await projectSkills.services().forSkill(key)).map(({ path, projectName, mode, on }) => ({
+      path,
+      projectName,
+      mode,
+      on,
+    }));
   const adopt = new Adopt({
     home,
     library,
@@ -249,19 +271,16 @@ export const createServices = async ({
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
     untracked: () => findUntracked().flatMap((group) => group.findings),
     keepLinks: projectSkills.keepLinks(),
+    usage: skillImpact,
+    release: (key, wrote) => projectSkills.forgetEverywhere([key], wrote),
   });
   const trash = new Trash({
     library,
     activity,
     clock,
     retentionDays: () => settings.value.preferences.trashRetentionDays,
-    usage: async (key) =>
-      (await projectSkills.services().forSkill(key)).map(({ path, projectName, mode, on }) => ({
-        path,
-        projectName,
-        mode,
-        on,
-      })),
+    usage: skillImpact,
+    release: (key, wrote) => projectSkills.forgetEverywhere([key], wrote),
     onChange: () =>
       bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project", "collections"] }),
   });
@@ -494,6 +513,7 @@ export const createServices = async ({
     adopt: {
       plan: ({ findings }) => adopt.plan(findings),
       apply: ({ findings, planId }, client) => adopt.apply(findings, planId, client),
+      undoPlan: (key) => adopt.undoPlan(key),
       undo: (key, client) => adopt.undo(key, client),
     },
     mcp: {
@@ -528,6 +548,11 @@ export const createServices = async ({
       ...projectSkills.services(),
       ...projectMcp.services(),
       get: async (path) => withGrant(await projectProcedures.get(path)),
+      removePlan: async (path) => ({
+        path,
+        ...(await projectSkills.releasePlan(path)),
+        ...projectMcp.releasePlan(path),
+      }),
       setGrant: ({ path, grant }, client) =>
         activity.track(
           {

@@ -1520,3 +1520,30 @@ export const Overview = z.object({
   alerts: z.array(OverviewAlert),
 });
 export type Overview = z.infer<typeof Overview>;
+
+/** A Project MCP Server entry in one config file (home-relative). */
+export const McpEntryRef = z.object({ name: z.string(), file: z.string() });
+export type McpEntryRef = z.infer<typeof McpEntryRef>;
+
+/**
+ * What removing a Project does (review #5): Dark Matter's own deliveries go
+ * (Links and Personal MCP entries); committed ones (Copies, Shared entries)
+ * stay in the repo for the team and become Vendored. Paths are Project-relative.
+ */
+export const ProjectRemovePlan = z.object({
+  path: z.string(),
+  links: z.array(z.string()),
+  personalMcpServers: z.array(McpEntryRef),
+  keptCopies: z.array(z.string()),
+  keptSharedMcpServers: z.array(McpEntryRef),
+});
+export type ProjectRemovePlan = z.infer<typeof ProjectRemovePlan>;
+
+/** Undo Adopt's dry run: the Projects whose Links to the Skill are removed first (Copies stay as committed files). */
+export const UndoAdoptPlan = z.object({
+  key: z.string(),
+  /** Where the Skill moves back to, home-relative. */
+  adoptedFrom: z.string(),
+  projects: z.array(SkillDeleteImpact),
+});
+export type UndoAdoptPlan = z.infer<typeof UndoAdoptPlan>;

@@ -1,7 +1,9 @@
 import type { SkillDetail } from "@dark-matter/contracts";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { FilteredActivity } from "@/components/activity-view";
+import { ConfirmDialog } from "@/components/copy-actions";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
 
@@ -16,6 +18,16 @@ export function SkillProvenance({ skill }: { skill: SkillDetail }) {
       onSuccess: () => navigate({ to: "/library" }),
     }),
   );
+  const [asking, setAsking] = useState(false);
+  const undoPlan = useQuery({
+    ...trpc.adopt.undoPlan.queryOptions({ key: skill.key }),
+    enabled: asking,
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const used = undoPlan.data?.projects ?? [];
+  const links = used.filter((use) => use.mode === "link");
+  const copies = used.filter((use) => use.mode !== "link");
   const { entry } = skill;
   const rows = [
     ...field("source", entry.source),
@@ -68,10 +80,33 @@ export function SkillProvenance({ skill }: { skill: SkillDetail }) {
               variant="outline"
               title={`Move it back to ${entry.adoptedFrom}`}
               disabled={undo.isPending}
-              onClick={() => undo.mutate({ key: skill.key })}
+              onClick={() => setAsking(true)}
             >
               {undo.isPending ? "Undoing…" : "Undo Adopt"}
             </Button>
+            {asking && (
+              <ConfirmDialog
+                title={`Undo Adopt of ${skill.name}?`}
+                confirm="Undo Adopt"
+                busy={undo.isPending || !undoPlan.data}
+                error={(undoPlan.error ?? undo.error)?.message}
+                onConfirm={() => undo.mutate({ key: skill.key })}
+                onClose={() => setAsking(false)}
+              >
+                <p>
+                  It moves back to <code className="font-mono text-xs">{entry.adoptedFrom}</code> and leaves the
+                  Library.
+                </p>
+                {links.length > 0 && (
+                  <p>Its Links are removed from {links.map((use) => use.projectName).join(", ")}.</p>
+                )}
+                {copies.length > 0 && (
+                  <p>
+                    Copies stay committed in {copies.map((use) => use.projectName).join(", ")} (Vendored from then on).
+                  </p>
+                )}
+              </ConfirmDialog>
+            )}
           </div>
         ) : (
           <p className="text-muted-foreground text-sm">Not Adopted: it came into the Library another way.</p>

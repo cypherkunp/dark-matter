@@ -7,6 +7,7 @@ import {
   isTaggedError,
   type McpDefinition,
   type McpDeliveryMode,
+  type McpEntryRef,
   McpModifiedInRepo,
   McpServerFile,
   McpServerNotFound,
@@ -89,6 +90,36 @@ export class ProjectMcpService {
     const next = this.#queue.then(run, run);
     this.#queue = next.catch(() => undefined);
     return next;
+  }
+
+  /** Removing a Project's dry run, for MCP: Personal entries go, Shared ones stay committed. */
+  releasePlan(path: string): { personalMcpServers: McpEntryRef[]; keptSharedMcpServers: McpEntryRef[] } {
+    const servers = Object.entries(this.#record(path).mcpServers ?? {});
+    const entries = (mode: string) =>
+      servers
+        .filter(([, server]) => server.mode === mode)
+        .flatMap(([name, server]) => server.delivered.map((entry) => ({ name, file: entry.file })))
+        .sort((a, b) => a.name.localeCompare(b.name) || a.file.localeCompare(b.file));
+    return { personalMcpServers: entries("personal"), keptSharedMcpServers: entries("shared") };
+  }
+
+  /**
+   * Forgets every Project MCP Server of a Project (review #5): Personal entries
+   * are removed from the Agents' configs; Shared ones stay in the committed
+   * files for the team (from then on, Vendored).
+   */
+  forgetAll(path: string, wrote: Wrote): Promise<void> {
+    return this.#serial(async () => {
+      const record = this.options.projects.value.projects[path];
+      const servers = record?.mcpServers ?? {};
+      if (!record || Object.keys(servers).length === 0) return;
+      const personal = Object.fromEntries(Object.entries(servers).filter(([, server]) => server.mode === "personal"));
+      try {
+        await this.#deliver(path, { ...record, mcpServers: {} }, wrote, personal);
+      } finally {
+        this.#changed();
+      }
+    });
   }
 
   #record(path: string): ProjectRecord {

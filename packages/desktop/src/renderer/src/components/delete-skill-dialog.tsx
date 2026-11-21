@@ -6,7 +6,7 @@ import { useTRPC } from "@/lib/trpc";
 
 /**
  * Delete a Library Skill (#34): it moves to `trash/` for the configured days.
- * Warns about Projects whose Links would break or whose Copies stay behind.
+ * Its Links are removed from every Project first; Copies stay in their repos (review #5).
  */
 export function DeleteSkillDialog({
   skillKey,
@@ -57,13 +57,16 @@ export function DeleteSkillDialog({
               {links.length > 0 && (
                 <li className="flex items-start gap-2">
                   <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-status-warning" />
-                  <span>Links break in {links.map((project) => project.projectName).join(", ")}.</span>
+                  <span>Its Links are removed from {links.map((project) => project.projectName).join(", ")}.</span>
                 </li>
               )}
               {copies.length > 0 && (
                 <li className="flex items-start gap-2">
                   <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-status-warning" />
-                  <span>Copies stay behind in {copies.map((project) => project.projectName).join(", ")}.</span>
+                  <span>
+                    Copies stay committed in {copies.map((project) => project.projectName).join(", ")} (Vendored from
+                    then on).
+                  </span>
                 </li>
               )}
             </ul>

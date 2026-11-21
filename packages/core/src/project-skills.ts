@@ -123,6 +123,60 @@ export class ProjectSkillService {
     return next;
   }
 
+  /**
+   * What forgetting a Project's Skills does (review #5): its On Links go, and
+   * its Copies stay as committed files (from then on, Vendored). Project-relative paths.
+   */
+  async releasePlan(path: string, keys?: readonly string[]): Promise<{ links: string[]; keptCopies: string[] }> {
+    const record = this.#record(path);
+    const { skills } = await planDelivery(this.options.library, path, record).catch(() => ({ skills: [] }));
+    const mine = skills.filter((skill) => !keys || keys.includes(skill.key));
+    return {
+      links: mine
+        .filter((skill) => skill.mode === "link" && skill.status === "on")
+        .flatMap((skill) => skill.paths)
+        .sort(),
+      keptCopies: mine
+        .filter((skill) => skill.mode === "copy" && skill.on)
+        .flatMap((skill) => skill.paths.slice(0, 1))
+        .sort(),
+    };
+  }
+
+  /**
+   * Forgets Project Skills: Links are removed with their records; a Copy's
+   * record is dropped but its committed files and lock entry stay for the team.
+   * Nothing committed is deleted, so no "modified in repo" edit can be lost.
+   */
+  forget(path: string, keys: readonly string[], wrote: Wrote): Promise<void> {
+    return this.#serial(async () => {
+      const record = this.options.projects.value.projects[path];
+      const mine = keys.filter((key) => record?.skills[key]);
+      if (!record || mine.length === 0) return;
+      const copies = mine.filter((key) => record.skills[key]?.mode === "copy");
+      const without = (drop: readonly string[]) =>
+        Object.fromEntries(Object.entries(record.skills).filter(([key]) => !drop.includes(key)));
+      try {
+        if (copies.length > 0) {
+          const kept = { ...record, skills: without(copies) };
+          wrote(
+            await this.options.projects.update((file) => ({ ...file, projects: { ...file.projects, [path]: kept } })),
+          );
+        }
+        const links = mine.filter((key) => !copies.includes(key));
+        await this.deliver(path, { ...record, skills: without(mine) }, wrote, links);
+      } finally {
+        this.#changed();
+      }
+    });
+  }
+
+  /** `forget` in every Project that has any of `keys`. */
+  async forgetEverywhere(keys: readonly string[], wrote: Wrote): Promise<void> {
+    for (const [path, record] of Object.entries(this.options.projects.value.projects))
+      if (keys.some((key) => record.skills[key])) await this.forget(path, keys, wrote);
+  }
+
   #record(path: string): ProjectRecord {
     const found = this.options.projects.value.projects[path];
     if (!found) throw new ProjectNotFound(path);

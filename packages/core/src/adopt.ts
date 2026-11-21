@@ -14,8 +14,10 @@ import {
   PlanStale,
   type PlanStep,
   type ScanResult,
+  type SkillDeleteImpact,
   SkillNotFound,
   type SymlinkRecord,
+  type UndoAdoptPlan,
   type UntrackedSkill,
 } from "@dark-matter/contracts";
 import type { ActivityLog, Wrote } from "./activity";
@@ -95,6 +97,10 @@ export interface AdoptOptions {
   /** Untracked Project Skills from the latest Scan (#29). */
   untracked?: () => UntrackedSkill[];
   keepLinks?: KeepLinks;
+  /** The Projects using a Library Skill, for Undo Adopt's plan. */
+  usage?: (key: string) => Promise<SkillDeleteImpact[]>;
+  /** Removes every Link to a Library Skill (and its Project records) before Undo Adopt moves it back. */
+  release?: (key: string, wrote: Wrote) => Promise<void>;
 }
 
 /**
@@ -167,6 +173,13 @@ export class Adopt {
     });
   }
 
+  async undoPlan(key: string): Promise<UndoAdoptPlan> {
+    const entry = this.#options.library.lock.value.skills[key];
+    if (!entry) throw new SkillNotFound(key);
+    if (!entry.adoptedFrom) throw new NotAdopted(key);
+    return { key, adoptedFrom: entry.adoptedFrom, projects: (await this.#options.usage?.(key)) ?? [] };
+  }
+
   undo(key: string, client: ClientKind): Promise<void> {
     return this.#serial(() =>
       this.#options.activity.track(
@@ -177,8 +190,10 @@ export class Adopt {
           if (!entry) throw new SkillNotFound(key);
           if (!entry.adoptedFrom) throw new NotAdopted(key);
           this.#assertLockWritable();
+          // Every Link to it goes first, not only the ones Adopt kept (Copies stay as committed files).
           for (const project of entry.keptLinks ?? [])
             await this.#options.keepLinks?.release(library.absolute(project), key, wrote);
+          await this.#options.release?.(key, wrote);
           const rel = (path: string) => homeRelative(this.#options.home, path);
           const folder = rel(library.folder(key));
           const steps: PlanStep[] = [];

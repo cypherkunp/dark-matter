@@ -64,6 +64,7 @@ import {
   ProjectMcpServer,
   ProjectMcpServers,
   ProjectPath,
+  ProjectRemovePlan,
   ProjectSkill,
   ProjectSkillChange,
   ProjectSkillRef,
@@ -95,6 +96,7 @@ import {
   SkillProjectUse,
   SuggestedProjectSkills,
   SuggestedProjects,
+  UndoAdoptPlan,
   UpdateMcpDefinitionInput,
   UpdateProjectMcpServer,
 } from "./schemas";
@@ -206,7 +208,12 @@ export interface CoreServices {
     plan(input: AdoptInput): Promise<AdoptPlan>;
     /** Re-plans, checks the plan id still matches, then applies it. */
     apply(input: ApplyAdoptInput, client: ClientKind): Promise<AdoptPlan>;
-    /** Undo Adopt: moves the Skill back to where it was Adopted from and puts back what Adopt removed. */
+    /** Undo Adopt's dry run: which Projects' Links to the Skill are removed first. Writes nothing. */
+    undoPlan(key: string): Promise<UndoAdoptPlan>;
+    /**
+     * Undo Adopt: removes every Link to the Skill (Copies stay), then moves it
+     * back to where it was Adopted from and puts back what Adopt removed.
+     */
     undo(key: string, client: ClientKind): Promise<void>;
   };
   scheduler: {
@@ -294,6 +301,9 @@ export interface CoreServices {
     /** Points a Project at the folder it moved to. */
     locate(input: { path: string; newPath: string }, client: ClientKind): Promise<ProjectDetail>;
     /** Forgets a Project. Nothing on disk changes. */
+    /** Removing's dry run: the Links and Personal MCP entries that go, and the committed deliveries that stay. */
+    removePlan(path: string): Promise<ProjectRemovePlan>;
+    /** Removes Dark Matter's own deliveries (Links, Personal MCP entries), then forgets the Project. */
     remove(path: string, client: ClientKind): Promise<void>;
     /** Its Project Skills, with their delivery status. */
     skills(path: string): Promise<ProjectSkill[]>;
@@ -464,6 +474,10 @@ export const createAppRouter = (services: CoreServices) => {
         .input(ApplyAdoptInput)
         .output(AdoptPlan)
         .mutation(({ input, ctx }) => services.adopt.apply(input, ctx.client)),
+      undoPlan: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .output(UndoAdoptPlan)
+        .query(({ input }) => services.adopt.undoPlan(input.key)),
       undo: t.procedure
         .input(z.object({ key: z.string().min(1) }))
         .mutation(({ input, ctx }) => services.adopt.undo(input.key, ctx.client)),
@@ -519,6 +533,10 @@ export const createAppRouter = (services: CoreServices) => {
         .input(ProjectPath.extend({ newPath: z.string().min(1) }))
         .output(ProjectDetail)
         .mutation(({ input, ctx }) => services.project.locate(input, ctx.client)),
+      removePlan: t.procedure
+        .input(ProjectPath)
+        .output(ProjectRemovePlan)
+        .query(({ input }) => services.project.removePlan(input.path)),
       remove: t.procedure
         .input(ProjectPath)
         .mutation(({ input, ctx }) => services.project.remove(input.path, ctx.client)),
