@@ -1,5 +1,5 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": [".agents/**"],
+  "ignore": [".agents/**", "**/electron.vite.config.*.mjs"],
   "ignoreExportsUsedInFile": true
 }
