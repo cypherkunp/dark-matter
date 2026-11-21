@@ -121,3 +121,29 @@ export class PathTaken extends TaggedError<"PathTaken"> {
     super(`${path} already exists; move it aside first`);
   }
 }
+
+/**
+ * A Project Skill can't be delivered because its name is taken in an Agent
+ * folder: by another Project Skill (Resolve first) or by something Dark Matter
+ * didn't put there. Nothing is overwritten.
+ */
+export class NameConflict extends TaggedError<"NameConflict"> {
+  readonly _tag = "NameConflict";
+  constructor(
+    readonly key: string,
+    readonly path: string,
+  ) {
+    super(`${key} can't be delivered: ${path} is already taken`);
+  }
+}
+
+/** The Project hasn't added this Library Skill. */
+export class ProjectSkillNotFound extends TaggedError<"ProjectSkillNotFound"> {
+  readonly _tag = "ProjectSkillNotFound";
+  constructor(
+    readonly path: string,
+    readonly key: string,
+  ) {
+    super(`${path} has no Project Skill ${key}`);
+  }
+}
