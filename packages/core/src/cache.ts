@@ -7,7 +7,7 @@ import { log } from "./log";
  * Bump when the schema changes. The cache is never migrated (ADR-0005): a
  * different `user_version` drops the db and the core rebuilds it from files.
  */
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 const SCHEMA = `
   CREATE TABLE activity_files (
@@ -22,6 +22,10 @@ const SCHEMA = `
   );
   CREATE INDEX activity_by_time ON activity (time DESC);
   CREATE INDEX activity_by_file ON activity (file);
+  CREATE TABLE scan (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    result TEXT NOT NULL
+  );
 `;
 
 const open = (path: string): DatabaseSync => {

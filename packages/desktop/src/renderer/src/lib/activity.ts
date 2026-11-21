@@ -4,6 +4,8 @@ import type { ActivityEntry } from "@dark-matter/contracts";
 const actionLabels: Record<string, string> = {
   "settings.updatePreferences": "Saved preferences",
   "ownedFiles.discard": "Discarded a hand edit",
+  "scan.run": "Scanned",
+  "inbox.ignore": "Ignored a finding",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;

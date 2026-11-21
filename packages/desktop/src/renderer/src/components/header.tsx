@@ -3,6 +3,7 @@ import { useLocation } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
+import { useScan } from "@/components/use-scan";
 import { useTRPC } from "@/lib/trpc";
 import { relativeTime, useNow } from "@/lib/use-now";
 import { breadcrumbFor } from "@/nav";
@@ -11,6 +12,7 @@ export function Header() {
   const trpc = useTRPC();
   const library = useQuery(trpc.library.list.queryOptions());
   const now = useNow();
+  const { scan, scanning } = useScan();
   const crumbs = breadcrumbFor(useLocation({ select: (location) => location.pathname }));
 
   return (
@@ -27,9 +29,8 @@ export function Header() {
         {library.dataUpdatedAt > 0 && (
           <span className="text-muted-foreground text-xs">Updated {relativeTime(library.dataUpdatedAt, now)}</span>
         )}
-        {/* Scanning arrives with the Scan ticket; the primary action is in place for it. */}
-        <Button size="sm" className="no-drag" disabled>
-          Scan now
+        <Button size="sm" className="no-drag" disabled={scanning} onClick={scan}>
+          {scanning ? "Scanning…" : "Scan now"}
         </Button>
       </div>
     </header>
