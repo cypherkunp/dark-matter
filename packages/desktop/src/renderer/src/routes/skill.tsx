@@ -9,6 +9,7 @@ import { DeleteSkillDialog } from "@/components/delete-skill-dialog";
 import { ModifiedBadge } from "@/components/modified-badge";
 import { skillTabs } from "@/components/skill-tabs";
 import { Button } from "@/components/ui/button";
+import { CheckUpstreamButton, OrphanedBadge } from "@/components/updates";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/skill")({
@@ -36,6 +37,7 @@ function SkillHeader({ skill }: { skill: SkillDetail }) {
         <h1 className="flex items-center gap-2 font-semibold text-2xl tracking-tight">
           {skill.name}
           {skill.modified && <ModifiedBadge />}
+          {skill.entry.orphaned && <OrphanedBadge reason={skill.entry.orphaned} />}
         </h1>
         <p data-testid="skill-provenance-line" className="flex flex-wrap items-center gap-2 text-sm">
           <Link
@@ -48,6 +50,7 @@ function SkillHeader({ skill }: { skill: SkillDetail }) {
           <span className="truncate font-mono text-muted-foreground text-xs">{provenanceLine(skill)}</span>
         </p>
       </div>
+      <CheckUpstreamButton skill={skill} />
       <Button size="sm" variant="outline" onClick={() => void window.darkMatter.openFolder(skill.path)}>
         <FolderOpen />
         Reveal in Finder

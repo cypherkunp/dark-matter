@@ -28,6 +28,12 @@ const useActionCommands = (): Command[] => {
       hint: "owner/repo or URL",
       run: () => void navigate({ to: "/get/github" }),
     },
+    {
+      id: "action:updates",
+      group: "Actions",
+      label: "Check for updates",
+      run: () => void navigate({ to: "/library/updates" }),
+    },
   ];
 };
 

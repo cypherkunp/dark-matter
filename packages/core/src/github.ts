@@ -37,6 +37,23 @@ const runGhAuthToken = (): Promise<string | null> =>
 export const githubOptionsFrom = (env: { DARK_MATTER_GITHUB_API?: string | undefined }): GitHubOptions =>
   env.DARK_MATTER_GITHUB_API ? { api: env.DARK_MATTER_GITHUB_API, ghToken: async () => null } : {};
 
+/** A 404 (or 422 for a ref): the repo, ref or path is gone, renamed or private. Updates (#33) mark Skills Orphaned on it. */
+export class GitHubNotFound extends SourceUnreachable {}
+
+/** The rate limit GitHub reported on its last answer. */
+export interface GitHubRateLimit {
+  remaining: number;
+  limit: number | null;
+  resetAt: string | null;
+}
+
+/** A tree URL's `<ref>/<path>` split where the ref really ends (#33): branch names may contain `/`. */
+export interface ResolvedTreeRef {
+  ref: string;
+  refType: "branch" | "tag" | "commit";
+  subpath: string | null;
+}
+
 export interface GitHubRepo {
   /** `owner/repo` as GitHub spells it. */
   fullName: string;
@@ -63,6 +80,21 @@ export class GitHubSession {
     private readonly token: string | null,
   ) {}
 
+  /** The rate limit from the last response, if GitHub sent one. */
+  rateLimit: GitHubRateLimit | null = null;
+
+  #noteRateLimit(response: Response) {
+    const remaining = Number(response.headers.get("x-ratelimit-remaining") ?? Number.NaN);
+    if (!Number.isFinite(remaining)) return;
+    const limit = Number(response.headers.get("x-ratelimit-limit") ?? Number.NaN);
+    const reset = Number(response.headers.get("x-ratelimit-reset") ?? Number.NaN);
+    this.rateLimit = {
+      remaining,
+      limit: Number.isFinite(limit) ? limit : null,
+      resetAt: Number.isFinite(reset) && reset > 0 ? new Date(reset * 1000).toISOString() : null,
+    };
+  }
+
   async #get(path: string, what: string, accept = "application/vnd.github+json"): Promise<Response> {
     const headers: Record<string, string> = {
       Accept: accept,
@@ -80,6 +112,7 @@ export class GitHubSession {
     } catch (error) {
       throw new SourceUnreachable(what, error instanceof Error ? error.message : String(error));
     }
+    this.#noteRateLimit(response);
     if (response.ok) return response;
     const remaining = response.headers.get("x-ratelimit-remaining");
     if (response.status === 429 || (response.status === 403 && remaining === "0")) {
@@ -87,7 +120,7 @@ export class GitHubSession {
       throw new RateLimited(Number.isFinite(reset) && reset > 0 ? new Date(reset * 1000).toISOString() : null);
     }
     if (response.status === 404 || response.status === 422) {
-      throw new SourceUnreachable(
+      throw new GitHubNotFound(
         what,
         this.token
           ? "not found, or your token can't see it"
@@ -120,6 +153,39 @@ export class GitHubSession {
       await this.#get(`/repos/${fullName}/git/trees/${sha}?recursive=1`, `${fullName}@${sha.slice(0, 7)}`)
     ).json()) as { sha: string; tree: GitHubTreeEntry[] };
     return { sha: body.sha, entries: body.tree };
+  }
+
+  /** Refs under `refs/<kind>/` that start with `prefix` (GitHub's matching-refs), without the `refs/<kind>/` part. */
+  async matchingRefs(fullName: string, kind: "heads" | "tags", prefix: string): Promise<string[]> {
+    const path = prefix.split("/").map(encodeURIComponent).join("/");
+    const body = (await (
+      await this.#get(`/repos/${fullName}/git/matching-refs/${kind}/${path}`, `${fullName}@${prefix}`)
+    ).json()) as { ref: string }[];
+    return body.map((entry) => entry.ref.replace(`refs/${kind}/`, ""));
+  }
+
+  /**
+   * Splits a tree URL's `<ref>/<path>` (or a bare ref) where the ref ends. A
+   * branch may contain `/`, so the longest branch or tag that is a prefix of
+   * the path wins (git forbids `a` and `a/b` both being branches). Two calls:
+   * branches and tags starting with the first segment. A 40-hex SHA is a commit.
+   */
+  async resolveTreeRef(fullName: string, treePath: string): Promise<ResolvedTreeRef> {
+    const segments = treePath.split("/").filter(Boolean);
+    const first = segments[0] ?? "";
+    const split = (ref: string, refType: ResolvedTreeRef["refType"]): ResolvedTreeRef => {
+      const rest = segments.slice(ref.split("/").length).join("/");
+      return { ref, refType, subpath: rest || null };
+    };
+    if (/^[0-9a-f]{40}$/.test(first)) return split(first, "commit");
+    const longest = (refs: string[]) =>
+      refs.filter((ref) => treePath === ref || treePath.startsWith(`${ref}/`)).sort((a, b) => b.length - a.length)[0] ??
+      null;
+    const branch = longest(await this.matchingRefs(fullName, "heads", first));
+    if (branch) return split(branch, "branch");
+    const tag = longest(await this.matchingRefs(fullName, "tags", first));
+    if (tag) return split(tag, "tag");
+    throw new GitHubNotFound(`${fullName}@${first}`, "no such branch or tag");
   }
 
   /** Downloads a commit's tarball and unpacks it into `dir` (GitHub's top-level folder stripped). */

@@ -50,6 +50,11 @@ const actionLabels: Record<string, string> = {
   "importer.import": "Imported Skills from GitHub",
   "importer.setToken": "Saved the GitHub token",
   "importer.removeToken": "Removed the GitHub token",
+  "importer.checkUpdates": "Checked for updates",
+  "importer.applyUpdate": "Updated a Skill from its Source",
+  "importer.keepMine": "Kept my version of a Skill",
+  "importer.detach": "Detached a Skill from its Source",
+  "importer.repoint": "Re-pointed a Skill",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;

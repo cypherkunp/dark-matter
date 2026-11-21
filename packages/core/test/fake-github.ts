@@ -44,6 +44,8 @@ export interface FakeRepo {
   commit(files: Record<string, string | null>, branch?: string): Promise<string>;
   /** Tags the head of the default branch (or `sha`). */
   tag(name: string, sha?: string): void;
+  /** Deletes the repo from GitHub (it answers 404 from now on). */
+  remove(): void;
   /** The commit a branch or tag points at. */
   head(ref?: string): string;
 }
@@ -62,7 +64,14 @@ export const fakeGitHub = async () => {
   const state = { tokens: new Set<string>(), rateLimited: false };
 
   const send = (res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) => {
-    res.writeHead(status, { "content-type": "application/json", ...headers });
+    const remaining = String(Math.max(0, 5000 - requests.length));
+    res.writeHead(status, {
+      "content-type": "application/json",
+      "x-ratelimit-limit": "5000",
+      "x-ratelimit-remaining": remaining,
+      "x-ratelimit-reset": "1795000000",
+      ...headers,
+    });
     res.end(JSON.stringify(body));
   };
 
@@ -119,6 +128,17 @@ export const fakeGitHub = async () => {
       // GitHub redirects to codeload; fetch drops the Authorization header on the way.
       res.writeHead(302, { location: `${api}/_codeload/${repo.fullName.toLowerCase()}/${sha}` });
       return res.end();
+    }
+    const matching = rest.match(/^\/git\/matching-refs\/(heads|tags)\/(.+)$/);
+    if (matching) {
+      const prefix = `refs/${matching[1]}/${decodeURIComponent(matching[2] ?? "")}`;
+      const refs = git(repo.dir, ["for-each-ref", "--format=%(refname) %(objectname)", "refs/heads", "refs/tags"])
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => line.split(" "))
+        .filter(([ref]) => ref?.startsWith(prefix))
+        .map(([ref, sha]) => ({ ref, object: { sha, type: "commit" } }));
+      return send(res, 200, refs);
     }
     const trees = rest.match(/^\/git\/trees\/(.+)$/);
     if (trees) {
@@ -190,6 +210,9 @@ export const fakeGitHub = async () => {
         },
         tag(name, sha) {
           git(dir, ["tag", name, sha ?? "HEAD"]);
+        },
+        remove() {
+          repos.delete(fullName.toLowerCase());
         },
         head(ref = defaultBranch) {
           return git(dir, ["rev-parse", `${ref}^{commit}`]);

@@ -21,7 +21,16 @@ export const startFakeGitHub = async (dir: string, fullName: string, files: Reco
   git(dir, ["init", "--quiet", "--initial-branch=main"]);
   git(dir, ["add", "--all"]);
   git(dir, ["commit", "--quiet", "-m", "skills"]);
-  const head = git(dir, ["rev-parse", "HEAD"]).toString().trim();
+  let head = git(dir, ["rev-parse", "HEAD"]).toString().trim();
+  const resolve = (ref: string) => {
+    try {
+      return git(dir, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`])
+        .toString()
+        .trim();
+    } catch {
+      return null;
+    }
+  };
   const json = (res: ServerResponse, body: unknown) => {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify(body));
@@ -30,18 +39,26 @@ export const startFakeGitHub = async (dir: string, fullName: string, files: Reco
     const path = new URL(req.url ?? "/", "http://fake").pathname;
     const base = `/repos/${fullName}`;
     if (path === base) return json(res, { full_name: fullName, default_branch: "main", private: false });
-    if (path === `${base}/commits/main` || path === `${base}/commits/${head}`) {
+    const [, kind, ref = ""] = path.slice(base.length).match(/^\/(commits|tarball|git\/trees)\/(.+)$/) ?? [];
+    const sha = kind ? resolve(ref) : null;
+    if (kind === "commits" && sha) {
       return json(res, {
-        sha: head,
-        commit: { tree: { sha: git(dir, ["rev-parse", "HEAD^{tree}"]).toString().trim() } },
+        sha,
+        commit: {
+          tree: {
+            sha: git(dir, ["rev-parse", `${sha}^{tree}`])
+              .toString()
+              .trim(),
+          },
+        },
       });
     }
-    if (path === `${base}/tarball/${head}`) {
+    if (kind === "tarball" && sha) {
       res.writeHead(200, { "content-type": "application/x-gzip" });
-      return res.end(git(dir, ["archive", "--format=tar.gz", `--prefix=${fullName.replace("/", "-")}/`, head]));
+      return res.end(git(dir, ["archive", "--format=tar.gz", `--prefix=${fullName.replace("/", "-")}/`, sha]));
     }
-    if (path === `${base}/git/trees/${head}`) {
-      const tree = git(dir, ["ls-tree", "-r", "-t", head])
+    if (kind === "git/trees" && sha) {
+      const tree = git(dir, ["ls-tree", "-r", "-t", sha])
         .toString()
         .trim()
         .split("\n")
@@ -50,7 +67,13 @@ export const startFakeGitHub = async (dir: string, fullName: string, files: Reco
           const [, type, sha] = meta.split(" ");
           return { path: entry, type, sha };
         });
-      return json(res, { sha: git(dir, ["rev-parse", "HEAD^{tree}"]).toString().trim(), tree, truncated: false });
+      return json(res, {
+        sha: git(dir, ["rev-parse", `${sha}^{tree}`])
+          .toString()
+          .trim(),
+        tree,
+        truncated: false,
+      });
     }
     res.writeHead(404, { "content-type": "application/json" });
     res.end('{"message":"Not Found"}');
@@ -58,7 +81,17 @@ export const startFakeGitHub = async (dir: string, fullName: string, files: Reco
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   return {
     api: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
-    head,
+    get head() {
+      return head;
+    },
+    /** Commits `files` on main (#33's updates). */
+    async commit(changes: Record<string, string>) {
+      for (const [path, content] of Object.entries(changes)) await writeFile(join(dir, path), content);
+      git(dir, ["add", "--all"]);
+      git(dir, ["commit", "--quiet", "-m", "update"]);
+      head = git(dir, ["rev-parse", "HEAD"]).toString().trim();
+      return head;
+    },
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 };
