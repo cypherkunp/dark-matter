@@ -69,6 +69,29 @@ const useProjectCommands = (): Command[] => {
   }));
 };
 
+/** Collections (#36, #41): open one, or add it to Projects (opens its Add to Projects grid). */
+const useCollectionCommands = (): Command[] => {
+  const trpc = useTRPC();
+  const navigate = useNavigate();
+  const collections = useQuery(trpc.collections.list.queryOptions()).data ?? [];
+  return collections.flatMap((collection) => [
+    {
+      id: `collection:${collection.name}`,
+      group: "Collections",
+      label: collection.name,
+      hint: "Collection",
+      run: () => void navigate({ to: "/collection", search: { name: collection.name } }),
+    },
+    {
+      id: `collection-add:${collection.name}`,
+      group: "Collections",
+      label: `Add ${collection.name} to Projects…`,
+      hint: "Collection",
+      run: () => void navigate({ to: "/collection", search: { name: collection.name, add: true } }),
+    },
+  ]);
+};
+
 /** ⌘K starts a skills.sh search for what's typed (#31). */
 const useSkillsShCommands = (query: string): Command[] => {
   const navigate = useNavigate();
@@ -92,6 +115,7 @@ export const useCommands = (query = ""): Command[] => [
   ...useActionCommands(),
   ...useSkillCommands(),
   ...useNamespaceCommands(),
+  ...useCollectionCommands(),
   ...useProjectCommands(),
   // Last, so Enter still opens a local match first.
   ...useSkillsShCommands(query),

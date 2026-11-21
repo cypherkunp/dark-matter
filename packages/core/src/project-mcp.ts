@@ -1,9 +1,14 @@
 import {
   type ActivitySubject,
+  type AddProjectMcpServer,
   type ClientKind,
+  type CollectionMcpCell,
   InvalidOwnedFile,
+  isTaggedError,
+  type McpDeliveryMode,
   McpServerFile,
   McpServerNotFound,
+  NameConflict,
   ProjectMcpServerNotFound,
   type ProjectMcpServerRecord,
   type ProjectMcpServers,
@@ -150,6 +155,90 @@ export class ProjectMcpService {
     }
   }
 
+  /** Adds Library MCP Servers to Projects and delivers them On, planning every Project before any write. */
+  async #add(servers: readonly AddProjectMcpServer[], wrote: Wrote): Promise<ProjectMcpServers[]> {
+    const paths = [...new Set(servers.map((server) => server.path))];
+    for (const { name } of servers) if (!(await this.options.mcp.read(name))) throw new McpServerNotFound(name);
+    const nexts = paths.map((path) => {
+      const record = this.#record(path);
+      const added = Object.fromEntries(
+        servers
+          .filter((server) => server.path === path)
+          .map((server): [string, ProjectMcpServerRecord] => {
+            const current = record.mcpServers?.[server.name];
+            return [
+              server.name,
+              { mode: server.mode ?? current?.mode ?? "personal", on: true, delivered: current?.delivered ?? [] },
+            ];
+          }),
+      );
+      return [path, { ...record, mcpServers: { ...record.mcpServers, ...added } }] as const;
+    });
+    // Plan every Project first, so a Name Conflict in one stops the lot before any write.
+    for (const [path, next] of nexts) await planMcpDelivery(this.#context, path, next);
+    const results: ProjectMcpServers[] = [];
+    for (const [path, next] of nexts) results.push({ path, servers: await this.#deliver(path, next, wrote) });
+    return results;
+  }
+
+  /**
+   * Adding Collection MCP Servers (#41) to one Project, per item: "present",
+   * "missing" (not in the Library, or its file is invalid), "blocked" (it
+   * can't be delivered: a Name Conflict, a Secret not in the keychain, a
+   * definition an Agent can't take) or "add". Writes nothing.
+   */
+  async preview(path: string, items: readonly { name: string; mode: McpDeliveryMode }[]): Promise<CollectionMcpCell[]> {
+    const record = this.#record(path);
+    const cells: CollectionMcpCell[] = [];
+    for (const { name, mode } of items) {
+      const cell: CollectionMcpCell = { path, name, mode, outcome: "add", blockedBy: null, problem: null };
+      const current = record.mcpServers?.[name];
+      if (!(await this.options.mcp.read(name))?.value) cells.push({ ...cell, outcome: "missing" });
+      else if (current) cells.push({ ...cell, mode: current.mode, outcome: "present" });
+      else {
+        const alone = { ...record, mcpServers: { ...record.mcpServers, [name]: { mode, on: true, delivered: [] } } };
+        try {
+          await planMcpDelivery(this.#context, path, alone);
+          cells.push(cell);
+        } catch (error) {
+          if (!isTaggedError(error)) throw error;
+          const blockedBy = error instanceof NameConflict ? (error.path ?? null) : null;
+          cells.push({ ...cell, outcome: "blocked", blockedBy, problem: error.message });
+        }
+      }
+    }
+    return cells;
+  }
+
+  /**
+   * Applies a Collection's MCP Servers (#41): adds what each Project can take
+   * and reports every item's outcome. The caller records the Activity entry.
+   */
+  applyCollection(servers: readonly AddProjectMcpServer[], wrote: Wrote) {
+    const paths = [...new Set(servers.map((server) => server.path))];
+    return this.#serial(async () => {
+      try {
+        const cells: CollectionMcpCell[] = [];
+        for (const path of paths) {
+          const own = servers.filter((server) => server.path === path);
+          cells.push(
+            ...(await this.preview(
+              path,
+              own.map(({ name, mode }) => ({ name, mode: mode ?? "personal" })),
+            )),
+          );
+        }
+        const adding = cells
+          .filter((cell) => cell.outcome === "add")
+          .map(({ path, name, mode }) => ({ path, name, mode }));
+        const projects = adding.length > 0 ? await this.#add(adding, wrote) : [];
+        return { projects, cells };
+      } finally {
+        this.#changed();
+      }
+    });
+  }
+
   services(): ProjectMcpProcedures {
     const { home } = this.options;
     return {
@@ -176,29 +265,7 @@ export class ProjectMcpService {
           ...paths.map((id) => ({ kind: "project" as const, id })),
           ...[...new Set(servers.map((server) => server.name))].map((id) => ({ kind: "mcpServer" as const, id })),
         ];
-        return this.#change(client, "project.addMcpServers", subjects, async (wrote) => {
-          for (const { name } of servers) if (!(await this.options.mcp.read(name))) throw new McpServerNotFound(name);
-          const nexts = paths.map((path) => {
-            const record = this.#record(path);
-            const added = Object.fromEntries(
-              servers
-                .filter((server) => server.path === path)
-                .map((server): [string, ProjectMcpServerRecord] => {
-                  const current = record.mcpServers?.[server.name];
-                  return [
-                    server.name,
-                    { mode: server.mode ?? current?.mode ?? "personal", on: true, delivered: current?.delivered ?? [] },
-                  ];
-                }),
-            );
-            return [path, { ...record, mcpServers: { ...record.mcpServers, ...added } }] as const;
-          });
-          // Plan every Project first, so a Name Conflict in one stops the lot before any write.
-          for (const [path, next] of nexts) await planMcpDelivery(this.#context, path, next);
-          const results: ProjectMcpServers[] = [];
-          for (const [path, next] of nexts) results.push({ path, servers: await this.#deliver(path, next, wrote) });
-          return results;
-        });
+        return this.#change(client, "project.addMcpServers", subjects, (wrote) => this.#add(servers, wrote));
       },
 
       setMcpServerOn: ({ path, name, on }, client) =>
