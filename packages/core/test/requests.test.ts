@@ -243,6 +243,32 @@ describe("Requests from a client other than the app (ADR-0006)", () => {
     ]);
   });
 
+  test("a Grant never covers re-adding an Off Copy or switching a Copy to a Link, even without a mode in the call", async () => {
+    const { app, agent, project } = await setup();
+    const path = await project("code/app");
+    await app.project.setGrant.mutate({ path, grant: true });
+    await app.project.addSkills.mutate({ skills: [{ path, key: "local/pdf", mode: "copy" }] });
+    await app.project.setSkillOn.mutate({ path, key: "local/pdf", on: false });
+
+    const asks = async (call: Promise<unknown>) => {
+      const data = await failure(call);
+      expect(data.tag).toBe("RequestPending");
+      const request = await app.requests.get.query({ id: data.request?.id as string });
+      return { reasons: request.reasons, summary: request.summary };
+    };
+    expect(await asks(agent.project.addSkills.mutate({ skills: [{ path, key: "local/pdf" }] }))).toEqual({
+      reasons: ["copy"],
+      summary: "Add local/pdf to app as a Copy",
+    });
+    expect(
+      await asks(agent.project.addSkills.mutate({ skills: [{ path, key: "local/pdf", mode: "link" }] })),
+    ).toEqual({ reasons: ["copy"], summary: "Switch local/pdf in app from a Copy to a Link" });
+    expect((await app.project.skills.query({ path })).find((skill) => skill.key === "local/pdf")).toMatchObject({
+      mode: "copy",
+      on: false,
+    });
+  });
+
   test("app-only operations are refused for an Agent, whatever the Grant", async () => {
     const { app, agent, project } = await setup();
     const path = await project("code/app");

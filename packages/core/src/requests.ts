@@ -322,12 +322,22 @@ export class Requests {
       case "skill.add": {
         const { skills } = input as { skills: { path: string; key: string; mode?: string }[] };
         const paths = unique(skills.map((skill) => skill.path));
+        // Classify on the mode the Project Skill will actually have (a call without
+        // one keeps the current mode) and on how it's delivered now: anything that
+        // writes or deletes a Copy is a committed team change.
+        const planned = skills.map((skill) => {
+          const current = projects[skill.path]?.skills[skill.key]?.mode;
+          const mode = skill.mode ?? current ?? "link";
+          const summary =
+            current !== undefined && current !== mode
+              ? `Switch ${skill.key} in ${name(skill.path)} from a ${modeName(current)} to a ${modeName(mode)}`
+              : `Add ${skill.key} to ${name(skill.path)} as a ${modeName(mode)}`;
+          return { touchesCopy: mode === "copy" || current === "copy", summary };
+        });
         return {
           projects: paths,
-          summary: skills
-            .map((skill) => `Add ${skill.key} to ${name(skill.path)} as a ${modeName(skill.mode)}`)
-            .join("; "),
-          reasons: reasons(paths, [skills.some((skill) => skill.mode === "copy") && "copy"]),
+          summary: planned.map((skill) => skill.summary).join("; "),
+          reasons: reasons(paths, [planned.some((skill) => skill.touchesCopy) && "copy"]),
         };
       }
       case "skill.remove":
@@ -351,9 +361,15 @@ export class Requests {
       case "mcpServer.add": {
         const { servers } = input as { servers: { path: string; name: string; mode?: string }[] };
         const paths = unique(servers.map((server) => server.path));
+        // Like Skills: a call without a mode keeps the current one.
+        const planned = servers.map((server) => {
+          const current = projects[server.path]?.mcpServers?.[server.name]?.mode;
+          const mode = server.mode ?? current ?? "personal";
+          return { ...server, current, mode };
+        });
         return {
           projects: paths,
-          summary: servers
+          summary: planned
             .map(
               (server) =>
                 `Add the MCP Server ${server.name} to ${name(server.path)} as ${server.mode === "shared" ? "Shared" : "Personal"}`,
@@ -361,7 +377,7 @@ export class Requests {
             .join("; "),
           reasons: reasons(paths, [
             "mcpServer",
-            servers.some((server) => server.mode === "shared") && "sharedMcpServer",
+            planned.some((server) => server.mode === "shared" || server.current === "shared") && "sharedMcpServer",
           ]),
         };
       }
