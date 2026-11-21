@@ -101,8 +101,9 @@ export class CoreSupervisor {
   /** Attaches to a running core whose `core.json` answers with its token. */
   async #attach(): Promise<boolean> {
     const file = await readCoreFile(this.#options.coreFilePath);
-    if (!file || !isAlive(file.pid) || !(await this.#answers(file))) return false;
+    if (!file || !isAlive(file.pid) || !(await this.#answersWithToken(file))) return false;
     this.#options.log(`attached to running core (pid ${file.pid})`);
+    this.#failures = 0;
     this.#markReady(file);
     this.#watch = setInterval(() => {
       if (isAlive(file.pid)) return;
@@ -114,7 +115,7 @@ export class CoreSupervisor {
     return true;
   }
 
-  async #answers(connection: CoreConnection): Promise<boolean> {
+  async #answersWithToken(connection: CoreConnection): Promise<boolean> {
     const client = createCoreClient({ connection, client: "app" });
     try {
       await Promise.race([
@@ -141,12 +142,12 @@ export class CoreSupervisor {
       this.#child = undefined;
       if (this.#stopping) return;
       this.#lost();
-      if (code === CoreExitCode.locked) {
-        // Another core won the lock first: attach to it.
-        void this.#ensure();
-        return;
-      }
-      this.#options.log(`core exited (code ${code}, signal ${signal})`);
+      // A "locked" exit means another core holds the lock; the next attempt
+      // attaches to it. It still waits out the backoff, so a lock held by a
+      // core that never answers can't turn into a tight respawn loop.
+      this.#options.log(
+        code === CoreExitCode.locked ? "another core holds core.lock" : `core exited (code ${code}, signal ${signal})`,
+      );
       if (Date.now() - startedAt > HEALTHY_AFTER_MS) this.#failures = 0;
       this.#restartLater();
     });
