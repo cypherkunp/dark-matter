@@ -137,3 +137,14 @@ export class NamespaceNotFound extends TaggedError<"NamespaceNotFound"> {
     super(`No Library Skills in the Namespace ${namespace}`);
   }
 }
+
+/** A path that isn't a file inside the Skill's folder (missing, a folder, or outside it). */
+export class SkillFileNotFound extends TaggedError<"SkillFileNotFound"> {
+  readonly _tag = "SkillFileNotFound";
+  constructor(
+    readonly key: string,
+    readonly path: string,
+  ) {
+    super(`${key} has no file ${path}`);
+  }
+}

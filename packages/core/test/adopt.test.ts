@@ -55,6 +55,7 @@ describe("Adopt", () => {
         description: "Work with PDFs",
         localSource: null,
         adoptedFrom: "~/.claude/skills/pdf",
+        modified: false,
       },
     ]);
     expect((await trpc.inbox.list.query()).count).toBe(0);

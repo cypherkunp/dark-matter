@@ -19,7 +19,9 @@ import { projectServices, waitingSuggestions } from "./projects";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
+import { SkillEditor } from "./skill-editor";
 import { skillServices } from "./skill-page";
+import { Trash } from "./trash";
 import { watchOwnedFiles } from "./watch-owned";
 
 export interface ServicesOptions {
@@ -94,6 +96,21 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     hooks: keyRenameHooks,
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project"] }),
   });
+  const skillEditor = new SkillEditor({
+    library,
+    activity,
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill"] }),
+  });
+  const trash = new Trash({
+    library,
+    activity,
+    clock,
+    retentionDays: () => settings.value.preferences.trashRetentionDays,
+    // The Projects using a Skill come from Project delivery (#27): wire `project.forSkill` here once it lands.
+    usage: async () => [],
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project"] }),
+  });
+  dailyJobs.push(trash.job());
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
@@ -178,7 +195,14 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     },
     scheduler: { status: () => scheduler.status() },
     project: projectServices({ env, projects, settings, activity, scans, bus }),
-    skill: skillServices(library),
+    skill: {
+      ...skillServices(library),
+      files: (key) => skillEditor.files(key),
+      readFile: (input) => skillEditor.readFile(input),
+      saveFile: (input, client) => skillEditor.saveFile(input, client),
+      deletePlan: (key) => trash.plan(key),
+      delete: (key, client) => trash.delete(key, client),
+    },
     namespace: {
       plan: (input) => namespaceRename.plan(input),
       rename: (input, client) => namespaceRename.rename(input, client),
