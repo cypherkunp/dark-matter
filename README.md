@@ -138,3 +138,7 @@ If Dark Matter solves a problem you have, a ⭐ helps other people find it. Tell
 ## Security
 
 Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT License](LICENSE) © [Devvrat](https://devvrat.cc)
