@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { CoreFile } from "@dark-matter/contracts";
@@ -27,16 +27,29 @@ export const isAlive = (pid: number) => {
 };
 
 export const test = base.extend<{
+  /**
+   * Whether the First run (#46) is already done in the fixture home, so the app
+   * opens on the Library. `test.use({ firstRunDone: false })` to walk it.
+   */
+  firstRunDone: boolean;
   fixtureHome: FixtureHome;
   launchApp: () => Promise<ElectronApplication>;
   startHeadlessCore: () => Promise<ChildProcess>;
 }>({
-  // biome-ignore lint/correctness/noEmptyPattern: Playwright fixtures take their dependencies by destructuring.
-  fixtureHome: async ({}, use) => {
+  firstRunDone: [true, { option: true }],
+
+  fixtureHome: async ({ firstRunDone }, use) => {
     const root = await realpath(await mkdtemp(join(tmpdir(), "dark-matter-e2e-")));
     const home = join(root, "home");
     const libraryHome = join(home, ".dark-matter");
     await mkdir(home);
+    if (firstRunDone) {
+      await mkdir(libraryHome);
+      await writeFile(
+        join(libraryHome, "settings.json"),
+        JSON.stringify({ firstRun: { completedAt: "2026-11-01T00:00:00.000Z" } }),
+      );
+    }
     await use({
       home,
       libraryHome,

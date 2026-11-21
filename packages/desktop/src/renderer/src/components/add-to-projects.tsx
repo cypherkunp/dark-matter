@@ -18,6 +18,8 @@ export interface AddToProjectsProps {
   keys: readonly string[];
   /** Projects (absolute paths) whose column starts ticked, e.g. the Project an Import started from. */
   ticked?: readonly string[];
+  /** Only these Projects (absolute paths) as columns, e.g. the one the First run is setting up. Default: every Project. */
+  projects?: readonly string[];
   /**
    * Adding a Collection (#36): its name. The grid then shows, per cell, a Name
    * Conflict or a folder in the way, and applies through `collections.execute`.
@@ -56,6 +58,7 @@ const outcomeText: Record<CollectionCell["outcome"], string> = {
 export function AddToProjectsDialog({
   keys,
   ticked = [],
+  projects: only,
   collection,
   title = "Add to Projects",
   description = "Each ticked Skill is added to that Project. A Link is a personal symlink to the Library, excluded from git; a Copy is committed for your team.",
@@ -64,7 +67,9 @@ export function AddToProjectsDialog({
   const trpc = useTRPC();
   const projects = useQuery(trpc.project.list.queryOptions());
   const library = useQuery(trpc.library.list.queryOptions());
-  const columns = (projects.data ?? []).filter((project) => project.exists);
+  const columns = (projects.data ?? []).filter(
+    (project) => project.exists && (only === undefined || only.includes(project.path)),
+  );
   const [modes, setModes] = useState<Record<string, DeliveryMode>>({});
   const modeOf = (key: string) => modes[key] ?? "link";
   const existing = useQueries({
