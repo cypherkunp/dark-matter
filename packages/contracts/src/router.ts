@@ -11,6 +11,7 @@ import {
   type ClientKind,
   type CoreEvent,
   CoreInfo,
+  type CoreNotification,
   Inbox,
   LibraryList,
   OwnedFileName,
@@ -18,6 +19,7 @@ import {
   PreferencesPatch,
   ScanResult,
   ScanStatus,
+  SchedulerStatus,
   SettingsFile,
 } from "./schemas";
 
@@ -70,6 +72,11 @@ export interface CoreServices {
     /** Undo Adopt: moves the Skill back to where it was Adopted from and puts back what Adopt removed. */
     undo(key: string, client: ClientKind): Promise<void>;
   };
+  scheduler: {
+    status(): SchedulerStatus;
+  };
+  /** OS notifications for the app to show, from now on, until `signal` aborts. */
+  notifications(signal: AbortSignal): AsyncIterable<CoreNotification>;
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
 }
@@ -135,8 +142,14 @@ export const createAppRouter = (services: CoreServices) =>
         .input(z.object({ key: z.string().min(1) }))
         .mutation(({ input, ctx }) => services.adopt.undo(input.key, ctx.client)),
     }),
+    scheduler: t.router({
+      status: t.procedure.output(SchedulerStatus).query(() => services.scheduler.status()),
+    }),
     events: t.procedure.subscription(async function* ({ signal }) {
       yield* services.events(signal ?? new AbortController().signal);
+    }),
+    notifications: t.procedure.subscription(async function* ({ signal }) {
+      yield* services.notifications(signal ?? new AbortController().signal);
     }),
   });
 

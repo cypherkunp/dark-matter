@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { type ClientKind, ScanResult, type ScanStatus } from "@dark-matter/contracts";
+import { type ActivityClient, ScanResult, type ScanStatus } from "@dark-matter/contracts";
 import type { ActivityLog } from "./activity";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { log } from "./log";
@@ -36,7 +36,7 @@ export class Scans {
   }
 
   /** A Scan someone asked for, recorded in the Activity Log. */
-  run(client: ClientKind): Promise<ScanResult> {
+  run(client: ActivityClient): Promise<ScanResult> {
     this.#running ??= this.#start(() =>
       this.#options.activity.track({ client, action: "scan.run", subjects: [] }, () => this.#scan()),
     );

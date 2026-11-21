@@ -48,6 +48,7 @@ function Settings() {
   const settings = useQuery(trpc.settings.get.queryOptions());
   const problems = useQuery(trpc.ownedFiles.problems.queryOptions());
   const info = useQuery(trpc.core.info.queryOptions());
+  const nextScan = useQuery(trpc.scheduler.status.queryOptions()).data?.nextRunAt;
   const save = useMutation(trpc.settings.updatePreferences.mutationOptions());
   const saved = settings.data?.preferences;
   const [draft, setDraft] = useState<Preferences | undefined>(saved);
@@ -76,7 +77,15 @@ function Settings() {
           }}
         >
           <section className="divide-y rounded-xl border">
-            <Row label="Scheduled Scan time" htmlFor="scheduled-scan-time" hint="A Scan runs every day at this time.">
+            <Row
+              label="Scheduled Scan time"
+              htmlFor="scheduled-scan-time"
+              hint={`A Scan runs every day at this time, or as soon as the computer wakes if it was asleep.${
+                nextScan
+                  ? ` Next: ${new Date(nextScan).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}.`
+                  : ""
+              }`}
+            >
               <Input
                 id="scheduled-scan-time"
                 type="time"
@@ -85,7 +94,11 @@ function Settings() {
                 onChange={(event) => update({ scheduledScanTime: event.target.value })}
               />
             </Row>
-            <Row label="Start at login" htmlFor="start-at-login" hint="Keeps the Scheduled Scan running.">
+            <Row
+              label="Start at login"
+              htmlFor="start-at-login"
+              hint="Dark Matter stays in the menu bar so the Scheduled Scan keeps running."
+            >
               <input
                 id="start-at-login"
                 type="checkbox"

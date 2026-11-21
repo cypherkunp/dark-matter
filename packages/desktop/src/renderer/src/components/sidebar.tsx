@@ -33,6 +33,10 @@ function NavLink({ path, className, children }: { path: string; className: strin
   );
 }
 
+/** `HH:MM` in local time, as the Scheduled Scan time is set. */
+const localClockTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
 const Count = ({ value }: { value: number | undefined }) => (
   <span className="ml-auto text-muted-foreground text-xs tabular-nums">{value ?? "–"}</span>
 );
@@ -43,6 +47,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
   const library = useQuery(trpc.library.list.queryOptions());
   const problems = useQuery(trpc.ownedFiles.problems.queryOptions());
   const inbox = useQuery(trpc.inbox.list.queryOptions());
+  const nextScan = useQuery(trpc.scheduler.status.queryOptions()).data?.nextRunAt;
   const { scanning, lastScanAt } = useScan();
   const now = useNow();
   const [filter, setFilter] = useState("");
@@ -133,6 +138,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
               : lastScanAt
                 ? `Scanned ${relativeTime(Date.parse(lastScanAt), now)}`
                 : "Not scanned yet"}
+          {connected && nextScan && ` · next ${localClockTime(nextScan)}`}
         </span>
         <Link
           to="/settings"
