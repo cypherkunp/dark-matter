@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ComputerActivityRouteImport } from './routes/computer/activity'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +30,53 @@ const LibraryRoute = LibraryRouteImport.update({
   path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComputerActivityRoute = ComputerActivityRouteImport.update({
+  id: '/computer/activity',
+  path: '/computer/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/library': typeof LibraryRoute
+  '/settings': typeof SettingsRoute
+  '/computer/activity': typeof ComputerActivityRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/library': typeof LibraryRoute
+  '/settings': typeof SettingsRoute
+  '/computer/activity': typeof ComputerActivityRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/library': typeof LibraryRoute
+  '/settings': typeof SettingsRoute
+  '/computer/activity': typeof ComputerActivityRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$' | '/library'
+  fullPaths: '/' | '/$' | '/library' | '/settings' | '/computer/activity'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$' | '/library'
-  id: '__root__' | '/' | '/$' | '/library'
+  to: '/' | '/$' | '/library' | '/settings' | '/computer/activity'
+  id: '__root__' | '/' | '/$' | '/library' | '/settings' | '/computer/activity'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   LibraryRoute: typeof LibraryRoute
+  SettingsRoute: typeof SettingsRoute
+  ComputerActivityRoute: typeof ComputerActivityRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +102,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/computer/activity': {
+      id: '/computer/activity'
+      path: '/computer/activity'
+      fullPath: '/computer/activity'
+      preLoaderRoute: typeof ComputerActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +123,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   LibraryRoute: LibraryRoute,
+  SettingsRoute: SettingsRoute,
+  ComputerActivityRoute: ComputerActivityRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
