@@ -376,6 +376,15 @@ export const createServices = async ({
     reloadMcp: async () => void (await mcpLibrary.all()),
     projectPaths: () => Object.keys(projects.value.projects),
     scanned: () => scans.latest !== null,
+    configFiles: async () => [
+      ...new Set(
+        await Promise.all(agentAdapters.flatMap((adapter) => (adapter.mcp ? [adapter.mcp.globalFile(env)] : []))),
+      ),
+    ],
+    localSources: () =>
+      Object.values(libraryLock.value.skills).flatMap((entry) =>
+        entry.localSource ? [library.absolute(entry.localSource)] : [],
+      ),
     rescan: () =>
       void scans.refresh().catch((error: unknown) => log(`re-Scan after a change failed: ${String(error)}`)),
     bus,
