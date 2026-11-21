@@ -193,8 +193,13 @@ http_headers = { Authorization = "Bearer lin_real" }
     git(app, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "--quiet", "-m", "cursor");
 
     expect(await trpc.project.mcpTargets.query({ path: app })).toEqual([
-      { agent: "cursor", file: "~/code/app/.cursor/mcp.json", personal: false },
-      { agent: "codex", file: "~/code/app/.codex/config.toml", personal: true },
+      { agent: "cursor", file: "~/code/app/.cursor/mcp.json", personal: false, shared: "~/code/app/.cursor/mcp.json" },
+      {
+        agent: "codex",
+        file: "~/code/app/.codex/config.toml",
+        personal: true,
+        shared: "~/code/app/.codex/config.toml",
+      },
     ]);
 
     const [added] = await trpc.project.addMcpServers.mutate({ servers: [{ path: app, name: "github" }] });
@@ -203,7 +208,7 @@ http_headers = { Authorization = "Bearer lin_real" }
     expect(await read(join(app, ".codex/config.toml"))).toContain("ghp_real");
     expect(added?.servers[0]?.deliveries).toEqual([
       { agent: "cursor", file: "~/code/app/.cursor/mcp.json", status: "tracked" },
-      { agent: "codex", file: "~/code/app/.codex/config.toml", status: "delivered" },
+      { agent: "codex", file: "~/code/app/.codex/config.toml", status: "delivered", approval: "untrusted" },
     ]);
     expect(await read(join(app, ".git/info/exclude"))).not.toContain(".cursor/mcp.json");
     expect(git(app, "status", "--porcelain")).toBe("");
@@ -341,7 +346,7 @@ http_headers = { Authorization = "Bearer lin_real" }
     expect(await read(claude)).toBe(claudeJson(app));
     expect((await readJson(join(app, ".cursor/mcp.json"))).mcpServers.linear.url).toBe("https://mcp.linear.app/mcp");
     expect((await trpc.project.mcpServers.query({ path: app }))[0]?.deliveries).toEqual([
-      { agent: "cursor", file: "~/code/app/.cursor/mcp.json", status: "delivered" },
+      { agent: "cursor", file: "~/code/app/.cursor/mcp.json", status: "delivered", approval: "needsApproval" },
     ]);
   });
 

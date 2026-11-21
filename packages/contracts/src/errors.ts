@@ -253,3 +253,35 @@ export class McpNotTranslatable extends TaggedError<"McpNotTranslatable"> {
     super(`Can't write this MCP Server for ${agent}: ${problem}`);
   }
 }
+
+/** A Shared MCP entry was edited in the repo (#39): Take the Library version or Pull into Library, or confirm discarding it. */
+export class McpModifiedInRepo extends TaggedError<"McpModifiedInRepo"> {
+  readonly _tag = "McpModifiedInRepo";
+  constructor(
+    readonly server: string,
+    readonly file: string,
+  ) {
+    super(`${server} was modified in repo in ${file}. Pull the edit into the Library, or confirm discarding it.`);
+  }
+}
+
+/** A Personal and a Shared Project MCP Server can't share one config file: the file is either excluded or committed. */
+export class McpFileShared extends TaggedError<"McpFileShared"> {
+  readonly _tag = "McpFileShared";
+  constructor(readonly file: string) {
+    super(
+      `${file} holds Shared MCP Servers, which are committed, so a Personal one can't go there (or the other way round)`,
+    );
+  }
+}
+
+/** A Secret that On Personal deliveries still use can't be deleted: turn them Off or edit the definitions first. */
+export class SecretInUse extends TaggedError<"SecretInUse"> {
+  readonly _tag = "SecretInUse";
+  constructor(
+    readonly secret: string,
+    readonly servers: string[],
+  ) {
+    super(`The Secret ${secret} is still delivered by ${servers.join(", ")}`);
+  }
+}

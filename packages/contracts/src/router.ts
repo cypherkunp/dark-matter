@@ -27,6 +27,8 @@ import {
   ManagedMcpServer,
   McpAdoptInput,
   McpAdoptPlan,
+  McpChangeInput,
+  McpChangePlan,
   McpOffScope,
   McpServerName,
   McpTarget,
@@ -36,7 +38,6 @@ import {
   PreferencesPatch,
   ProjectDetail,
   ProjectMcpServer,
-  ProjectMcpServerRef,
   ProjectMcpServers,
   ProjectPath,
   ProjectSkill,
@@ -44,14 +45,19 @@ import {
   ProjectSkillRef,
   ProjectSkills,
   ProjectSummary,
+  PullProjectMcpServer,
+  RemoveProjectMcpServer,
   RenameNamespaceInput,
   RenameNamespacePlan,
+  RepoMcpServers,
   RepoSkills,
   SavedSkillFile,
   SaveSkillFileInput,
   ScanResult,
   ScanStatus,
   SchedulerStatus,
+  SetProjectMcpServerMode,
+  SetProjectMcpServerOn,
   SetSecretInput,
   SettingsFile,
   SkillDeletePlan,
@@ -62,6 +68,7 @@ import {
   SkillProjectUse,
   SuggestedProjects,
   UpdateMcpDefinitionInput,
+  UpdateProjectMcpServer,
 } from "./schemas";
 
 /** Per-connection context, built once when a connection authenticates. */
@@ -147,6 +154,8 @@ export interface CoreServices {
     setSecret(input: SetSecretInput, client: ClientKind): Promise<void>;
     /** Replaces a Library MCP Server's definition, then rewrites its Personal deliveries. */
     updateDefinition(input: UpdateMcpDefinitionInput, client: ClientKind): Promise<void>;
+    /** Deletes a Secret from the keychain (#39). Refused while an On Personal delivery uses it. */
+    deleteSecret(input: { name: string }, client: ClientKind): Promise<void>;
   };
   skill: {
     /** A Library Skill's page: SKILL.md split into frontmatter and body, warnings and its Library Lock entry. */
@@ -214,9 +223,21 @@ export interface CoreServices {
     /** Adds Library MCP Servers to Projects (Personal by default) and delivers them On. Re-adding one turns it On. */
     addMcpServers(input: AddProjectMcpServers, client: ClientKind): Promise<ProjectMcpServers[]>;
     /** On writes its entries back; Off removes them but keeps it (mode included) in `projects.json`. */
-    setMcpServerOn(input: ProjectMcpServerRef & { on: boolean }, client: ClientKind): Promise<ProjectMcpServers>;
+    setMcpServerOn(input: SetProjectMcpServerOn, client: ClientKind): Promise<ProjectMcpServers>;
     /** Removes a Project MCP Server: its entries go and the Project forgets it. */
-    removeMcpServer(input: ProjectMcpServerRef, client: ClientKind): Promise<ProjectMcpServers>;
+    removeMcpServer(input: RemoveProjectMcpServer, client: ClientKind): Promise<ProjectMcpServers>;
+    /** Switches a Project MCP Server between Personal and Shared (#39). */
+    setMcpServerMode(input: SetProjectMcpServerMode, client: ClientKind): Promise<ProjectMcpServers>;
+    /** The dry run of a Project MCP Server change: the edits, env vars and whether it's a team change. Writes nothing. */
+    mcpPlan(input: McpChangeInput): Promise<McpChangePlan>;
+    /** Updates an outdated (or, confirmed, modified in repo) Shared delivery to the Library version. */
+    updateMcpServer(input: UpdateProjectMcpServer, client: ClientKind): Promise<ProjectMcpServers>;
+    /** Pulls a Shared entry modified in repo into the Library definition; other Projects' Shared deliveries go outdated. */
+    pullMcpServer(input: PullProjectMcpServer, client: ClientKind): Promise<ProjectMcpServers>;
+    /** Trusts the Project in Codex (`projects."<path>".trust_level`), after you confirm. Never done automatically. */
+    trustInCodex(path: string, client: ClientKind): Promise<ProjectMcpServers>;
+    /** MCP entries in the Project Dark Matter didn't write: Vendored (committed) and untracked (Adoptable). */
+    repoMcpServers(path: string): Promise<RepoMcpServers>;
   };
   /** Core events from now on, until `signal` aborts. */
   events(signal: AbortSignal): AsyncIterable<CoreEvent>;
@@ -317,6 +338,9 @@ export const createAppRouter = (services: CoreServices) =>
       updateDefinition: t.procedure
         .input(UpdateMcpDefinitionInput)
         .mutation(({ input, ctx }) => services.mcp.updateDefinition(input, ctx.client)),
+      deleteSecret: t.procedure
+        .input(z.object({ name: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.mcp.deleteSecret(input, ctx.client)),
     }),
     scheduler: t.router({
       status: t.procedure.output(SchedulerStatus).query(() => services.scheduler.status()),
@@ -403,13 +427,37 @@ export const createAppRouter = (services: CoreServices) =>
         .output(ProjectMcpServers.array())
         .mutation(({ input, ctx }) => services.project.addMcpServers(input, ctx.client)),
       setMcpServerOn: t.procedure
-        .input(ProjectMcpServerRef.extend({ on: z.boolean() }))
+        .input(SetProjectMcpServerOn)
         .output(ProjectMcpServers)
         .mutation(({ input, ctx }) => services.project.setMcpServerOn(input, ctx.client)),
       removeMcpServer: t.procedure
-        .input(ProjectMcpServerRef)
+        .input(RemoveProjectMcpServer)
         .output(ProjectMcpServers)
         .mutation(({ input, ctx }) => services.project.removeMcpServer(input, ctx.client)),
+      setMcpServerMode: t.procedure
+        .input(SetProjectMcpServerMode)
+        .output(ProjectMcpServers)
+        .mutation(({ input, ctx }) => services.project.setMcpServerMode(input, ctx.client)),
+      mcpPlan: t.procedure
+        .input(McpChangeInput)
+        .output(McpChangePlan)
+        .query(({ input }) => services.project.mcpPlan(input)),
+      updateMcpServer: t.procedure
+        .input(UpdateProjectMcpServer)
+        .output(ProjectMcpServers)
+        .mutation(({ input, ctx }) => services.project.updateMcpServer(input, ctx.client)),
+      pullMcpServer: t.procedure
+        .input(PullProjectMcpServer)
+        .output(ProjectMcpServers)
+        .mutation(({ input, ctx }) => services.project.pullMcpServer(input, ctx.client)),
+      trustInCodex: t.procedure
+        .input(ProjectPath)
+        .output(ProjectMcpServers)
+        .mutation(({ input, ctx }) => services.project.trustInCodex(input.path, ctx.client)),
+      repoMcpServers: t.procedure
+        .input(ProjectPath)
+        .output(RepoMcpServers)
+        .query(({ input }) => services.project.repoMcpServers(input.path)),
     }),
     skill: t.router({
       get: t.procedure

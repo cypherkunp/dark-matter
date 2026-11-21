@@ -27,8 +27,18 @@ export interface AgentMcp {
   format: "json" | "toml";
   /** The MCP Servers a parsed config declares. Entries of unknown shape are skipped. */
   servers(config: unknown): McpEntry[];
-  /** Where a Personal Project MCP Server goes (#38): never committed. #39 adds `shared`. */
+  /** Where a Personal Project MCP Server goes (#38): never committed. */
   personal(project: string, env: AgentPathEnv): Promise<McpTarget>;
+  /** Where a Shared Project MCP Server goes (#39): the Project's committed config file. */
+  shared(project: string, env: AgentPathEnv): Promise<McpTarget>;
+  /** One entry as an Agent-neutral definition (null for a shape it doesn't know). */
+  read(raw: Record<string, unknown>): McpDefinition | null;
+  /**
+   * The Agent's own gate on a Project MCP Server it was given (#39), if it has
+   * one: Cursor asks for approval, Codex loads Project config only once the
+   * Project is trusted. Claude Code's `.mcp.json` approval is handled by delivery.
+   */
+  gate(project: string, env: AgentPathEnv): Promise<"needsApproval" | "untrusted" | undefined>;
   /**
    * A Library definition as this Agent's entry. Secrets are already resolved
    * (real values for Personal, env references for Shared), so only `${env:VAR}`
@@ -300,6 +310,14 @@ export const claudeMcp: AgentMcp = {
     projectFile: null,
     at: (_config, name) => ["projects", project, "mcpServers", name],
   }),
+  // Project scope: `.mcp.json`, which needs each person's approval (recorded by delivery).
+  shared: async (project) => ({
+    file: join(project, ".mcp.json"),
+    projectFile: ".mcp.json",
+    at: (_config, name) => ["mcpServers", name],
+  }),
+  read: mcpServersEntry(claudeRefs),
+  gate: async () => undefined,
   toAgent: mcpServersShape(
     envSyntax((name) => `\${${name}}`),
     true,
@@ -312,11 +330,11 @@ export const cursorMcp: AgentMcp = {
   format: "json",
   servers: (config) =>
     entriesOf(isObj(config) ? config.mcpServers : undefined, ["mcpServers"], mcpServersEntry(cursorRefs)),
-  personal: async (project) => ({
-    file: join(project, ".cursor/mcp.json"),
-    projectFile: ".cursor/mcp.json",
-    at: (_config, name) => ["mcpServers", name],
-  }),
+  personal: async (project) => cursorProjectTarget(project),
+  shared: async (project) => cursorProjectTarget(project),
+  read: mcpServersEntry(cursorRefs),
+  // Cursor asks before it loads a Project's servers; its approvals are its own and never touched.
+  gate: async () => "needsApproval",
   toAgent: mcpServersShape((text) => text, false),
 };
 
@@ -334,23 +352,35 @@ export const opencodeMcp: AgentMcp = {
     );
     return [...entriesOf(mcp.servers, ["mcp", "servers"], opencodeEntry), ...entriesOf(v1, ["mcp"], opencodeEntry)];
   },
-  // The Project's `opencode.jsonc` if it has one, else `opencode.json`. Written in the file's own
-  // shape: V1 `mcp.<name>` when it already holds V1 entries and no `mcp.servers`, else V2.
-  personal: async (project) => {
-    const projectFile = (await exists(join(project, "opencode.jsonc"))) ? "opencode.jsonc" : "opencode.json";
-    return {
-      file: join(project, projectFile),
-      projectFile,
-      at: (config, name) => {
-        const mcp = isObj(config) && isObj(config.mcp) ? config.mcp : {};
-        const v1 =
-          mcp.servers === undefined &&
-          Object.entries(mcp).some(([, value]) => isObj(value) && typeof value.type === "string");
-        return v1 ? ["mcp", name] : ["mcp", "servers", name];
-      },
-    };
-  },
+  personal: async (project) => opencodeProjectTarget(project),
+  shared: async (project) => opencodeProjectTarget(project),
+  read: opencodeEntry,
+  gate: async () => undefined,
   toAgent: opencodeShape,
+};
+
+/** Cursor's Project file, for Personal (git-excluded) and Shared (committed) alike. */
+const cursorProjectTarget = (project: string): McpTarget => ({
+  file: join(project, ".cursor/mcp.json"),
+  projectFile: ".cursor/mcp.json",
+  at: (_config, name) => ["mcpServers", name],
+});
+
+// The Project's `opencode.jsonc` if it has one, else `opencode.json`. Written in the file's own
+// shape: V1 `mcp.<name>` when it already holds V1 entries and no `mcp.servers`, else V2.
+const opencodeProjectTarget = async (project: string): Promise<McpTarget> => {
+  const projectFile = (await exists(join(project, "opencode.jsonc"))) ? "opencode.jsonc" : "opencode.json";
+  return {
+    file: join(project, projectFile),
+    projectFile,
+    at: (config, name) => {
+      const mcp = isObj(config) && isObj(config.mcp) ? config.mcp : {};
+      const v1 =
+        mcp.servers === undefined &&
+        Object.entries(mcp).some(([, value]) => isObj(value) && typeof value.type === "string");
+      return v1 ? ["mcp", name] : ["mcp", "servers", name];
+    },
+  };
 };
 
 /** `~/.codex/config.toml` `[mcp_servers.<name>]`. `CODEX_HOME` isn't honoured yet. */
@@ -359,11 +389,10 @@ export const codexMcp: AgentMcp = {
   format: "toml",
   servers: (config) => entriesOf(isObj(config) ? config.mcp_servers : undefined, ["mcp_servers"], codexEntry),
   // Loaded only once the Project is trusted in Codex; Dark Matter never trusts it for you.
-  personal: async (project) => ({
-    file: join(project, ".codex/config.toml"),
-    projectFile: ".codex/config.toml",
-    at: (_config, name) => ["mcp_servers", name],
-  }),
+  personal: async (project) => codexProjectTarget(project),
+  shared: async (project) => codexProjectTarget(project),
+  read: codexEntry,
+  gate: async (project, env) => ((await codexTrusts(project, env)) ? undefined : "untrusted"),
   toAgent: codexShape,
 };
 
@@ -373,8 +402,15 @@ export const mcpConfigEdits = {
     read: (text: string, path: string) => jsonc.read(text, path),
     remove: (text: string, at: string[]) => jsonc.remove(text, at),
     restore: (text: string, at: string[], raw: Obj) => jsonc.set(text, at, raw),
-    /** Writes (or replaces) the entry at `at`. */
-    write: (text: string, at: string[], entry: Obj) => jsonc.put(text, at, entry),
+    /** Writes (or replaces) the entry at `at`. A new file is pretty-printed with a final newline. */
+    write: (text: string, at: string[], entry: Obj) =>
+      text.trim() === ""
+        ? `${JSON.stringify(
+            at.reduceRight<unknown>((inner, key) => ({ [key]: inner }), entry),
+            null,
+            2,
+          )}\n`
+        : jsonc.put(text, at, entry),
   },
   toml: {
     read: (text: string, path: string) => toml.read(text, path),
@@ -393,5 +429,28 @@ export const readGlobalMcp = async (mcp: AgentMcp, env: AgentPathEnv) => {
     return { file, text, entries: mcp.servers(mcpConfigEdits[mcp.format].read(text, file)), problem: null };
   } catch (error) {
     return { file, text, entries: [] as McpEntry[], problem: error instanceof Error ? error.message : String(error) };
+  }
+};
+
+const codexProjectTarget = (project: string): McpTarget => ({
+  file: join(project, ".codex/config.toml"),
+  projectFile: ".codex/config.toml",
+  at: (_config, name) => ["mcp_servers", name],
+});
+
+/** Codex's user config, where it records trust: `[projects."<path>"] trust_level = "trusted"`. */
+export const codexUserConfig = ({ home }: AgentPathEnv) => join(home, ".codex/config.toml");
+
+/** Whether Codex trusts the Project, so it loads `.codex/config.toml` there. An unreadable config trusts nothing. */
+export const codexTrusts = async (project: string, env: AgentPathEnv): Promise<boolean> => {
+  const text = await readConfigText(codexUserConfig(env));
+  if (text === null) return false;
+  try {
+    const config = toml.read(text, codexUserConfig(env));
+    const projects = isObj(config.projects) ? config.projects : {};
+    const entry = projects[project];
+    return isObj(entry) && entry.trust_level === "trusted";
+  } catch {
+    return false;
   }
 };
