@@ -125,7 +125,7 @@ export const createAppRouter = (services: CoreServices) =>
       plan: t.procedure
         .input(AdoptInput)
         .output(AdoptPlan)
-        .mutation(({ input }) => services.adopt.plan(input)),
+        .query(({ input }) => services.adopt.plan(input)),
       // `apply` is reserved by tRPC, so the procedure that applies a plan is `execute`.
       execute: t.procedure
         .input(ApplyAdoptInput)

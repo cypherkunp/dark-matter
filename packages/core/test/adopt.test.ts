@@ -12,7 +12,7 @@ const setup = async () => {
   /** Scans, then plans and applies Adopt for the findings whose real paths are given. */
   const adopt = async (...realPaths: string[]) => {
     await trpc.scan.run.mutate();
-    const plan = await trpc.adopt.plan.mutate({ findings: realPaths.map((path) => `global-skill:${path}`) });
+    const plan = await trpc.adopt.plan.query({ findings: realPaths.map((path) => `global-skill:${path}`) });
     await trpc.adopt.execute.mutate({ findings: plan.findings, planId: plan.planId });
     return plan;
   };
@@ -215,7 +215,7 @@ describe("Adopt", () => {
     const except = [".dark-matter/state", ".dark-matter/activity"];
     const before = await snapshotTree(home, except);
 
-    const plan = await trpc.adopt.plan.mutate({
+    const plan = await trpc.adopt.plan.query({
       findings: ["global-skill:~/.agents/skills/pdf", "global-skill:~/.codex/skills/docx"],
     });
 
@@ -245,7 +245,7 @@ describe("Adopt", () => {
     const { fixture, home, trpc } = await setup();
     await fixture.skill(".claude/skills/pdf", { name: "pdf" }, "One.\n");
     await trpc.scan.run.mutate();
-    const plan = await trpc.adopt.plan.mutate({ findings: ["global-skill:~/.claude/skills/pdf"] });
+    const plan = await trpc.adopt.plan.query({ findings: ["global-skill:~/.claude/skills/pdf"] });
     await writeFile(join(home, ".claude/skills/pdf/SKILL.md"), "Changed.\n");
 
     await expect(trpc.adopt.execute.mutate({ findings: plan.findings, planId: plan.planId })).rejects.toMatchObject({
@@ -258,7 +258,7 @@ describe("Adopt", () => {
     const { trpc } = await setup();
     await trpc.scan.run.mutate();
 
-    await expect(trpc.adopt.plan.mutate({ findings: ["global-skill:~/.claude/skills/nope"] })).rejects.toMatchObject({
+    await expect(trpc.adopt.plan.query({ findings: ["global-skill:~/.claude/skills/nope"] })).rejects.toMatchObject({
       data: { tag: "FindingNotFound" },
     });
   });
@@ -286,7 +286,7 @@ describe("Adopt with a held hand edit", () => {
     await writeFile(join(libraryHome, "library-lock.json"), "{ not json");
     await expect.poll(async () => (await trpc.ownedFiles.problems.query()).length).toBe(1);
     await trpc.scan.run.mutate();
-    const plan = await trpc.adopt.plan.mutate({ findings: ["global-skill:~/.claude/skills/pdf"] });
+    const plan = await trpc.adopt.plan.query({ findings: ["global-skill:~/.claude/skills/pdf"] });
 
     await expect(trpc.adopt.execute.mutate({ findings: plan.findings, planId: plan.planId })).rejects.toMatchObject({
       data: { tag: "InvalidOwnedFile" },
