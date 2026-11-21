@@ -24,6 +24,14 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
               Local Source
             </span>
           )}
+          {skill.nameConflict && (
+            <span
+              data-testid="name-conflict"
+              className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px]"
+            >
+              Name Conflict
+            </span>
+          )}
         </div>
         {skill.description && <p className="truncate text-muted-foreground text-xs">{skill.description}</p>}
         <div className="truncate font-mono text-muted-foreground text-xs">
@@ -31,6 +39,9 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
         </div>
         {undo.error && <p className="text-status-warning text-xs">{undo.error.message}</p>}
       </div>
+      <span data-testid="project-count" className="shrink-0 text-muted-foreground text-xs tabular-nums">
+        {plural(skill.projects, "Project")}
+      </span>
       {skill.adoptedFrom && (
         <Button
           size="sm"
