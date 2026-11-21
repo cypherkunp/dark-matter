@@ -3,9 +3,12 @@ import { lstat, mkdir, readdir, readFile, readlink, rename, rm, symlink, writeFi
 import { join } from "node:path";
 import type { AgentId, CoreEvent, Domain } from "@dark-matter/contracts";
 import type { CoreClient } from "@dark-matter/contracts/client";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { agentHome, gitRepo } from "./agent-home";
 import { bootCore, connect, tempHome } from "./harness";
+
+// Watcher effects are polled for up to 5 s, as long as Vitest's default test timeout: leave room past it.
+vi.setConfig({ testTimeout: 15_000 });
 
 const GITHUB_ENTRY = {
   source: "acme/skills",
@@ -339,8 +342,7 @@ describe("live refresh", () => {
         },
       )
       .toEqual(["review"]);
-    // The poll waits up to 5 s, as long as Vitest's default test timeout.
-  }, 15_000);
+  });
 
   test("a burst of changes is debounced into a few events", async () => {
     const { trpc, project, drift } = await setup();
