@@ -344,3 +344,35 @@ describe("the Scan cache", () => {
     expect((await trpc.inbox.list.query()).count).toBe(0);
   });
 });
+
+describe("Un-ignoring an Inbox finding", () => {
+  test("ignored findings can be listed and restored to the Inbox", async () => {
+    const { fixture, trpc, libraryHome } = await setup();
+    await fixture.skill(".agents/skills/pdf", { name: "pdf" });
+    await fixture.skill(".agents/skills/docx", { name: "docx" });
+    await trpc.scan.run.mutate();
+    await trpc.inbox.ignore.mutate({ id: "global-skill:~/.agents/skills/pdf" });
+
+    const ignored = await trpc.inbox.ignored.query();
+    expect(ignored.count).toBe(1);
+    expect(ignored.globalSkills.flatMap((group) => group.findings.map((finding) => finding.name))).toEqual(["pdf"]);
+
+    await trpc.inbox.unignore.mutate({ id: "global-skill:~/.agents/skills/pdf" });
+
+    const inbox = await trpc.inbox.list.query();
+    expect(inbox.ignoredCount).toBe(0);
+    expect(inbox.globalSkills.flatMap((group) => group.findings.map((finding) => finding.name)).sort()).toEqual([
+      "docx",
+      "pdf",
+    ]);
+    expect((await trpc.inbox.ignored.query()).count).toBe(0);
+    expect(JSON.parse(await readFile(join(libraryHome, "settings.json"), "utf8"))).toMatchObject({
+      ignoredFindings: [],
+    });
+    expect((await trpc.activity.list.query()).entries[0]).toMatchObject({
+      action: "inbox.unignore",
+      subjects: [{ kind: "finding", id: "global-skill:~/.agents/skills/pdf" }],
+      filesWritten: ["~/.dark-matter/settings.json"],
+    });
+  });
+});
