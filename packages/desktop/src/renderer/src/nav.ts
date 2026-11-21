@@ -25,7 +25,7 @@ export const navSections: NavSection[] = [
       { label: "Favourites", path: "/library/favourites", icon: Star },
       { label: "Collections", path: "/library/collections", icon: Layers },
     ],
-    group: { label: "Namespaces", path: "/library/namespaces" },
+    // Then one row per Namespace (the sidebar adds them from the Library).
   },
   {
     title: "Projects",
@@ -49,9 +49,18 @@ export const navSections: NavSection[] = [
   },
 ];
 
-/** The breadcrumb for a path: its section, then its own label. */
-export const breadcrumbFor = (path: string): string[] => {
+const searchText = (search: Record<string, unknown>, key: string) =>
+  typeof search[key] === "string" ? search[key] : "";
+
+/** The breadcrumb for a path (and its search params): its section, then its own label. */
+export const breadcrumbFor = (path: string, search: Record<string, unknown> = {}): string[] => {
   if (path === "/settings") return ["Settings"];
+  if (path === "/namespace") return ["Library", searchText(search, "name")];
+  if (path === "/skill") {
+    const key = searchText(search, "key");
+    const at = key.lastIndexOf("/");
+    return ["Library", key.slice(0, at), key.slice(at + 1)];
+  }
   if (path === "/project") return ["Projects"];
   for (const section of navSections) {
     const entries = [...section.items, ...(section.group ? [section.group] : [])];

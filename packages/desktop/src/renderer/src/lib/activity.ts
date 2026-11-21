@@ -14,6 +14,7 @@ const actionLabels: Record<string, string> = {
   "managedSkills.turnOff": "Turned off an Agent-managed Skill",
   "adopt.apply": "Adopted Skills",
   "adopt.undo": "Undid an Adopt",
+  "namespace.rename": "Renamed a Namespace",
 };
 
 export const actionLabel = (action: string) => actionLabels[action] ?? action;
