@@ -1,4 +1,11 @@
-import type { AgentCard, Inbox, InboxFolderGroup, InboxManagedGroup, ScanResult } from "@dark-matter/contracts";
+import type {
+  AgentCard,
+  Inbox,
+  InboxFolderGroup,
+  InboxManagedGroup,
+  InboxProjectGroup,
+  ScanResult,
+} from "@dark-matter/contracts";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { homeRelative } from "./home-path";
 
@@ -12,6 +19,7 @@ export const inboxFrom = (
   ignored: readonly string[],
   env: AgentPathEnv,
   suggestedProjects = 0,
+  untracked: readonly InboxProjectGroup[] = [],
 ): Inbox => {
   const skipped = new Set(ignored);
   const all = scan?.globalSkills ?? [];
@@ -38,11 +46,18 @@ export const inboxFrom = (
       findings: managedWaiting.filter((finding) => finding.agent === adapter.id),
     }))
     .filter((group) => group.findings.length > 0);
+  const untrackedSkills = untracked
+    .map((group) => ({ ...group, findings: group.findings.filter((finding) => !skipped.has(finding.id)) }))
+    .filter((group) => group.findings.length > 0);
+  const untrackedAll = untracked.reduce((sum, group) => sum + group.findings.length, 0);
+  const untrackedWaiting = untrackedSkills.reduce((sum, group) => sum + group.findings.length, 0);
   return {
-    count: waiting.length + managedWaiting.length + suggestedProjects,
+    count: waiting.length + managedWaiting.length + untrackedWaiting + suggestedProjects,
+    untrackedSkills,
     globalSkills: [...groups.values()],
     managedSkills,
-    ignoredCount: all.length - waiting.length + managed.length - managedWaiting.length,
+    ignoredCount:
+      all.length - waiting.length + managed.length - managedWaiting.length + untrackedAll - untrackedWaiting,
     suggestedProjects,
   };
 };

@@ -21,6 +21,7 @@ import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
 import { type DailyJob, Scheduler } from "./scheduler";
 import { skillServices } from "./skill-page";
+import { untrackedSkills } from "./untracked";
 import { watchOwnedFiles } from "./watch-owned";
 
 export interface ServicesOptions {
@@ -78,14 +79,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     },
     onChange: () => bus.publish({ type: "invalidate", domains: ["scheduler"] }),
   });
-  const adopt = new Adopt({
-    home,
-    library,
-    activity,
-    latestScan: () => scans.latest,
-    rescan: () => scans.refresh(),
-    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
-  });
+
   /** What follows a Library Skill to a new key. Links (#27) push their hook here. */
   const keyRenameHooks: KeyRenameHook[] = [];
   const namespaceRename = new NamespaceRename({
@@ -95,7 +89,27 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     hooks: keyRenameHooks,
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "project"] }),
   });
+  /** Untracked Project Skills (#29) from the latest Scan. */
+  const findUntracked = () =>
+    untrackedSkills(
+      scans.latest,
+      env,
+      libraryHome,
+      Object.values(libraryLock.value.skills).flatMap((entry) =>
+        entry.localSource ? [library.absolute(entry.localSource)] : [],
+      ),
+    );
   const projectSkills = new ProjectSkillService({ home, libraryHome, library, projects, activity, bus });
+  const adopt = new Adopt({
+    home,
+    library,
+    activity,
+    latestScan: () => scans.latest,
+    rescan: () => scans.refresh(),
+    onChange: () => bus.publish({ type: "invalidate", domains: ["library", "inbox", "skill"] }),
+    untracked: () => findUntracked().flatMap((group) => group.findings),
+    keepLinks: projectSkills.keepLinks(),
+  });
   const stopWatching = watchOwnedFiles(ownedFiles, ownedFileChanged, (error) =>
     log(`watching owned files: ${String(error)}`),
   );
@@ -142,6 +156,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
           settings.value.ignoredFindings,
           env,
           waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.length,
+          findUntracked(),
         ),
       ignore: (id, client) =>
         activity.track({ client, action: "inbox.ignore", subjects: [{ kind: "finding", id }] }, async (wrote) => {

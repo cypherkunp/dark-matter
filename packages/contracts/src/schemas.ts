@@ -149,6 +149,8 @@ export const LibraryLockEntry = z.strictObject({
     .optional(),
   /** A Local Source: the folder it's authored in. The Library holds a symlink to it. */
   localSource: z.string().optional(),
+  /** Projects (home-relative) where Adopt & keep Link put a Link back (#29); Undo Adopt removes those Project Skills first. */
+  keptLinks: z.array(z.string()).optional(),
 });
 export type LibraryLockEntry = z.infer<typeof LibraryLockEntry>;
 
@@ -302,6 +304,8 @@ export const ProjectSkillEntry = z.object({
   /** Absolute resolved real folder. */
   realPath: z.string(),
   symlink: z.boolean(),
+  /** Git tracks it (the entry or its real folder in the Project): a Vendored Skill, never offered for Adopt. */
+  tracked: z.boolean().default(false),
 });
 export type ProjectSkillEntry = z.infer<typeof ProjectSkillEntry>;
 
@@ -391,6 +395,35 @@ export const InboxManagedGroup = z.object({
 });
 export type InboxManagedGroup = z.infer<typeof InboxManagedGroup>;
 
+/**
+ * A Skill in a confirmed Project's skill folder that git doesn't track and
+ * Dark Matter didn't deliver (#29). Adopt & keep Link moves it into the
+ * Library and puts a Link back, On.
+ */
+export const UntrackedSkill = z.object({
+  /** Stable across Scans: `untracked-skill:<realPath>`. */
+  id: z.string(),
+  /** The Project, absolute. */
+  project: z.string(),
+  name: z.string(),
+  description: z.string(),
+  /** Its resolved real folder, home-relative. */
+  realPath: z.string(),
+  /** Where the Project's Agents see it: `folder` is Project-relative, `path` home-relative. */
+  locations: z.array(SkillLocation).min(1),
+  /** Its real folder is outside the Project, so Adopt makes it a Local Source. */
+  localSource: z.boolean(),
+});
+export type UntrackedSkill = z.infer<typeof UntrackedSkill>;
+
+/** Untracked Skills in one Project, for the Inbox. */
+export const InboxProjectGroup = z.object({
+  project: z.string(),
+  name: z.string(),
+  findings: z.array(UntrackedSkill),
+});
+export type InboxProjectGroup = z.infer<typeof InboxProjectGroup>;
+
 /** Findings still waiting on a decision. Ignored findings are left out. */
 export const Inbox = z.object({
   /** The badge: findings waiting, across every kind. */
@@ -398,6 +431,8 @@ export const Inbox = z.object({
   globalSkills: z.array(InboxFolderGroup),
   /** Agent-managed Skills that are still on, by Agent. */
   managedSkills: z.array(InboxManagedGroup),
+  /** Untracked Project Skills, by Project (#29). */
+  untrackedSkills: z.array(InboxProjectGroup).default([]),
   ignoredCount: z.int().nonnegative(),
   /** Suggested Projects waiting to be confirmed or dismissed (listed on the Suggested screen). */
   suggestedProjects: z.int().nonnegative(),
