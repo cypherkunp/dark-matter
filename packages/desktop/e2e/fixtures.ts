@@ -6,6 +6,12 @@ import { CoreFile } from "@dark-matter/contracts";
 import { _electron, test as base, type ElectronApplication, expect } from "@playwright/test";
 import electronBinary from "electron";
 
+/** This process's env without the Agents' own location overrides, so a test never finds the developer's real config. */
+const agentFreeEnv = () => {
+  const { CLAUDE_CONFIG_DIR: _claude, CODEX_HOME: _codex, XDG_CONFIG_HOME: _xdg, ...rest } = process.env;
+  return rest;
+};
+
 const desktopDir = resolve(import.meta.dirname, "..");
 const coreEntry = resolve(desktopDir, "../core/dist/main.mjs");
 
@@ -54,7 +60,7 @@ export const test = base.extend<{
       home,
       libraryHome,
       env: {
-        ...process.env,
+        ...agentFreeEnv(),
         HOME: home,
         DARK_MATTER_HOME: libraryHome,
         DARK_MATTER_CORE_ENTRY: coreEntry,

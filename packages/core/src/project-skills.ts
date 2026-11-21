@@ -44,8 +44,11 @@ import { deliveryFolders } from "./projects";
 import { type LockImporter, lockedSkills, repoSkills } from "./repo-skills";
 import { diffSkillFiles } from "./skill-diff";
 import { computeSkillFolderHash, readSkillFiles } from "./skill-hash";
+import { WriteQueue } from "./write-queue";
 
 export interface ProjectSkillOptions {
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   libraryHome: string;
   library: Library;
@@ -54,6 +57,8 @@ export interface ProjectSkillOptions {
   bus: EventBus;
   /** Imports a `skills-lock.json` entry missing from the Library (#30 sets it); null shows NotInLibrary. */
   importer?: () => LockImporter | null;
+  /** Delivers a changed record (e.g. its Agents) for Skills and MCP Servers; Skills only when left out. */
+  redeliver?: (path: string, next: ProjectRecord, wrote: Wrote) => Promise<void>;
 }
 
 /** The `project` procedures for Project Skills. */
@@ -96,7 +101,7 @@ export interface SkillUsage {
  * together. `deliver` is the same step for any record change (e.g. Agents).
  */
 export class ProjectSkillService {
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   /** Each Project's Copy folders (absolute), as last planned: kept so #29 doesn't list them as untracked. */
   readonly #copyFolders = new Map<string, string[]>();
@@ -118,9 +123,61 @@ export class ProjectSkillService {
   }
 
   #serial<T>(run: () => Promise<T>): Promise<T> {
-    const next = this.#queue.then(run, run);
-    this.#queue = next.catch(() => undefined);
-    return next;
+    return (this.options.writes ?? this.#ownWrites).run(run);
+  }
+
+  /**
+   * What forgetting a Project's Skills does (review #5): its On Links go, and
+   * its Copies stay as committed files (from then on, Vendored). Project-relative paths.
+   */
+  async releasePlan(path: string, keys?: readonly string[]): Promise<{ links: string[]; keptCopies: string[] }> {
+    const record = this.#record(path);
+    const { skills } = await planDelivery(this.options.library, path, record).catch(() => ({ skills: [] }));
+    const mine = skills.filter((skill) => !keys || keys.includes(skill.key));
+    return {
+      links: mine
+        .filter((skill) => skill.mode === "link" && skill.status === "on")
+        .flatMap((skill) => skill.paths)
+        .sort(),
+      keptCopies: mine
+        .filter((skill) => skill.mode === "copy" && skill.on)
+        .flatMap((skill) => skill.paths.slice(0, 1))
+        .sort(),
+    };
+  }
+
+  /**
+   * Forgets Project Skills: Links are removed with their records; a Copy's
+   * record is dropped but its committed files and lock entry stay for the team.
+   * Nothing committed is deleted, so no "modified in repo" edit can be lost.
+   */
+  forget(path: string, keys: readonly string[], wrote: Wrote): Promise<void> {
+    return this.#serial(async () => {
+      const record = this.options.projects.value.projects[path];
+      const mine = keys.filter((key) => record?.skills[key]);
+      if (!record || mine.length === 0) return;
+      const copies = mine.filter((key) => record.skills[key]?.mode === "copy");
+      const without = (drop: readonly string[]) =>
+        Object.fromEntries(Object.entries(record.skills).filter(([key]) => !drop.includes(key)));
+      try {
+        if (copies.length > 0) {
+          const kept = { ...record, skills: without(copies) };
+          wrote(
+            await this.options.projects.update((file) => ({ ...file, projects: { ...file.projects, [path]: kept } })),
+          );
+        }
+        const links = mine.filter((key) => !copies.includes(key));
+        await this.deliver(path, { ...record, skills: without(mine) }, wrote, links);
+      } finally {
+        this.#changed();
+      }
+    });
+  }
+
+  /** `forget` in every Project that has any of `keys`. */
+  async forgetEverywhere(keys: readonly string[], wrote: Wrote): Promise<void> {
+    for (const [path, record] of Object.entries(this.options.projects.value.projects))
+      if (keys.some((key) => record.skills[key])) await this.forget(path, keys, wrote);
   }
 
   #record(path: string): ProjectRecord {
@@ -481,9 +538,11 @@ export class ProjectSkillService {
       plan: async (links) => {
         const steps: PlanStep[] = [];
         const warnings: string[] = [];
+        const addedAgents: { project: string; agent: AgentId }[] = [];
         for (const [path, own] of byProject(links)) {
           const { record, added } = next(path, own);
           for (const adapter of added) {
+            addedAgents.push({ project: path, agent: adapter.id });
             warnings.push(
               `Adds ${adapter.name} to ${basename(path)}'s Agents, so ${adapter.skills.deliveryFolder} keeps its Skills.`,
             );
@@ -511,7 +570,7 @@ export class ProjectSkillService {
             change: `add ${[...new Set(links.map((link) => link.key))].sort().join(", ")} as Links, On`,
           });
         }
-        return { steps, warnings };
+        return { steps, warnings, addedAgents };
       },
       apply: async (links, wrote) => {
         try {
@@ -526,6 +585,20 @@ export class ProjectSkillService {
         const { [key]: _gone, ...skills } = record.skills;
         try {
           await this.deliver(path, { ...record, skills }, wrote, [key]);
+        } finally {
+          this.#changed();
+        }
+      },
+      removeAgents: async (path, agents, wrote) => {
+        const record = projects.value.projects[path];
+        if (!record) return;
+        const kept = record.agents.filter((agent) => !agents.includes(agent));
+        // A Project always has an Agent; one the user removed since is already gone.
+        if (kept.length === 0 || kept.length === record.agents.length) return;
+        try {
+          const next = { ...record, agents: kept };
+          if (this.options.redeliver) await this.options.redeliver(path, next, wrote);
+          else await this.deliver(path, next, wrote);
         } finally {
           this.#changed();
         }
@@ -616,8 +689,12 @@ export class ProjectSkillService {
           return [{ path, skills: await this.deliver(path, next, wrote, [], { claim }) }];
         }).then(([result]) => result as ProjectSkills),
 
-      resolveConflict: ({ path, key }, client) =>
-        this.#changeOne(client, "project.resolveConflict", path, key, (record, current) => {
+      resolveConflict: ({ path, key, discardEdits }, client) =>
+        this.#changeOne(client, "project.resolveConflict", path, key, async (record, current) => {
+          // The Skills it removes are deliveries like any other: a Copy edited in the repo asks first.
+          const planned = (await planDelivery(this.options.library, path, record)).skills;
+          for (const other of planned)
+            if (current.conflictsWith.includes(other.key)) guardEdits(path, other, discardEdits);
           const skills = Object.fromEntries(
             Object.entries(record.skills).filter(([other]) => !current.conflictsWith.includes(other)),
           );

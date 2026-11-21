@@ -8,12 +8,12 @@ import { Input } from "@/components/ui/input";
 import { useTRPC } from "@/lib/trpc";
 import { ModifiedBadge } from "./modified-badge";
 
-/** Orphaned (#33): the upstream is gone; the Library copy is kept as is. */
+/** Orphaned (#33): its Source is gone; the Library copy is kept as is. */
 export function OrphanedBadge({ reason }: { reason?: string }) {
   return (
     <span
       data-testid="orphaned-badge"
-      title={reason ?? "Its upstream can't be found any more: kept as is until you Detach or re-point it"}
+      title={reason ?? "Its Source can't be found any more: kept as is until you Detach or re-point it"}
       className="rounded-full bg-warning-surface px-2 py-0.5 font-medium text-[11px] text-status-warning"
     >
       Orphaned
@@ -39,7 +39,7 @@ export function CheckUpstreamButton({ skill }: { skill: SkillDetail }) {
       {check.isSuccess && (
         <span data-testid="check-upstream-result" className="text-muted-foreground text-xs">
           {orphaned ? (
-            "Upstream gone"
+            "Source gone"
           ) : found ? (
             <Link to="/library/updates" className="text-foreground underline">
               Update available
@@ -51,7 +51,7 @@ export function CheckUpstreamButton({ skill }: { skill: SkillDetail }) {
           )}
         </span>
       )}
-      {check.isError && <span className="text-destructive text-xs">{check.error.message}</span>}
+      {check.isError && <span className="text-status-warning text-xs">{check.error.message}</span>}
       <Button
         size="sm"
         variant="outline"
@@ -112,7 +112,7 @@ function UpdateRow({ update }: { update: SkillUpdate }) {
           it a local Skill that never updates.
         </p>
       )}
-      {apply.isError && <p className="text-destructive text-xs">{apply.error.message}</p>}
+      {apply.isError && <p className="text-status-warning text-xs">{apply.error.message}</p>}
       {showDiff && (
         <pre data-testid="update-diff" className="max-h-96 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">
           {diff.isPending ? "Loading…" : diff.isError ? diff.error.message : diff.data.patch || "No changes"}
@@ -167,7 +167,7 @@ function OrphanedRow({ skillKey, reason }: { skillKey: string; reason: string })
           Re-point
         </Button>
       </form>
-      {error && <p className="text-destructive text-xs">{error.message}</p>}
+      {error && <p className="text-status-warning text-xs">{error.message}</p>}
     </div>
   );
 }
@@ -197,7 +197,7 @@ export function UpdatesList() {
             </Button>
           )}
         </h2>
-        {apply.isError && <p className="text-destructive text-xs">{apply.error.message}</p>}
+        {apply.isError && <p className="text-status-warning text-xs">{apply.error.message}</p>}
         {updates.length === 0 ? (
           <p data-testid="updates-empty" className="rounded-xl border px-5 py-6 text-muted-foreground text-sm">
             Every Imported Skill matches its Source.

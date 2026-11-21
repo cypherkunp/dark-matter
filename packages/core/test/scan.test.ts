@@ -2,7 +2,7 @@ import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vitest";
-import { agentHome, snapshotTree } from "./agent-home";
+import { agentHome, gitRepo, snapshotTree } from "./agent-home";
 import { bootCore, connect, tempHome } from "./harness";
 
 const setup = async () => {
@@ -374,5 +374,51 @@ describe("Un-ignoring an Inbox finding", () => {
       subjects: [{ kind: "finding", id: "global-skill:~/.agents/skills/pdf" }],
       filesWritten: ["~/.dark-matter/settings.json"],
     });
+  });
+});
+
+describe("Agent location overrides (review #15)", () => {
+  test("CLAUDE_CONFIG_DIR, CODEX_HOME and XDG_CONFIG_HOME move where Agents' Skills, MCP configs and Claude's state are read and written", async () => {
+    const { home, libraryHome } = await tempHome();
+    const claude = join(home, "alt/claude");
+    const codex = join(home, "alt/codex");
+    const xdg = join(home, "alt/xdg");
+    const fixture = agentHome(home);
+    await fixture.skill(join(claude, "skills/review"), { name: "review", description: "Reviews" });
+    await fixture.skill(join(codex, "skills/lint"), { name: "lint", description: "Lints" });
+    await fixture.skill(join(xdg, "opencode/skills/docs"), { name: "docs", description: "Docs" });
+    // The default places hold Skills that must now be ignored.
+    await fixture.skill(".claude/skills/old", { name: "old", description: "Old" });
+    await mkdir(codex, { recursive: true });
+    await writeFile(join(codex, "config.toml"), '[mcp_servers.gh]\ncommand = "gh-mcp"\n');
+    const core = await bootCore({
+      HOME: home,
+      DARK_MATTER_HOME: libraryHome,
+      CLAUDE_CONFIG_DIR: claude,
+      CODEX_HOME: codex,
+      XDG_CONFIG_HOME: xdg,
+    });
+    const { trpc } = connect(core);
+
+    await trpc.scan.run.mutate();
+
+    const inbox = await trpc.inbox.list.query();
+    expect(inbox.globalSkills.flatMap((group) => group.findings.map((finding) => finding.name)).sort()).toEqual([
+      "docs",
+      "lint",
+      "review",
+    ]);
+    expect(inbox.mcpServers.map((group) => [group.agent, group.file])).toEqual([["codex", "~/alt/codex/config.toml"]]);
+
+    // Claude Code keeps its state file inside CLAUDE_CONFIG_DIR: Personal entries go there.
+    await mkdir(join(libraryHome, "mcp"), { recursive: true });
+    await writeFile(join(libraryHome, "mcp/notes.json"), JSON.stringify({ transport: "stdio", command: "notes" }));
+    const app = await gitRepo(home, "code/app");
+    await trpc.project.add.mutate({ path: app, agents: ["claude-code"] });
+    await expect.poll(async () => (await trpc.mcp.list.query()).servers.length, { timeout: 5000 }).toBe(1);
+    await trpc.project.addMcpServers.mutate({ servers: [{ path: app, name: "notes" }] });
+    const state = JSON.parse(await readFile(join(claude, ".claude.json"), "utf8"));
+    expect(state.projects[app].mcpServers.notes).toEqual({ type: "stdio", command: "notes" });
+    await expect(readFile(join(home, ".claude.json"), "utf8")).rejects.toThrow();
   });
 });

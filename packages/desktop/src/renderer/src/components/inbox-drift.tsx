@@ -47,7 +47,7 @@ function DriftRow({ finding }: { finding: DriftFinding }) {
         {finding.paths.length > 0 && (
           <div className="truncate font-mono text-muted-foreground text-xs">{finding.paths.join(" · ")}</div>
         )}
-        {error && <p className="text-destructive text-xs">{error.message}</p>}
+        {error && <p className="text-status-warning text-xs">{error.message}</p>}
       </div>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => ignore.mutate({ id: finding.id })}>

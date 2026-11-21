@@ -329,6 +329,30 @@ export class McpFileShared extends TaggedError<"McpFileShared"> {
   }
 }
 
+/** A Shared (committed) delivery would put a value that is or looks like a Secret into the repo, in a place that can't hold a reference. */
+export class McpSecretInShared extends TaggedError<"McpSecretInShared"> {
+  readonly _tag = "McpSecretInShared";
+  constructor(
+    readonly server: string,
+    readonly where: string,
+  ) {
+    super(
+      `${server} can't be Shared: its ${where} holds what looks like a Secret, which would be committed. Move it into an env var or header as a Secret reference first, or deliver it as Personal`,
+    );
+  }
+}
+
+/** A Personal MCP entry was edited by hand since Dark Matter wrote it (story 104); it's never overwritten or removed without asking. */
+export class McpEditedByHand extends TaggedError<"McpEditedByHand"> {
+  readonly _tag = "McpEditedByHand";
+  constructor(
+    readonly server: string,
+    readonly file: string,
+  ) {
+    super(`${server} was edited by hand in ${file}. Confirm discarding the edit, or keep it as it is.`);
+  }
+}
+
 /** A Secret that On Personal deliveries still use can't be deleted: turn them Off or edit the definitions first. */
 export class SecretInUse extends TaggedError<"SecretInUse"> {
   readonly _tag = "SecretInUse";
@@ -418,5 +442,43 @@ export class RequestDecided extends TaggedError<"RequestDecided"> {
     readonly status: string,
   ) {
     super(`Request ${id} is already ${status}`);
+  }
+}
+
+/** No restorable deleted Skill has this id in `trash/` (it was purged or restored). */
+export class TrashedSkillNotFound extends TaggedError<"TrashedSkillNotFound"> {
+  readonly _tag = "TrashedSkillNotFound";
+  constructor(readonly id: string) {
+    super(`${id} isn't in the trash any more`);
+  }
+}
+
+/** Something a plan step was about to change changed on disk since it was planned (review #21); nothing past it ran. */
+export class PlanTargetChanged extends TaggedError<"PlanTargetChanged"> {
+  readonly _tag = "PlanTargetChanged";
+  constructor(
+    readonly path: string,
+    readonly reason: string,
+  ) {
+    super(`${path} ${reason}; nothing was changed`);
+  }
+}
+
+/** A Skill couldn't be copied out of the fetched Source while Importing (review #21). */
+export class ImportFailed extends TaggedError<"ImportFailed"> {
+  readonly _tag = "ImportFailed";
+  constructor(
+    readonly skill: string,
+    readonly reason: string,
+  ) {
+    super(`${skill} couldn't be Imported: ${reason}`);
+  }
+}
+
+/** An approved Request arrived before the core could apply Requests (it's still starting). Try again. */
+export class RequestsNotReady extends TaggedError<"RequestsNotReady"> {
+  readonly _tag = "RequestsNotReady";
+  constructor() {
+    super("The core can't apply Requests yet: it's still starting. Try again in a moment.");
   }
 }

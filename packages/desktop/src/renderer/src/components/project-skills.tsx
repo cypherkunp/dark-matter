@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Download, Plus } from "lucide-react";
 import { useState } from "react";
-import { CopyActions, CopyStateBadge, useProjectSkillChanges } from "@/components/copy-actions";
+import { CopyActions, CopyStateBadge, useProjectSkillChanges, useResolveConflict } from "@/components/copy-actions";
 import { looksLikeGitHubSource } from "@/components/github-import";
 import { SkillsShResults } from "@/components/skills-sh";
 import { StatusDot } from "@/components/status-dot";
@@ -60,11 +60,10 @@ export function OnOffSwitch({
 }
 
 function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill }) {
-  const trpc = useTRPC();
   const changes = useProjectSkillChanges(path, skill);
-  const resolve = useMutation(trpc.project.resolveConflict.mutationOptions());
+  const resolve = useResolveConflict(path, skill);
   const conflict = skill.status === "nameConflict";
-  const busy = changes.busy || resolve.isPending;
+  const busy = changes.busy || resolve.busy;
   const error = changes.error ?? resolve.error;
   return (
     <div data-testid="project-skill-row" className="flex min-h-16 items-center gap-3 px-5 py-3">
@@ -94,7 +93,7 @@ function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill })
           variant="outline"
           title={`Keep ${skill.key} and remove ${skill.conflictsWith.join(", ")} from this Project`}
           disabled={busy}
-          onClick={() => resolve.mutate({ path, key: skill.key })}
+          onClick={resolve.resolve}
         >
           Resolve: keep this
         </Button>
@@ -105,6 +104,7 @@ function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill })
       </Button>
       <OnOffSwitch on={skill.on} disabled={busy || conflict} label={`${skill.name} On`} onChange={changes.toggle} />
       {changes.dialog}
+      {resolve.dialog}
     </div>
   );
 }

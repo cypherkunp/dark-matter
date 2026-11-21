@@ -1,8 +1,8 @@
-import { lstat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { type LockedSkill, NotInLibrary, type ProjectRecord, type RepoSkills } from "@dark-matter/contracts";
 import { agentAdapters } from "./agents";
 import { deliveredName } from "./delivery";
+import { isRealDirectory } from "./fs-util";
 import { type Library, splitKey } from "./library";
 import { COPY_FOLDER, lockEntry, type ProjectLockEntry, readProjectLock } from "./project-lock";
 import { scanProject } from "./scanner";
@@ -46,12 +46,6 @@ const copyNames = async (library: Library, record: ProjectRecord) => {
   return names;
 };
 
-const isDirectory = (path: string) =>
-  lstat(path).then(
-    (info) => info.isDirectory(),
-    () => false,
-  );
-
 /** Lock entries not yet Project Skills, with the Library Skill that would fulfil each. */
 export const lockedSkills = async (
   library: Library,
@@ -74,7 +68,7 @@ export const lockedSkills = async (
         source: entry.source,
         sourceType: entry.sourceType ?? "github",
         key,
-        present: await isDirectory(join(project, COPY_FOLDER, name)),
+        present: await isRealDirectory(join(project, COPY_FOLDER, name)),
         message,
       },
     });

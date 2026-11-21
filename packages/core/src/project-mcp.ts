@@ -7,6 +7,7 @@ import {
   isTaggedError,
   type McpDefinition,
   type McpDeliveryMode,
+  type McpEntryRef,
   McpModifiedInRepo,
   McpServerFile,
   McpServerNotFound,
@@ -21,9 +22,10 @@ import {
 } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import type { ActivityLog, Wrote } from "./activity";
-import { agentAdapters } from "./agents";
+import { type AgentPathEnv, agentAdapters } from "./agents";
 import { editConfigFile, readConfigText, toml } from "./config-edit";
 import type { EventBus } from "./events";
+import { isRecord } from "./fs-util";
 import { fromHomeRelative, homeRelative } from "./home-path";
 import { codexUserConfig, mcpConfigEdits } from "./mcp-agents";
 import {
@@ -32,6 +34,7 @@ import {
   type McpPlanOptions,
   mcpDeliveryModes,
   planMcpDelivery,
+  sharedDefinition,
   sharedEnvVars,
 } from "./mcp-delivery";
 import { definitionOf, type McpLibrary } from "./mcp-library";
@@ -39,8 +42,13 @@ import { secretNames } from "./mcp-secrets";
 import type { OwnedFile } from "./owned-file";
 import { type ProjectMcpFinding, projectMcpFindings, repoMcpServers } from "./repo-mcp";
 import type { SecretStore } from "./secrets";
+import { WriteQueue } from "./write-queue";
 
 export interface ProjectMcpOptions {
+  /** Where the Agents keep their files (review #15); `{ home }` when left out. */
+  env?: AgentPathEnv;
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   mcp: McpLibrary;
   secrets: SecretStore;
@@ -75,19 +83,51 @@ export type McpRewriteProcedures = Pick<CoreServices["mcp"], "setSecret" | "upda
  * record, plan the whole Project, apply, save `mcpServers`", serialised.
  */
 export class ProjectMcpService {
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   constructor(private readonly options: ProjectMcpOptions) {}
 
   get #context() {
-    const { home, mcp, secrets } = this.options;
-    return { env: { home }, mcp, secrets };
+    const { mcp, secrets } = this.options;
+    return { env: this.#env, mcp, secrets };
   }
 
   #serial<T>(run: () => Promise<T>): Promise<T> {
-    const next = this.#queue.then(run, run);
-    this.#queue = next.catch(() => undefined);
-    return next;
+    return (this.options.writes ?? this.#ownWrites).run(run);
+  }
+
+  /** Removing a Project's dry run, for MCP: Personal entries go, Shared ones stay committed. */
+  releasePlan(path: string): { personalMcpServers: McpEntryRef[]; keptSharedMcpServers: McpEntryRef[] } {
+    const servers = Object.entries(this.#record(path).mcpServers ?? {});
+    const entries = (mode: string) =>
+      servers
+        .filter(([, server]) => server.mode === mode)
+        .flatMap(([name, server]) => server.delivered.map((entry) => ({ name, file: entry.file })))
+        .sort((a, b) => a.name.localeCompare(b.name) || a.file.localeCompare(b.file));
+    return { personalMcpServers: entries("personal"), keptSharedMcpServers: entries("shared") };
+  }
+
+  /**
+   * Forgets every Project MCP Server of a Project (review #5): Personal entries
+   * are removed from the Agents' configs; Shared ones stay in the committed
+   * files for the team (from then on, Vendored).
+   */
+  forgetAll(path: string, wrote: Wrote): Promise<void> {
+    return this.#serial(async () => {
+      const record = this.options.projects.value.projects[path];
+      const servers = record?.mcpServers ?? {};
+      if (!record || Object.keys(servers).length === 0) return;
+      const personal = Object.fromEntries(Object.entries(servers).filter(([, server]) => server.mode === "personal"));
+      try {
+        await this.#deliver(path, { ...record, mcpServers: {} }, wrote, personal);
+      } finally {
+        this.#changed();
+      }
+    });
+  }
+
+  get #env(): AgentPathEnv {
+    return this.options.env ?? { home: this.options.home };
   }
 
   #record(path: string): ProjectRecord {
@@ -278,12 +318,12 @@ export class ProjectMcpService {
         const targets = [];
         for (const adapter of agentAdapters) {
           if (!agents.includes(adapter.id) || !adapter.mcp) continue;
-          const target = await mcpDeliveryModes.personal.target(adapter.mcp, path, { home });
+          const target = await mcpDeliveryModes.personal.target(adapter.mcp, path, this.#env);
           targets.push({
             agent: adapter.id,
             file: homeRelative(home, target.file),
             personal: await mcpDeliveryModes.personal.offered(target, path),
-            shared: homeRelative(home, (await mcpDeliveryModes.shared.target(adapter.mcp, path, { home })).file),
+            shared: homeRelative(home, (await mcpDeliveryModes.shared.target(adapter.mcp, path, this.#env)).file),
           });
         }
         return targets;
@@ -384,19 +424,43 @@ export class ProjectMcpService {
                 const secret = secretOf.get(variable);
                 return secret ? `\${secret:${secret}}` : ref;
               });
-            const definition = mapStrings(pulled, back);
+            // An env or header value still as Dark Matter wrote it goes back to the Library's own value (story 98
+            // turned literals into references too), so pulling never loses a literal or a Secret reference.
+            const original = definitionOf(stored);
+            const written = sharedDefinition(original);
+            const restore = (
+              pulledValues: Record<string, string> | undefined,
+              writtenValues: Record<string, string> | undefined,
+              originalValues: Record<string, string> | undefined,
+            ) =>
+              pulledValues &&
+              Object.fromEntries(
+                Object.entries(pulledValues).map(([key, value]) =>
+                  writtenValues?.[key] === value && originalValues?.[key] !== undefined
+                    ? [key, originalValues[key]]
+                    : [key, back(value)],
+                ),
+              );
+            const mapped = mapStrings(pulled, back);
+            const env = restore(pulled.env, written.env, original.env);
+            const headers = restore(pulled.headers, written.headers, original.headers);
+            const definition = { ...mapped, ...(env && { env }), ...(headers && { headers }) };
             await this.#saveDefinition(name, stored, definition, wrote);
             await this.#rewritePersonal((server) => server === name, wrote);
-            return { path, servers: await this.#deliver(path, this.#record(path), wrote, {}, { refresh: [name] }) };
+            // The edit is in the Library now; the entry is rewritten from it (a literal becomes a reference).
+            return {
+              path,
+              servers: await this.#deliver(path, this.#record(path), wrote, {}, { refresh: [name], discard: [name] }),
+            };
           },
         ),
 
-      repoMcpServers: async (path) => repoMcpServers({ home }, path, this.#record(path)),
+      repoMcpServers: async (path) => repoMcpServers(this.#env, path, this.#record(path)),
 
       trustInCodex: (path, client) =>
         this.#change(client, "project.trustInCodex", [{ kind: "project", id: path }], async (wrote) => {
           const record = this.#record(path);
-          const written = await editConfigFile(codexUserConfig({ home }), (text) =>
+          const written = await editConfigFile(codexUserConfig(this.#env), (text) =>
             toml.set(text, ["projects", path], "trust_level", "trusted"),
           );
           if (written) wrote(written);
@@ -423,7 +487,7 @@ export class ProjectMcpService {
   async findings(): Promise<ProjectMcpFinding[]> {
     const found: ProjectMcpFinding[] = [];
     for (const [path, record] of Object.entries(this.options.projects.value.projects))
-      found.push(...(await projectMcpFindings({ home: this.options.home }, path, record)));
+      found.push(...(await projectMcpFindings(this.#env, path, record)));
     return found;
   }
 
@@ -504,9 +568,6 @@ export class ProjectMcpService {
     };
   }
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const lookupAt = (doc: unknown, at: readonly string[]): unknown =>
   at.reduce<unknown>((value, key) => (isRecord(value) ? value[key] : undefined), doc);

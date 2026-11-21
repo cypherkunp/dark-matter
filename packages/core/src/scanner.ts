@@ -15,6 +15,7 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters, type SkillFolder } from "./agents";
 import { readConfigText } from "./config-edit";
+import { isDirectory } from "./fs-util";
 import { gitTrackedPaths } from "./git-tracked";
 import { homeRelative } from "./home-path";
 import { managedSkillRef } from "./managed-skills";
@@ -157,6 +158,8 @@ export const scanProject = async (path: string, adapters: readonly AgentAdapter[
     exists: await isDirectory(path),
     skillFolders,
     skills: skills.map((skill) => ({ ...skill, tracked: tracked.has(skill.path) || tracked.has(skill.realPath) })),
+    // Filled in by Scans, which knows each Project's record (what Dark Matter delivered).
+    mcpServers: [],
   };
 };
 
@@ -169,10 +172,10 @@ const findManagedSkills = async (env: AgentPathEnv, adapters: readonly AgentAdap
   const found: ManagedSkill[] = [];
   for (const adapter of adapters) {
     const { off } = adapter.managed;
-    const configFile = off ? await off.file(env.home) : null;
+    const configFile = off ? await off.file(env) : null;
     const config = configFile ? ((await readConfigText(configFile).catch(() => null)) ?? "") : "";
     const seen = new Set<string>();
-    for (const folder of await adapter.managed.folders(env.home)) {
+    for (const folder of await adapter.managed.folders(env)) {
       for (const entry of await listSkillEntries({ path: folder.path })) {
         if (seen.has(entry.realPath)) continue;
         seen.add(entry.realPath);
@@ -354,9 +357,3 @@ const realOrNull = (path: string) => realpath(path).catch(() => null);
 
 const realPaths = async (paths: string[]) =>
   (await Promise.all(paths.map(realOrNull))).filter((path): path is string => path !== null);
-
-const isDirectory = (path: string) =>
-  stat(path).then(
-    (info) => info.isDirectory(),
-    () => false,
-  );

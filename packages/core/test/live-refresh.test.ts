@@ -158,6 +158,11 @@ describe("drift: npx skills overwrote a Link", () => {
     expect(
       await readFile(join(libraryHome, "trash", stamp ?? "", "app/.claude/skills/pdf/SKILL.md"), "utf8"),
     ).toContain("the skills CLI's copy");
+    // Recorded like a deleted Skill, so the daily purge removes it after the retention (review #14).
+    expect(await readJson(join(libraryHome, "trash", stamp ?? "", "trashed.json"))).toMatchObject({
+      key: `drift:${app}`,
+      kind: "drift",
+    });
     expect(await drift()).toEqual([]);
   });
 
@@ -342,6 +347,65 @@ describe("live refresh", () => {
         },
       )
       .toEqual(["review"]);
+  });
+
+  test("a new Global MCP Server in an Agent's config reaches the Inbox without Scan now", async () => {
+    const { trpc, fixture } = await setup();
+    await trpc.scan.run.mutate();
+    const servers = async () =>
+      (await trpc.inbox.list.query()).mcpServers.flatMap((group) => group.findings.map((f) => f.name));
+    expect(await servers()).toEqual([]);
+
+    await fixture.file(".cursor/mcp.json", JSON.stringify({ mcpServers: { github: { command: "gh-mcp" } } }));
+
+    await expect.poll(servers, { timeout: 5000 }).toEqual(["github"]);
+  });
+
+  test("a hand edit to ~/.claude.json is pushed live, so a Personal entry shows modified", async () => {
+    const { home, libraryHome, trpc, project } = await setup();
+    await mkdir(join(libraryHome, "mcp"), { recursive: true });
+    await writeFile(join(libraryHome, "mcp/notes.json"), JSON.stringify({ transport: "stdio", command: "notes" }));
+    await expect.poll(async () => (await trpc.mcp.list.query()).servers.length, { timeout: 5000 }).toBe(1);
+    const app = await project("code/app", ["claude-code"]);
+    await trpc.project.addMcpServers.mutate({ servers: [{ path: app, name: "notes" }] });
+    const { saw } = await recordEvents(trpc);
+
+    const claude = await readJson(join(home, ".claude.json"));
+    claude.projects[app].mcpServers.notes.command = "notes-beta";
+    await writeFile(join(home, ".claude.json"), JSON.stringify(claude));
+
+    await expect.poll(() => saw("project"), { timeout: 5000 }).toBe(true);
+    expect((await trpc.project.mcpServers.query({ path: app }))[0]?.deliveries[0]?.status).toBe("modified");
+  });
+
+  test("editing a Local Source outside the Library is pushed live", async () => {
+    const { home, libraryHome, trpc, fixture } = await setup([]);
+    const authored = join(home, "code/my-skills/mine");
+    await fixture.skill(authored, { name: "mine", description: "Mine" });
+    await mkdir(join(libraryHome, "skills/local"), { recursive: true });
+    await symlink(authored, join(libraryHome, "skills/local/mine"), "dir");
+    await writeFile(
+      join(libraryHome, "library-lock.json"),
+      JSON.stringify({
+        version: 1,
+        skills: {
+          "local/mine": {
+            source: "local/mine",
+            sourceType: "local",
+            computedHash: "0".repeat(64),
+            localSource: "~/code/my-skills/mine",
+          },
+        },
+      }),
+    );
+    await expect.poll(async () => (await trpc.library.list.query()).skills.length, { timeout: 5000 }).toBe(1);
+    const { saw, clear } = await recordEvents(trpc);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    clear();
+
+    await writeFile(join(authored, "notes.md"), "mine\n");
+
+    await expect.poll(() => saw("skill"), { timeout: 5000 }).toBe(true);
   });
 
   test("a burst of changes is debounced into a few events", async () => {

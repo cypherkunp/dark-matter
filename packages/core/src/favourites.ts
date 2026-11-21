@@ -1,5 +1,4 @@
 import { posix } from "node:path";
-import type { DatabaseSync } from "node:sqlite";
 import {
   type ActivityClient,
   type Favourites as FavouritesList,
@@ -13,6 +12,8 @@ import {
   RateLimited,
   type SettingsFile,
   SkillNotFound,
+  type StarredSourceRecord,
+  type StarredSourcesFile,
   type StarSkillInput,
   type StarSourceInput,
 } from "@dark-matter/contracts";
@@ -31,7 +32,8 @@ export interface FavouritesOptions {
   library: Library;
   activity: ActivityLog;
   checks: SourceChecks;
-  cache: DatabaseSync;
+  /** Each starred Source's baseline: owned state, not cache (review #9). */
+  starred: OwnedFile<typeof StarredSourcesFile>;
   clock: Clock;
   /** Every Library Skill, with Project usage. */
   librarySkills: () => Promise<LibrarySkill[]>;
@@ -62,36 +64,18 @@ const fromSource = (entry: LibraryLockEntry): string | null =>
 const tracksBranch = (entry: LibraryLockEntry) =>
   !!entry.ref && entry.refType !== "tag" && !/^[0-9a-f]{40}$/.test(entry.ref);
 
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS starred_sources (
-    source TEXT PRIMARY KEY,
-    known TEXT NOT NULL,
-    found TEXT NOT NULL,
-    checked_at TEXT NOT NULL
-  );
-`;
-
-interface StarredRow {
-  /** Skill folders seen at the last check. */
-  known: string[];
-  /** Folders that appeared after the first check, and when. */
-  found: Record<string, string>;
-  checkedAt: string;
-}
-
 /**
  * Favourites (#35, decided in #15 and #18): stars on Library Skills and on
  * Sources, kept in `settings.json`. A starred Source surfaces the Skills it
  * gains as "New Skills in ⭐ owner/repo" in the Inbox; nothing is ever
- * Imported on its own. What a Source had at its last check lives in the
- * cache: losing it costs one check's news, never a decision (ADR-0005).
+ * Imported on its own. What a Source had at its last check lives in
+ * `starred-sources.json`, so it survives a cache rebuild (ADR-0005).
  */
 export class Favourites {
   readonly #options: FavouritesOptions;
 
   constructor(options: FavouritesOptions) {
     this.#options = options;
-    options.cache.exec(SCHEMA);
   }
 
   get(): FavouritesList {
@@ -127,6 +111,14 @@ export class Favourites {
             return { skills, sources: starred ? [...others, kept ?? source] : others };
           }),
         );
+        // An unstarred Source's baseline goes with it: starring it again starts afresh.
+        if (!starred && this.#row(source))
+          wrote(
+            await this.#options.starred.update((current) => {
+              const { [lower(source)]: _gone, ...sources } = current.sources;
+              return { sources };
+            }),
+          );
         return this.get();
       },
     );
@@ -200,11 +192,8 @@ export class Favourites {
       .filter((group) => group.findings.length > 0);
   }
 
-  #row(source: string): StarredRow | null {
-    const row = this.#options.cache
-      .prepare("SELECT known, found, checked_at FROM starred_sources WHERE source = ?")
-      .get(lower(source)) as { known: string; found: string; checked_at: string } | undefined;
-    return row ? { known: JSON.parse(row.known), found: JSON.parse(row.found), checkedAt: row.checked_at } : null;
+  #row(source: string): StarredSourceRecord | null {
+    return this.#options.starred.value.sources[lower(source)] ?? null;
   }
 
   /** The branch a starred Source is followed on: its Library Skills' branch, else the repo's default. */
@@ -216,7 +205,7 @@ export class Favourites {
   }
 
   #check = async (session: GitHubSession, source: string, heads: ReadonlyMap<string, string>) => {
-    const { checks, cache, clock } = this.#options;
+    const { checks, starred, clock } = this.#options;
     const ref = await this.#ref(session, source);
     const head = heads.get(`${lower(source)}@${ref}`) ?? (await checks.head(session, { source, ref }));
     const { skillFolders } = await checks.folders(session, { source, ref }, head);
@@ -230,12 +219,8 @@ export class Favourites {
         if (since) found[path] = since;
       }
     }
-    cache
-      .prepare(
-        `INSERT INTO starred_sources (source, known, found, checked_at) VALUES (?, ?, ?, ?)
-         ON CONFLICT (source) DO UPDATE SET known = excluded.known, found = excluded.found, checked_at = excluded.checked_at`,
-      )
-      .run(lower(source), JSON.stringify(skillFolders), JSON.stringify(found), now);
+    const record: StarredSourceRecord = { known: [...skillFolders].sort(), found, checkedAt: now };
+    await starred.update((current) => ({ sources: { ...current.sources, [lower(source)]: record } }));
   };
 
   starredSourceCheck(): StarredSourceCheck {

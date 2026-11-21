@@ -1,7 +1,7 @@
 import type { SkillDetail, SkillProjectUse } from "@dark-matter/contracts";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { CopyActions, CopyStateBadge, useProjectSkillChanges } from "@/components/copy-actions";
+import { CopyActions, CopyStateBadge, useProjectSkillChanges, useResolveConflict } from "@/components/copy-actions";
 import { modeLabels, OnOffSwitch } from "@/components/project-skills";
 import { StatusDot } from "@/components/status-dot";
 import { useTRPC } from "@/lib/trpc";
@@ -9,9 +9,8 @@ import { useTRPC } from "@/lib/trpc";
 const pill = "rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground";
 
 function ProjectUseRow({ use }: { use: SkillProjectUse }) {
-  const trpc = useTRPC();
   const changes = useProjectSkillChanges(use.path, use);
-  const resolve = useMutation(trpc.project.resolveConflict.mutationOptions());
+  const resolve = useResolveConflict(use.path, use);
   const conflict = use.status === "nameConflict";
   return (
     <div data-testid="skill-project-row" className="flex min-h-16 items-center gap-3 px-5 py-3">
@@ -40,6 +39,7 @@ function ProjectUseRow({ use }: { use: SkillProjectUse }) {
         onChange={changes.toggle}
       />
       {changes.dialog}
+      {resolve.dialog}
     </div>
   );
 }

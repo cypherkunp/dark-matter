@@ -37,8 +37,11 @@ import { diffSkillFiles } from "./skill-diff";
 import { computeSkillFolderHash, readSkillFiles } from "./skill-hash";
 import type { SourceChecks, SourceRef } from "./source-check";
 import type { Trash } from "./trash";
+import { WriteQueue } from "./write-queue";
 
 export interface UpdatesOptions {
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   library: Library;
   importer: Importer;
@@ -75,7 +78,7 @@ const sourceId = ({ source, ref }: SourceRef) => `${source.toLowerCase()}@${ref}
  */
 export class Updates {
   readonly #options: UpdatesOptions;
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   constructor(options: UpdatesOptions) {
     this.#options = options;
@@ -581,8 +584,6 @@ export class Updates {
   }
 
   #serial<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.#queue.then(task, task);
-    this.#queue = run.catch(() => {});
-    return run;
+    return (this.#options.writes ?? this.#ownWrites).run(task);
   }
 }

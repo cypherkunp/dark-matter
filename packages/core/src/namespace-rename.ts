@@ -16,6 +16,7 @@ import type { ActivityLog } from "./activity";
 import { homeRelative } from "./home-path";
 import { type Library, splitKey } from "./library";
 import { applySteps, planId } from "./plan";
+import { WriteQueue } from "./write-queue";
 
 type EditFileStep = Extract<PlanStep, { kind: "editFile" }>;
 
@@ -32,6 +33,8 @@ export interface KeyRenameHook {
 }
 
 export interface NamespaceRenameOptions {
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   library: Library;
   activity: ActivityLog;
@@ -43,7 +46,7 @@ export interface NamespaceRenameOptions {
 /** Rename Namespace (#24): moves a Namespace's Skill folders and re-keys them in the Library Lock. */
 export class NamespaceRename {
   readonly #options: NamespaceRenameOptions;
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   constructor(options: NamespaceRenameOptions) {
     this.#options = options;
@@ -125,9 +128,7 @@ export class NamespaceRename {
   }
 
   #serial<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.#queue.then(task, task);
-    this.#queue = run.catch(() => {});
-    return run;
+    return (this.#options.writes ?? this.#ownWrites).run(task);
   }
 }
 

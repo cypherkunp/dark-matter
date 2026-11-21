@@ -109,7 +109,14 @@ describe("Personal Project MCP Servers", () => {
       github: {
         mode: "personal",
         on: true,
-        delivered: [{ agent: "claude-code", file: "~/.claude.json", at: ["projects", app, "mcpServers", "github"] }],
+        delivered: [
+          {
+            agent: "claude-code",
+            file: "~/.claude.json",
+            at: ["projects", app, "mcpServers", "github"],
+            hash: expect.any(String),
+          },
+        ],
       },
     });
     const view = {
@@ -178,9 +185,19 @@ http_headers = { Authorization = "Bearer lin_real" }
       ["cursor", "opencode", "codex"],
     ]);
     expect((await readJson(join(libraryHome, "projects.json"))).projects[app].mcpServers.linear.delivered).toEqual([
-      { agent: "cursor", file: "~/code/app/.cursor/mcp.json", at: ["mcpServers", "linear"] },
-      { agent: "opencode", file: "~/code/app/opencode.json", at: ["mcp", "servers", "linear"] },
-      { agent: "codex", file: "~/code/app/.codex/config.toml", at: ["mcp_servers", "linear"] },
+      { agent: "cursor", file: "~/code/app/.cursor/mcp.json", at: ["mcpServers", "linear"], hash: expect.any(String) },
+      {
+        agent: "opencode",
+        file: "~/code/app/opencode.json",
+        at: ["mcp", "servers", "linear"],
+        hash: expect.any(String),
+      },
+      {
+        agent: "codex",
+        file: "~/code/app/.codex/config.toml",
+        at: ["mcp_servers", "linear"],
+        hash: expect.any(String),
+      },
     ]);
   });
 
@@ -333,6 +350,43 @@ http_headers = { Authorization = "Bearer lin_real" }
     ]);
     // Off stays off.
     expect((await readJson(join(web, ".cursor/mcp.json"))).mcpServers.linear).toBeUndefined();
+  });
+
+  test("a hand edit to a Personal entry is never overwritten without asking (story 104)", async () => {
+    const { libraryHome, trpc, project } = await setup();
+    const web = await project("code/web", ["cursor"]);
+    await trpc.project.addMcpServers.mutate({ servers: [{ path: web, name: "github" }] });
+    // The record keeps a hash of what was written, never the Secret value.
+    expect(await read(join(libraryHome, "projects.json"))).not.toContain("ghp_real");
+    const file = join(web, ".cursor/mcp.json");
+    const edited = (await read(file)).replace('"LOG": "info"', '"LOG": "debug"');
+    await writeFile(file, edited);
+
+    const status = async () => (await trpc.project.mcpServers.query({ path: web }))[0]?.deliveries[0]?.status;
+    expect(await status()).toBe("modified");
+    await trpc.mcp.setSecret.mutate({ name: "github.GITHUB_PERSONAL_ACCESS_TOKEN", value: "ghp_rotated" });
+    await trpc.mcp.updateDefinition.mutate({
+      name: "github",
+      definition: { ...github, transport: "stdio", args: ["gh-mcp@2"] },
+    });
+    expect(await read(file)).toBe(edited);
+    expect(await status()).toBe("modified");
+    for (const call of [
+      trpc.project.setMcpServerOn.mutate({ path: web, name: "github", on: false }),
+      trpc.project.removeMcpServer.mutate({ path: web, name: "github" }),
+      trpc.project.updateMcpServer.mutate({ path: web, name: "github" }),
+    ])
+      await expect(call).rejects.toMatchObject({ data: { tag: "McpEditedByHand" } });
+    expect(await read(file)).toBe(edited);
+
+    // Asked: Take Library version.
+    await trpc.project.updateMcpServer.mutate({ path: web, name: "github", discardEdits: true });
+    expect((await readJson(file)).mcpServers.github).toEqual({
+      command: "npx",
+      args: ["gh-mcp@2"],
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: "ghp_rotated", LOG: "info" },
+    });
+    expect(await status()).toBe("delivered");
   });
 
   test("changing a Project's Agents moves its MCP entries to the new Agents' files", async () => {

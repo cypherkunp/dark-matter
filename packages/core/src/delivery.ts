@@ -1,4 +1,4 @@
-import { lstat, mkdir, readFile, readlink, realpath } from "node:fs/promises";
+import { mkdir, readFile, readlink, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   type CopyState,
@@ -11,6 +11,7 @@ import {
 import type { Wrote } from "./activity";
 import { agentAdapters } from "./agents";
 import { writeFileAtomic } from "./atomic";
+import { lstatOrNull } from "./fs-util";
 import { homeRelative } from "./home-path";
 import { type Library, splitKey } from "./library";
 import { applySteps } from "./plan";
@@ -67,8 +68,6 @@ export interface DeliveryModeAdapter {
   /** Whether its deliveries go in `.git/info/exclude` (personal, never committed). */
   excluded: boolean;
 }
-
-const lstatOrNull = (path: string) => lstat(path).catch(() => null);
 
 /** A Link (#8): a directory symlink to the Library folder, never a symlinked SKILL.md (Codex rejects those). */
 export const linkMode: DeliveryModeAdapter = {
@@ -293,6 +292,7 @@ export const planDelivery = async (
     steps.flatMap((step) => (step.kind === "removeLink" || step.kind === "removeFolder" ? [step.path] : [])),
   );
   const copies: { it: DeliveryTarget; index: number }[] = [];
+  const keptCopies: { it: DeliveryTarget; index: number }[] = [];
   for (const key of keys) {
     const wanted = record.skills[key];
     if (!wanted) continue;
@@ -313,6 +313,9 @@ export const planDelivery = async (
     } else track(it, await mode.plan(it, [], every));
     const { namespace } = splitKey(key);
     if (wanted.mode === "copy" && status === "on") copies.push({ it, index: skills.length });
+    // A Copy left in place by a Name Conflict still has its state, so Resolve can guard its edits.
+    if (wanted.mode === "copy" && status === "nameConflict" && wanted.on && it.claimed !== false)
+      keptCopies.push({ it, index: skills.length });
     skills.push({
       key,
       namespace,
@@ -349,6 +352,15 @@ export const planDelivery = async (
       const folder = join(project, COPY_FOLDER, it.name);
       if (!next.skills[it.name]) next.skills[it.name] = entryFor(it.key, it.name, await hashOrEmpty(folder));
       skill.copyState = await copyStateOf(folder, lockEntry(next, it.name), {
+        folder: it.source,
+        commit: library.lock.value.skills[it.key]?.commit,
+      });
+    }
+    for (const { it, index } of keptCopies) {
+      const skill = skills[index];
+      const entry = current ? lockEntry(current, it.name) : null;
+      if (!skill || !entry) continue;
+      skill.copyState = await copyStateOf(join(project, COPY_FOLDER, it.name), entry, {
         folder: it.source,
         commit: library.lock.value.skills[it.key]?.commit,
       });

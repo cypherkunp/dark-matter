@@ -203,6 +203,12 @@ export const SettingsFile = z.strictObject({
   firstRun: z.strictObject({ completedAt: z.iso.datetime() }).optional(),
   /** Starred Skills and Sources (#35). Absent until something is starred. */
   favourites: FavouritesRecord.optional(),
+  /**
+   * Inbox findings (Global Skills, Global MCP Servers, drift) the Scheduled Scan
+   * has already told you about, or that were there when it first ran, by id.
+   * Kept sorted; absent until the first Scheduled Scan.
+   */
+  notifiedFindings: z.array(z.string()).optional(),
 });
 export type SettingsFile = z.infer<typeof SettingsFile>;
 
@@ -240,6 +246,11 @@ export const LibraryLockEntry = z.strictObject({
   localSource: z.string().optional(),
   /** Projects (home-relative) where Adopt & keep Link put a Link back (#29); Undo Adopt removes those Project Skills first. */
   keptLinks: z.array(z.string()).optional(),
+  /**
+   * Agents Adopt & keep Link added to a Project (home-relative) so a kept Link
+   * stays visible (#29); Undo Adopt takes them back out (review #17). `agent` is an AgentId.
+   */
+  keptAgents: z.array(z.strictObject({ project: z.string(), agent: z.string() })).optional(),
   /** Imported (#30): the GitHub tree SHA of the Skill's folder at `commit`, so update checks compare folders, not commits. */
   skillFolderHash: z.string().optional(),
   /** Updates (#33): `tag` when `ref` is a tag, so it only moves when re-pointed. Absent = a branch. */
@@ -319,7 +330,13 @@ export const SkillDeletePlan = z.object({
 export type SkillDeletePlan = z.infer<typeof SkillDeletePlan>;
 
 /** The owned files the core watches and validates. */
-export const OwnedFileName = z.enum(["settings.json", "projects.json", "library-lock.json", "requests.json"]);
+export const OwnedFileName = z.enum([
+  "settings.json",
+  "projects.json",
+  "library-lock.json",
+  "requests.json",
+  "starred-sources.json",
+]);
 export type OwnedFileName = z.infer<typeof OwnedFileName>;
 
 /** A hand edit the core is holding because it doesn't validate. */
@@ -489,20 +506,13 @@ export const ProjectSkillEntry = z.object({
 export type ProjectSkillEntry = z.infer<typeof ProjectSkillEntry>;
 
 /** One confirmed Project's skill folders, as a Scan read them. */
-export const ProjectScan = z.object({
-  path: z.string(),
-  exists: z.boolean(),
-  /** Project-relative skill folders any v1 Agent loads, and whether each exists. */
-  skillFolders: z.array(z.object({ path: z.string(), exists: z.boolean() })),
-  skills: z.array(ProjectSkillEntry),
-});
-export type ProjectScan = z.infer<typeof ProjectScan>;
 
 /** The Skills already in a Suggested Project (First run, #46): untracked ones and Vendored (`tracked`) ones. */
 export const SuggestedProjectSkills = z.object({
   path: z.string(),
   name: z.string(),
-  skills: z.array(ProjectSkillEntry),
+  /** Each with the Namespace Adopt would give it (review #18): its Source from `skills-lock.json`, else `local`. */
+  skills: z.array(ProjectSkillEntry.extend({ namespace: z.string() })),
 });
 export type SuggestedProjectSkills = z.infer<typeof SuggestedProjectSkills>;
 
@@ -684,6 +694,37 @@ export const InboxMcpGroup = z.object({
 });
 export type InboxMcpGroup = z.infer<typeof InboxMcpGroup>;
 
+/**
+ * An MCP entry in a Project's config files that Dark Matter didn't deliver
+ * (#39), found by a Scan: committed ones (`tracked`) are Vendored and left
+ * alone; untracked ones (Claude Code's local scope included) can be Adopted.
+ */
+export const ProjectMcpEntry = z.object({
+  /** `project-mcp:<agent>:<project path>:<name>`. */
+  id: z.string(),
+  /** The Project, absolute. */
+  project: z.string(),
+  agent: AgentId,
+  name: z.string(),
+  /** The config file, home-relative. */
+  file: z.string(),
+  tracked: z.boolean(),
+  /** Inline secrets masked as `${secret:…}`. */
+  definition: McpDefinition,
+});
+export type ProjectMcpEntry = z.infer<typeof ProjectMcpEntry>;
+
+export const ProjectScan = z.object({
+  path: z.string(),
+  exists: z.boolean(),
+  /** Project-relative skill folders any v1 Agent loads, and whether each exists. */
+  skillFolders: z.array(z.object({ path: z.string(), exists: z.boolean() })),
+  skills: z.array(ProjectSkillEntry),
+  /** MCP entries in its config files that Dark Matter didn't deliver: untracked or Vendored (`tracked`). */
+  mcpServers: z.array(ProjectMcpEntry).default([]),
+});
+export type ProjectScan = z.infer<typeof ProjectScan>;
+
 /** Everything one Scan found. Cached in `state/`; rebuilt by scanning again. */
 export const ScanResult = z.object({
   scannedAt: z.iso.datetime(),
@@ -812,6 +853,14 @@ export const InboxNewSkillsGroup = z.object({
 export type InboxNewSkillsGroup = z.infer<typeof InboxNewSkillsGroup>;
 
 /** Findings still waiting on a decision. Ignored findings are left out. */
+/** Untracked MCP entries in one Project, for the Inbox. */
+export const InboxProjectMcpGroup = z.object({
+  project: z.string(),
+  name: z.string(),
+  findings: z.array(ProjectMcpEntry),
+});
+export type InboxProjectMcpGroup = z.infer<typeof InboxProjectMcpGroup>;
+
 export const Inbox = z.object({
   /** The badge: findings waiting, across every kind. */
   count: z.int().nonnegative(),
@@ -833,6 +882,8 @@ export const Inbox = z.object({
   managedMcpServers: z.array(InboxManagedMcpGroup).default([]),
   /** New Skills in starred Sources, by Source (#35). Never Imported on their own. */
   newSkills: z.array(InboxNewSkillsGroup).default([]),
+  /** Untracked Project MCP entries, by Project: Adopt them back as Personal. */
+  untrackedMcpServers: z.array(InboxProjectMcpGroup).default([]),
 });
 export type Inbox = z.infer<typeof Inbox>;
 
@@ -1004,6 +1055,7 @@ export const Domain = z.enum([
   "importer",
   "favourites",
   "requests",
+  "trash",
 ]);
 export type Domain = z.infer<typeof Domain>;
 
@@ -1048,6 +1100,11 @@ export const McpDelivered = z.strictObject({
    * edit in the repo shows as "modified in repo" instead of being overwritten.
    */
   written: z.string().optional(),
+  /**
+   * Personal only (story 104): a hash of the entry as Dark Matter wrote it (never
+   * the Secret value), so a hand edit shows as "modified" instead of being overwritten.
+   */
+  hash: z.string().optional(),
 });
 export type McpDelivered = z.infer<typeof McpDelivered>;
 
@@ -1116,6 +1173,8 @@ export const ProjectDetail = ProjectSummary.extend({
   folders: z.array(z.string()),
   /** Skills the last Scan saw in its skill folders; null before a Scan has read it. */
   skills: z.array(ProjectSkillEntry).nullable(),
+  /** MCP entries the last Scan saw in its config files that Dark Matter didn't deliver; null before a Scan. */
+  mcpServers: z.array(ProjectMcpEntry).nullable().default(null),
   /** Its Grant (#44): On/Off and adding or removing a Link go through without asking. */
   grant: z.boolean().optional(),
 });
@@ -1318,7 +1377,8 @@ export const McpDeliveryStatus = z.object({
   agent: AgentId,
   /** The config file, home-relative. */
   file: z.string(),
-  status: z.enum(["delivered", "off", "tracked", "outdated", "modifiedInRepo"]),
+  /** `modified`: a Personal entry edited by hand since Dark Matter wrote it (story 104). */
+  status: z.enum(["delivered", "off", "tracked", "outdated", "modifiedInRepo", "modified"]),
   /**
    * The Agent's own gate on a written entry (#39), when it has one: "approved",
    * "needsApproval" (Cursor; Claude Code when Dark Matter couldn't record it),
@@ -1514,3 +1574,62 @@ export const Overview = z.object({
   alerts: z.array(OverviewAlert),
 });
 export type Overview = z.infer<typeof Overview>;
+
+/** A Project MCP Server entry in one config file (home-relative). */
+export const McpEntryRef = z.object({ name: z.string(), file: z.string() });
+export type McpEntryRef = z.infer<typeof McpEntryRef>;
+
+/**
+ * What removing a Project does (review #5): Dark Matter's own deliveries go
+ * (Links and Personal MCP entries); committed ones (Copies, Shared entries)
+ * stay in the repo for the team and become Vendored. Paths are Project-relative.
+ */
+export const ProjectRemovePlan = z.object({
+  path: z.string(),
+  links: z.array(z.string()),
+  personalMcpServers: z.array(McpEntryRef),
+  keptCopies: z.array(z.string()),
+  keptSharedMcpServers: z.array(McpEntryRef),
+});
+export type ProjectRemovePlan = z.infer<typeof ProjectRemovePlan>;
+
+/** Undo Adopt's dry run: the Projects whose Links to the Skill are removed first (Copies stay as committed files). */
+export const UndoAdoptPlan = z.object({
+  key: z.string(),
+  /** Where the Skill moves back to, home-relative. */
+  adoptedFrom: z.string(),
+  projects: z.array(SkillDeleteImpact),
+});
+export type UndoAdoptPlan = z.infer<typeof UndoAdoptPlan>;
+
+/** What a starred Source had at its last check (#35): Skill folders seen, and those that appeared since the first check. */
+export const StarredSourceRecord = z.strictObject({
+  /** Skill folders seen at the last check. */
+  known: z.array(z.string()),
+  /** Folders that appeared after the first check, with when they were first seen. */
+  found: z.record(z.string(), z.iso.datetime()),
+  checkedAt: z.iso.datetime(),
+});
+export type StarredSourceRecord = z.infer<typeof StarredSourceRecord>;
+
+/**
+ * `~/.dark-matter/starred-sources.json`, owned state (ADR-0005, review #9):
+ * each starred Source's baseline, keyed by lowercased `owner/repo`. It's here,
+ * not in the cache, so deleting `state/` loses no news.
+ */
+export const StarredSourcesFile = z.strictObject({
+  sources: z.record(z.string(), StarredSourceRecord).default({}),
+});
+export type StarredSourcesFile = z.infer<typeof StarredSourcesFile>;
+
+/** A deleted Library Skill waiting in `trash/` until it's purged (story 44). */
+export const TrashedSkill = z.object({
+  /** The folder name under `trash/`. */
+  id: z.string(),
+  key: z.string(),
+  name: z.string(),
+  deletedAt: z.iso.datetime(),
+  /** When the daily run purges it, from the trash retention setting. */
+  purgeAt: z.iso.datetime(),
+});
+export type TrashedSkill = z.infer<typeof TrashedSkill>;

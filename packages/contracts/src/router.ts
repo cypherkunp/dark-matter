@@ -64,6 +64,7 @@ import {
   ProjectMcpServer,
   ProjectMcpServers,
   ProjectPath,
+  ProjectRemovePlan,
   ProjectSkill,
   ProjectSkillChange,
   ProjectSkillRef,
@@ -95,6 +96,8 @@ import {
   SkillProjectUse,
   SuggestedProjectSkills,
   SuggestedProjects,
+  TrashedSkill,
+  UndoAdoptPlan,
   UpdateMcpDefinitionInput,
   UpdateProjectMcpServer,
 } from "./schemas";
@@ -206,7 +209,12 @@ export interface CoreServices {
     plan(input: AdoptInput): Promise<AdoptPlan>;
     /** Re-plans, checks the plan id still matches, then applies it. */
     apply(input: ApplyAdoptInput, client: ClientKind): Promise<AdoptPlan>;
-    /** Undo Adopt: moves the Skill back to where it was Adopted from and puts back what Adopt removed. */
+    /** Undo Adopt's dry run: which Projects' Links to the Skill are removed first. Writes nothing. */
+    undoPlan(key: string): Promise<UndoAdoptPlan>;
+    /**
+     * Undo Adopt: removes every Link to the Skill (Copies stay), then moves it
+     * back to where it was Adopted from and puts back what Adopt removed.
+     */
     undo(key: string, client: ClientKind): Promise<void>;
   };
   scheduler: {
@@ -240,6 +248,12 @@ export interface CoreServices {
     deletePlan(key: string): Promise<SkillDeletePlan>;
     /** Moves the Skill into `trash/` (purged after the configured days) and drops it from the Library Lock. */
     delete(key: string, client: ClientKind): Promise<void>;
+  };
+  trash: {
+    /** Deleted Library Skills waiting in `trash/`, newest first. */
+    list(): Promise<TrashedSkill[]>;
+    /** Puts a deleted Skill's folder and Library Lock entry back (story 44). */
+    restore(input: { id: string }, client: ClientKind): Promise<void>;
   };
   namespace: {
     /** Rename Namespace's dry run. Writes nothing. */
@@ -294,6 +308,9 @@ export interface CoreServices {
     /** Points a Project at the folder it moved to. */
     locate(input: { path: string; newPath: string }, client: ClientKind): Promise<ProjectDetail>;
     /** Forgets a Project. Nothing on disk changes. */
+    /** Removing's dry run: the Links and Personal MCP entries that go, and the committed deliveries that stay. */
+    removePlan(path: string): Promise<ProjectRemovePlan>;
+    /** Removes Dark Matter's own deliveries (Links, Personal MCP entries), then forgets the Project. */
     remove(path: string, client: ClientKind): Promise<void>;
     /** Its Project Skills, with their delivery status. */
     skills(path: string): Promise<ProjectSkill[]>;
@@ -316,7 +333,7 @@ export interface CoreServices {
     /** Makes `skills-lock.json` entries Copies of their Library Skills; a committed folder is kept as is. */
     fulfilLock(input: FulfilLockInput, client: ClientKind): Promise<ProjectSkills>;
     /** Resolves a Name Conflict: `key` wins and the other same-name Project Skills are removed. */
-    resolveConflict(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    resolveConflict(input: ProjectSkillChange, client: ClientKind): Promise<ProjectSkills>;
     /** Its Project MCP Servers, with each Agent's delivery (#38). */
     mcpServers(path: string): Promise<ProjectMcpServer[]>;
     /** Where Personal would write for each of its Agents, and whether it's offered there. */
@@ -464,6 +481,10 @@ export const createAppRouter = (services: CoreServices) => {
         .input(ApplyAdoptInput)
         .output(AdoptPlan)
         .mutation(({ input, ctx }) => services.adopt.apply(input, ctx.client)),
+      undoPlan: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .output(UndoAdoptPlan)
+        .query(({ input }) => services.adopt.undoPlan(input.key)),
       undo: t.procedure
         .input(z.object({ key: z.string().min(1) }))
         .mutation(({ input, ctx }) => services.adopt.undo(input.key, ctx.client)),
@@ -519,6 +540,10 @@ export const createAppRouter = (services: CoreServices) => {
         .input(ProjectPath.extend({ newPath: z.string().min(1) }))
         .output(ProjectDetail)
         .mutation(({ input, ctx }) => services.project.locate(input, ctx.client)),
+      removePlan: t.procedure
+        .input(ProjectPath)
+        .output(ProjectRemovePlan)
+        .query(({ input }) => services.project.removePlan(input.path)),
       remove: t.procedure
         .input(ProjectPath)
         .mutation(({ input, ctx }) => services.project.remove(input.path, ctx.client)),
@@ -563,7 +588,7 @@ export const createAppRouter = (services: CoreServices) => {
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.fulfilLock(input, ctx.client)),
       resolveConflict: t.procedure
-        .input(ProjectSkillRef)
+        .input(ProjectSkillChange)
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.resolveConflict(input, ctx.client)),
       mcpServers: t.procedure
@@ -614,6 +639,12 @@ export const createAppRouter = (services: CoreServices) => {
         .input(ProjectPath.extend({ grant: z.boolean() }))
         .output(ProjectDetail)
         .mutation(({ input, ctx }) => services.project.setGrant(input, ctx.client)),
+    }),
+    trash: t.router({
+      list: t.procedure.output(TrashedSkill.array()).query(() => services.trash.list()),
+      restore: t.procedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.trash.restore(input, ctx.client)),
     }),
     skill: t.router({
       get: t.procedure

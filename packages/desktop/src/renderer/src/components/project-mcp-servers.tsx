@@ -103,9 +103,13 @@ function ProjectMcpServerRow({ path, server }: { path: string; server: ProjectMc
   const error = mutations.find((mutation) => mutation.error)?.error;
   const shared = server.mode === "shared";
   const modified = server.deliveries.filter((delivery) => delivery.status === "modifiedInRepo");
+  /** Personal entries edited by hand (story 104): kept until you choose. */
+  const handEdited = server.deliveries.filter((delivery) => delivery.status === "modified");
   const outdated = server.deliveries.some((delivery) => delivery.status === "outdated");
   const untrusted = server.deliveries.some((delivery) => delivery.approval === "untrusted");
-  const discardEdits = modified.length > 0;
+  const discardEdits = modified.length > 0 || handEdited.length > 0;
+  /** Off and Remove ask first for a team change, or when they'd discard a hand edit. */
+  const asks = shared || handEdited.length > 0;
   const name = server.name;
   const reset = () => {
     for (const mutation of mutations) mutation.reset();
@@ -137,6 +141,11 @@ function ProjectMcpServerRow({ path, server }: { path: string; server: ProjectMc
               modified in repo
             </span>
           )}
+          {handEdited.length > 0 && (
+            <span data-testid="mcp-hand-edited" className="text-status-warning text-xs">
+              edited by hand
+            </span>
+          )}
         </div>
         {shared && server.envVars && <EnvVars vars={server.envVars} />}
         {server.deliveries.length === 0 ? (
@@ -159,6 +168,11 @@ function ProjectMcpServerRow({ path, server }: { path: string; server: ProjectMc
         )}
         {error && <p className="text-status-warning text-xs">{error.message}</p>}
         <div className="flex flex-wrap gap-1">
+          {handEdited.length > 0 && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => setPending({ kind: "take" })}>
+              Take Library version
+            </Button>
+          )}
           {outdated && modified.length === 0 && (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => update.mutate({ path, name })}>
               Update
@@ -198,7 +212,7 @@ function ProjectMcpServerRow({ path, server }: { path: string; server: ProjectMc
         size="sm"
         variant="ghost"
         disabled={busy}
-        onClick={() => (shared ? setPending({ kind: "remove" }) : remove.mutate({ path, name }))}
+        onClick={() => (asks ? setPending({ kind: "remove" }) : remove.mutate({ path, name }))}
       >
         Remove
       </Button>
@@ -206,11 +220,11 @@ function ProjectMcpServerRow({ path, server }: { path: string; server: ProjectMc
         on={server.on}
         disabled={busy}
         label={`${name} On`}
-        onChange={(on) => (shared && !on ? setPending({ kind: "off" }) : setOn.mutate({ path, name, on }))}
+        onChange={(on) => (asks && !on ? setPending({ kind: "off" }) : setOn.mutate({ path, name, on }))}
       />
       {pending?.kind === "off" && (
         <ConfirmDialog
-          title={`Turn off ${name} for the team?`}
+          title={shared ? `Turn off ${name} for the team?` : `Turn off ${name} and discard the hand edit?`}
           confirm="Turn Off"
           busy={busy}
           error={setOn.error?.message}
@@ -222,7 +236,7 @@ function ProjectMcpServerRow({ path, server }: { path: string; server: ProjectMc
       )}
       {pending?.kind === "remove" && (
         <ConfirmDialog
-          title={`Remove ${name} for the team?`}
+          title={shared ? `Remove ${name} for the team?` : `Remove ${name} and discard the hand edit?`}
           confirm="Remove"
           busy={busy}
           error={remove.error?.message}
@@ -253,10 +267,17 @@ function ProjectMcpServerRow({ path, server }: { path: string; server: ProjectMc
           onConfirm={() => update.mutate({ path, name, discardEdits: true })}
           onClose={reset}
         >
-          <p>
-            The edit made in the repo ({modified.map((delivery) => delivery.file).join(", ")}) is replaced with the
-            Library definition. Pull into Library keeps it instead.
-          </p>
+          {modified.length > 0 ? (
+            <p>
+              The edit made in the repo ({modified.map((delivery) => delivery.file).join(", ")}) is replaced with the
+              Library definition. Pull into Library keeps it instead.
+            </p>
+          ) : (
+            <p>
+              Your hand edit in {handEdited.map((delivery) => delivery.file).join(", ")} is replaced with the Library
+              definition, with its Secrets filled in.
+            </p>
+          )}
           <PlanSummary input={{ path, name, update: true, discardEdits: true }} />
         </ConfirmDialog>
       )}
@@ -285,8 +306,22 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
   const trpc = useTRPC();
   const library = useQuery(trpc.mcp.list.queryOptions());
   const targets = useQuery(trpc.project.mcpTargets.queryOptions({ path }));
+  const current = useQuery(trpc.project.mcpServers.queryOptions({ path }));
   const [picked, setPicked] = useState<string[]>([]);
   const [mode, setMode] = useState<McpDeliveryMode>("personal");
+  /**
+   * Cursor, OpenCode and Codex keep Personal and Shared in the same Project file, and a
+   * committed file can't hold Personal entries (McpFileShared): say so before Add fails.
+   */
+  const mixed = (targets.data ?? []).flatMap((target) => {
+    if (target.file !== target.shared) return [];
+    const other = (current.data ?? []).find(
+      (server) =>
+        server.mode !== mode &&
+        server.deliveries.some((delivery) => delivery.agent === target.agent && delivery.file === target.file),
+    );
+    return other ? [{ target, other }] : [];
+  });
   const [reviewing, setReviewing] = useState(false);
   const add = useMutation(trpc.project.addMcpServers.mutationOptions({ onSuccess: onClose }));
   const candidates = (library.data?.servers ?? []).filter(
@@ -330,6 +365,21 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
                 </li>
               ))}
             </ul>
+          )}
+          {mixed.length > 0 && (
+            <div data-testid="mcp-mixed-file">
+              <Warning>
+                {mixed.map(({ target, other }) => (
+                  <p key={target.agent}>
+                    {agentName(target.agent)} keeps Personal and Shared MCP Servers in one file,{" "}
+                    <span className="font-mono">{target.file}</span>, and it already holds {other.name} as{" "}
+                    {modeLabels[other.mode]}. A Project can't mix them there: a Personal entry would be committed, or a
+                    Shared one excluded from git. Make {other.name} {modeLabels[mode]} first, or add these as{" "}
+                    {modeLabels[other.mode]}.
+                  </p>
+                ))}
+              </Warning>
+            </div>
           )}
           {reviewing ? (
             <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">

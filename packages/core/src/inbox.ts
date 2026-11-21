@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import type {
   AgentCard,
   Inbox,
@@ -8,6 +9,7 @@ import type {
   InboxMcpGroup,
   InboxNewSkillsGroup,
   InboxProjectGroup,
+  InboxProjectMcpGroup,
   ScanResult,
 } from "@dark-matter/contracts";
 import { type AgentPathEnv, agentAdapters } from "./agents";
@@ -80,8 +82,15 @@ export const inboxFrom = (
     const findings = managedMcpWaiting.filter((finding) => finding.agent === adapter.id);
     return findings.length > 0 ? [{ agent: adapter.id, findings }] : [];
   });
+  const projectMcp = (scan?.projects ?? []).flatMap((project) => project.mcpServers.filter((entry) => !entry.tracked));
+  const projectMcpWaiting = projectMcp.filter((finding) => !skipped.has(finding.id));
+  const untrackedMcpServers: InboxProjectMcpGroup[] = (scan?.projects ?? []).flatMap((project) => {
+    const findings = projectMcpWaiting.filter((finding) => finding.project === project.path);
+    return findings.length > 0 ? [{ project: project.path, name: basename(project.path), findings }] : [];
+  });
   return {
     count:
+      projectMcpWaiting.length +
       waiting.length +
       managedWaiting.length +
       mcpWaiting.length +
@@ -108,11 +117,14 @@ export const inboxFrom = (
       driftAll -
       driftWaiting +
       newSkillsAll -
-      newSkillsWaiting,
+      newSkillsWaiting +
+      projectMcp.length -
+      projectMcpWaiting.length,
     suggestedProjects,
     mcpServers,
     managedMcpServers,
     newSkills,
+    untrackedMcpServers,
   };
 };
 
@@ -154,6 +166,7 @@ export const ignoredInbox = (all: Inbox, ignored: readonly string[]): Inbox => {
     drift: only(all.drift),
     managedMcpServers: only(all.managedMcpServers),
     newSkills: only(all.newSkills),
+    untrackedMcpServers: only(all.untrackedMcpServers),
   };
   const count = Object.values(inbox).reduce(
     (sum, groups: { findings: unknown[] }[]) => sum + groups.reduce((n, group) => n + group.findings.length, 0),

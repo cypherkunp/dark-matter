@@ -44,7 +44,7 @@ function UpdatesView() {
           {check.isPending ? "Checking…" : "Check for updates"}
         </Button>
       </div>
-      {check.isError && <p className="text-destructive text-sm">{check.error.message}</p>}
+      {check.isError && <p className="text-sm text-status-warning">{check.error.message}</p>}
       {failed.length > 0 && (
         <ul className="flex flex-col gap-1 rounded-xl border border-warning-border bg-warning-surface px-5 py-3 text-xs">
           {failed.map((source) => (

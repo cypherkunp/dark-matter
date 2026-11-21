@@ -20,7 +20,7 @@ export function ProjectGrant({ project }: { project: ProjectDetail }) {
           Turning Skills and MCP Servers On or Off, and adding or removing a Link. A Copy, an MCP Server or an Import
           still asks you every time.
         </p>
-        {setGrant.error && <p className="text-destructive text-xs">{setGrant.error.message}</p>}
+        {setGrant.error && <p className="text-status-warning text-xs">{setGrant.error.message}</p>}
       </div>
       <OnOffSwitch
         on={on}

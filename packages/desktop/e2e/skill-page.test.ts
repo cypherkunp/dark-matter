@@ -53,6 +53,7 @@ test("Skill page, ⌘K and Rename Namespace, then Undo Adopt from Provenance", a
   await window.getByRole("tab", { name: "Provenance" }).click();
   await expect(window.getByTestId("adopted-from")).toHaveText("~/.claude/skills/pdf");
   await window.getByRole("button", { name: "Undo Adopt" }).click();
+  await window.getByRole("dialog").getByRole("button", { name: "Undo Adopt" }).click();
   await expect(window.getByTestId("library-empty")).toBeVisible();
   await expect.poll(() => exists(join(skill, "SKILL.md"))).toBe(true);
 });

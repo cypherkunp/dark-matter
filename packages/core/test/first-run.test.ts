@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { agentHistory, agentHome, gitRepo, snapshotTree } from "./agent-home";
@@ -65,6 +65,11 @@ describe("First run", () => {
     git(app, "add", ".claude/skills/team");
     git(app, "commit", "--quiet", "-m", "vendor team");
     await fixture.skill(join(app, ".agents/skills/notes"), { name: "notes", description: "Notes" });
+    // Its Source is in the Project's skills-lock.json, as Adopt reads it (review #18).
+    await writeFile(
+      join(app, "skills-lock.json"),
+      JSON.stringify({ version: 1, skills: { notes: { source: "acme/skills", sourceType: "github" } } }),
+    );
     const { trpc } = connect(await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome }));
 
     await trpc.scan.run.mutate();
@@ -74,8 +79,13 @@ describe("First run", () => {
         path: app,
         name: "app",
         skills: [
-          expect.objectContaining({ name: "notes", folder: ".agents/skills", tracked: false }),
-          expect.objectContaining({ name: "team", folder: ".claude/skills", tracked: true }),
+          expect.objectContaining({
+            name: "notes",
+            folder: ".agents/skills",
+            tracked: false,
+            namespace: "acme/skills",
+          }),
+          expect.objectContaining({ name: "team", folder: ".claude/skills", tracked: true, namespace: "local" }),
         ],
       },
     ]);

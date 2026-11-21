@@ -18,6 +18,16 @@ export class EventBus {
     this.#emitter.emit("event", withDerived(event));
   }
 
+  /** Tells clients these domains changed (review #22: one helper instead of hand-written events). */
+  invalidate(...domains: [Domain, ...Domain[]]): void {
+    this.publish({ type: "invalidate", domains });
+  }
+
+  /** An `onChange` callback that invalidates these domains. */
+  invalidator(...domains: [Domain, ...Domain[]]): () => void {
+    return () => this.invalidate(...domains);
+  }
+
   async *subscribe(signal: AbortSignal): AsyncIterable<CoreEvent> {
     try {
       for await (const [event] of on(this.#emitter, "event", { signal })) {

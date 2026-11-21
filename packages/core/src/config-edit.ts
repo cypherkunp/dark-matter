@@ -14,6 +14,7 @@ import {
   printParseErrorCode,
 } from "jsonc-parser";
 import { writeFileAtomic } from "./atomic";
+import { isRecord, tomlKey } from "./fs-util";
 import { toSortedJson } from "./sorted-json";
 
 /**
@@ -135,9 +136,6 @@ export const jsonc = {
     );
   },
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** Skips spaces, tabs and comments (not newlines) from `at`. */
 const skipInline = (text: string, at: number): number => {
@@ -412,8 +410,6 @@ const tableAt = (doc: TomlTable, path: string[]): TomlTable => {
 
 const isTable = (value: unknown): value is TomlTable =>
   typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
-
-const tomlKey = (key: string) => (/^[A-Za-z0-9_-]+$/.test(key) ? key : JSON.stringify(key));
 
 const appendBlock = (text: string, header: string, entries: Record<string, TomlScalar>): string => {
   const eol = text.includes("\r\n") ? "\r\n" : "\n";

@@ -1,9 +1,8 @@
-import { basename, sep } from "node:path";
+import { basename } from "node:path";
 import type { InboxProjectGroup, ScanResult, UntrackedSkill } from "@dark-matter/contracts";
 import type { AgentPathEnv } from "./agents";
+import { within } from "./fs-util";
 import { homeRelative } from "./home-path";
-
-const within = (path: string, root: string) => path === root || path.startsWith(root + sep);
 
 /**
  * Untracked Project Skills (#10 point 7) from the latest Scan: entries in a

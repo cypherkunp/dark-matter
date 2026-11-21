@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type ClientKind,
@@ -24,6 +24,7 @@ import type { ActivityLog, Wrote } from "./activity";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { writeFileAtomic } from "./atomic";
 import { editConfigFile, readConfigText } from "./config-edit";
+import { resolves } from "./fs-util";
 import { fromHomeRelative, homeRelative } from "./home-path";
 import { type McpEntry, mcpConfigEdits, readGlobalMcp } from "./mcp-agents";
 import { type InlineSecret, maskSecrets, secretNames } from "./mcp-secrets";
@@ -32,6 +33,7 @@ import type { ProjectMcpFinding } from "./repo-mcp";
 import type { SecretStore } from "./secrets";
 import { diffSkillFiles } from "./skill-diff";
 import { toSortedJson } from "./sorted-json";
+import { WriteQueue } from "./write-queue";
 
 const VISIBILITY_WARNING = (count: number) =>
   `${count === 1 ? "This MCP Server stops" : `These ${count} MCP Servers stop`} loading in every Project. ` +
@@ -187,6 +189,10 @@ interface Planned {
 const stepKey = (step: PlanStep) => toSortedJson(step);
 
 export interface McpAdoptOptions {
+  /** Where the Agents keep their files (review #15); `{ home }` when left out. */
+  env?: AgentPathEnv;
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   libraryHome: string;
   mcp: McpLibrary;
@@ -213,7 +219,7 @@ export interface McpAdoptOptions {
  */
 export class McpAdopt {
   readonly #options: McpAdoptOptions;
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   constructor(options: McpAdoptOptions) {
     this.#options = options;
@@ -327,7 +333,7 @@ export class McpAdopt {
 
   async #plan(ids: string[], names: Record<string, string>): Promise<Planned> {
     const { home, mcp, secrets } = this.#options;
-    const env: AgentPathEnv = { home };
+    const env: AgentPathEnv = this.#options.env ?? { home };
     const scan = this.#options.latestScan();
     const inProjects = ids.some((id) => id.startsWith("project-mcp:"))
       ? ((await this.#options.projectFindings?.()) ?? []).filter((finding) => !finding.tracked)
@@ -478,7 +484,7 @@ export class McpAdopt {
           change: server.isNew ? "create" : `record ${server.file.adoptedFrom?.length ?? 0} adoptions`,
         },
         async () => {
-          if (server.isNew && (await exists(path))) throw new NameConflict([name]);
+          if (server.isNew && (await resolves(path))) throw new NameConflict([name]);
           return mcp.write(name, server.file);
         },
       );
@@ -519,17 +525,9 @@ export class McpAdopt {
   }
 
   #serial<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.#queue.then(task, task);
-    this.#queue = run.catch(() => {});
-    return run;
+    return (this.#options.writes ?? this.#ownWrites).run(task);
   }
 }
-
-const exists = (path: string) =>
-  stat(path).then(
-    () => true,
-    () => false,
-  );
 
 const lookupAt = (doc: unknown, at: readonly string[]): unknown =>
   at.reduce<unknown>(

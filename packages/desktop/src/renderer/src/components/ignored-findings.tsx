@@ -63,6 +63,14 @@ const rows = (inbox: Inbox): Row[] => [
       where: agentName(group.agent),
     })),
   ),
+  ...inbox.untrackedMcpServers.flatMap((group) =>
+    group.findings.map((finding) => ({
+      id: finding.id,
+      name: finding.name,
+      kind: "Untracked Project MCP Server",
+      where: group.name,
+    })),
+  ),
   ...inbox.newSkills.flatMap((group) =>
     group.findings.map((finding) => ({
       id: finding.id,

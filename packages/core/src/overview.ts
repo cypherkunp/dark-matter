@@ -131,6 +131,16 @@ export class OverviewService {
         findings: group.findings.map((finding) => finding.id),
       });
     }
+    for (const group of inbox.untrackedMcpServers) {
+      drafts.push({
+        id: `untracked-mcp-servers:${group.project}`,
+        subject: group.name,
+        issue: `${plural(group.findings.length, "untracked Project MCP Server")}`,
+        detail: names(group.findings),
+        path: "/inbox",
+        findings: group.findings.map((finding) => finding.id),
+      });
+    }
     for (const group of inbox.managedSkills) {
       drafts.push({
         id: `managed-skills:${group.agent}`,

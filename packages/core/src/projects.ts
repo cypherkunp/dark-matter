@@ -1,4 +1,4 @@
-import { lstat, realpath, stat } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import { basename, dirname, sep } from "node:path";
 import {
   type AgentId,
@@ -13,27 +13,16 @@ import {
 } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import type { ActivityLog, Wrote } from "./activity";
+import { namespaceOf } from "./adopt";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters } from "./agents";
 import type { EventBus } from "./events";
+import { exists, isDirectory, within } from "./fs-util";
 import type { OwnedFile } from "./owned-file";
 import type { ProjectMcpProcedures } from "./project-mcp";
 import type { ProjectSkillProcedures } from "./project-skills";
 import { scanProject } from "./scanner";
 import type { Scans } from "./scans";
-
-const isDirectory = (path: string) =>
-  stat(path).then(
-    (info) => info.isDirectory(),
-    () => false,
-  );
-
-const exists = (path: string) =>
-  lstat(path).then(
-    () => true,
-    () => false,
-  );
-
-const within = (path: string, root: string) => path === root || path.startsWith(root + sep);
+import { projectLockSources } from "./skill-lock";
 
 /**
  * A Project's identity (#8): the git toplevel of `folder` (a `.git` folder or
@@ -96,7 +85,11 @@ export interface ProjectServiceOptions {
   scans: Scans;
   bus: EventBus;
   /** Re-delivers a Project's Skills for a changed record and saves it (#27). */
-  deliver?: { deliver(path: string, next: ProjectRecord, wrote: Wrote): Promise<unknown> };
+  deliver?: {
+    deliver(path: string, next: ProjectRecord, wrote: Wrote): Promise<unknown>;
+    /** Removes Dark Matter's own deliveries before a Project is forgotten (review #5). */
+    release(path: string, wrote: Wrote): Promise<void>;
+  };
 }
 
 /** Suggested Projects waiting on a decision: not confirmed, not dismissed. */
@@ -124,7 +117,7 @@ export const projectServices = ({
   deliver,
 }: ProjectServiceOptions): Omit<
   CoreServices["project"],
-  keyof ProjectSkillProcedures | keyof ProjectMcpProcedures | "setGrant"
+  keyof ProjectSkillProcedures | keyof ProjectMcpProcedures | "removePlan"
 > => {
   const changed = () => bus.publish({ type: "invalidate", domains: ["project", "inbox"] });
 
@@ -167,6 +160,8 @@ export const projectServices = ({
       })),
       folders: deliveryFolders(agents),
       skills: scans.latest?.projects.find((scanned) => scanned.path === path)?.skills ?? null,
+      mcpServers: scans.latest?.projects.find((scanned) => scanned.path === path)?.mcpServers ?? null,
+      grant: record(path).grant === true,
     };
   };
 
@@ -183,10 +178,18 @@ export const projectServices = ({
         waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.map(
           async ({ path, name }) => {
             const { skills } = await scanProject(path, agentAdapters);
+            // The Namespace Adopt would give each one (review #18): its Source in the Project's skills-lock.json.
+            const lock = await projectLockSources(path);
+            const inside = (real: string) => real === path || real.startsWith(`${path}${sep}`);
             return {
               path,
               name,
-              skills: skills.sort((a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path)),
+              skills: skills
+                .map((skill) => ({
+                  ...skill,
+                  namespace: inside(skill.realPath) ? namespaceOf(lock[basename(skill.path)]) : "local",
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path)),
             };
           },
         ),
@@ -279,9 +282,27 @@ export const projectServices = ({
       );
     },
 
+    /** The Grant (#44): On/Off and adding or removing a Link go through without asking. */
+    setGrant: ({ path, grant }, client) =>
+      activity.track(
+        { client, action: grant ? "project.grant" : "project.revokeGrant", subjects: [{ kind: "project", id: path }] },
+        async (wrote) => {
+          record(path);
+          wrote(
+            await projects.update((current) => {
+              const { grant: _, ...kept } = current.projects[path] ?? {};
+              return { ...current, projects: { ...current.projects, [path]: grant ? { ...kept, grant: true } : kept } };
+            }),
+          );
+          bus.invalidate("project");
+          return detail(path);
+        },
+      ),
+
     remove: (path, client) =>
       activity.track({ client, action: "project.remove", subjects: [{ kind: "project", id: path }] }, async (wrote) => {
         record(path);
+        await deliver?.release(path, wrote);
         wrote(
           await projects.update((file) => {
             const { [path]: _removed, ...rest } = file.projects;

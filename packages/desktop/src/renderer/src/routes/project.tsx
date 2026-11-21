@@ -7,6 +7,7 @@ import { PageHead } from "@/components/page-head";
 import { ProjectGrant } from "@/components/project-grant";
 import { ProjectMcpServers } from "@/components/project-mcp-servers";
 import { ProjectSkills } from "@/components/project-skills";
+import { RemoveProjectButton } from "@/components/remove-project";
 import { RepoSkills } from "@/components/repo-skills";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,6 @@ function GoneBanner({ project }: { project: ProjectDetail }) {
       onSuccess: (moved) => navigate({ to: "/project", search: { path: moved.path } }),
     }),
   );
-  const remove = useMutation(trpc.project.remove.mutationOptions({ onSuccess: () => navigate({ to: "/library" }) }));
   return (
     <section
       role="alert"
@@ -44,8 +44,8 @@ function GoneBanner({ project }: { project: ProjectDetail }) {
           <span className="font-mono font-semibold">{tildify(project.path)}</span> is gone
         </p>
         <p className="text-muted-foreground text-xs">
-          If the folder moved, point the Project at its new location. Remove forgets the Project; nothing on disk
-          changes.
+          If the folder moved, point the Project at its new location. Remove forgets the Project and removes its
+          Personal MCP entries.
         </p>
         {locate.error && <p className="text-status-warning text-xs">{locate.error.message}</p>}
       </div>
@@ -60,14 +60,7 @@ function GoneBanner({ project }: { project: ProjectDetail }) {
       >
         Locate…
       </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={remove.isPending}
-        onClick={() => remove.mutate({ path: project.path })}
-      >
-        Remove
-      </Button>
+      <RemoveProjectButton project={project} />
     </section>
   );
 }
@@ -206,15 +199,18 @@ function ProjectPage() {
             .join(" · ")}
           status={tildify(data.path)}
         />
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!data.exists}
-          onClick={() => void window.darkMatter.openFolder(data.path)}
-        >
-          <FolderOpen />
-          Open in Finder
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!data.exists}
+            onClick={() => void window.darkMatter.openFolder(data.path)}
+          >
+            <FolderOpen />
+            Open in Finder
+          </Button>
+          {data.exists && <RemoveProjectButton project={data} />}
+        </div>
       </div>
       {!data.exists && <GoneBanner project={data} />}
       {data.exists && <UntrackedBanner path={data.path} />}

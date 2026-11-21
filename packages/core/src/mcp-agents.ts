@@ -1,8 +1,9 @@
-import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { type McpDefinition, McpNotTranslatable } from "@dark-matter/contracts";
+import { claudeJsonFile, codexDir, opencodeDir } from "./agent-dirs";
 import type { AgentPathEnv } from "./agents";
 import { jsonc, readConfigText, toml } from "./config-edit";
+import { isRecord, resolves } from "./fs-util";
 
 /**
  * One MCP Server entry in an Agent's config: its name, its key path in the
@@ -59,8 +60,8 @@ export interface McpTarget {
 
 type Obj = Record<string, unknown>;
 
-const isObj = (value: unknown): value is Obj =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date);
+/** A plain object, not a TOML date. */
+const isObj = (value: unknown): value is Obj => isRecord(value) && !(value instanceof Date);
 
 const strings = (value: unknown): string[] | undefined =>
   Array.isArray(value) && value.every((item) => typeof item === "string") ? value : undefined;
@@ -292,21 +293,15 @@ const codexShape = (definition: McpDefinition): Obj => {
   });
 };
 
-const exists = (path: string) =>
-  stat(path).then(
-    () => true,
-    () => false,
-  );
-
 /** `~/.claude.json` top-level `mcpServers` ("user" scope): a hot state file, so every edit is a targeted patch. */
 export const claudeMcp: AgentMcp = {
-  globalFile: async ({ home }) => join(home, ".claude.json"),
+  globalFile: async (env) => claudeJsonFile(env),
   format: "json",
   servers: (config) =>
     entriesOf(isObj(config) ? config.mcpServers : undefined, ["mcpServers"], mcpServersEntry(claudeRefs)),
   // Local scope: `projects["<abs path>"].mcpServers` in the hot state file, outside the Project.
-  personal: async (project, { home }) => ({
-    file: join(home, ".claude.json"),
+  personal: async (project, env) => ({
+    file: claudeJsonFile(env),
     projectFile: null,
     at: (_config, name) => ["projects", project, "mcpServers", name],
   }),
@@ -340,9 +335,9 @@ export const cursorMcp: AgentMcp = {
 
 /** OpenCode's global `opencode.jsonc` (else `opencode.json`): V2 `mcp.servers.<name>` and V1 `mcp.<name>`. */
 export const opencodeMcp: AgentMcp = {
-  globalFile: async ({ home }) => {
-    const jsoncFile = join(home, ".config/opencode/opencode.jsonc");
-    return (await exists(jsoncFile)) ? jsoncFile : join(home, ".config/opencode/opencode.json");
+  globalFile: async (env) => {
+    const jsoncFile = join(opencodeDir(env), "opencode.jsonc");
+    return (await resolves(jsoncFile)) ? jsoncFile : join(opencodeDir(env), "opencode.json");
   },
   format: "json",
   servers: (config) => {
@@ -369,7 +364,7 @@ const cursorProjectTarget = (project: string): McpTarget => ({
 // The Project's `opencode.jsonc` if it has one, else `opencode.json`. Written in the file's own
 // shape: V1 `mcp.<name>` when it already holds V1 entries and no `mcp.servers`, else V2.
 const opencodeProjectTarget = async (project: string): Promise<McpTarget> => {
-  const projectFile = (await exists(join(project, "opencode.jsonc"))) ? "opencode.jsonc" : "opencode.json";
+  const projectFile = (await resolves(join(project, "opencode.jsonc"))) ? "opencode.jsonc" : "opencode.json";
   return {
     file: join(project, projectFile),
     projectFile,
@@ -385,7 +380,7 @@ const opencodeProjectTarget = async (project: string): Promise<McpTarget> => {
 
 /** `~/.codex/config.toml` `[mcp_servers.<name>]`. `CODEX_HOME` isn't honoured yet. */
 export const codexMcp: AgentMcp = {
-  globalFile: async ({ home }) => join(home, ".codex/config.toml"),
+  globalFile: async (env) => join(codexDir(env), "config.toml"),
   format: "toml",
   servers: (config) => entriesOf(isObj(config) ? config.mcp_servers : undefined, ["mcp_servers"], codexEntry),
   // Loaded only once the Project is trusted in Codex; Dark Matter never trusts it for you.
@@ -439,7 +434,7 @@ const codexProjectTarget = (project: string): McpTarget => ({
 });
 
 /** Codex's user config, where it records trust: `[projects."<path>"] trust_level = "trusted"`. */
-export const codexUserConfig = ({ home }: AgentPathEnv) => join(home, ".codex/config.toml");
+export const codexUserConfig = (env: AgentPathEnv) => join(codexDir(env), "config.toml");
 
 /** Whether Codex trusts the Project, so it loads `.codex/config.toml` there. An unreadable config trusts nothing. */
 export const codexTrusts = async (project: string, env: AgentPathEnv): Promise<boolean> => {

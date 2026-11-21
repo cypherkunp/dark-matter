@@ -5,6 +5,7 @@ import {
   type ClientKind,
   type Domain,
   type ImportCandidate,
+  ImportFailed,
   type ImportPreview,
   type ImportResult,
   ImportSkillNotFound,
@@ -25,6 +26,7 @@ import type { Library } from "./library";
 import { applySteps } from "./plan";
 import type { LockImporter } from "./repo-skills";
 import { computeSkillFolderHash } from "./skill-hash";
+import { WriteQueue } from "./write-queue";
 
 /** The folder name the `skills` package installs a Skill under (its `sanitizeName`), so keys match `npx skills add`. */
 export const installedName = (name: string) =>
@@ -62,11 +64,11 @@ export const installFetched = async (
     symlinks: "reject",
   });
   const failure = result.failed[0];
-  if (failure) throw new Error(`${failure.skill}: ${failure.message}`);
+  if (failure) throw new ImportFailed(failure.skill, failure.message);
   return new Map(
     candidates.map((candidate) => {
       const installed = result.installed.find((target) => target.skill === candidate.name);
-      if (!installed) throw new Error(`${candidate.name} wasn't fetched`);
+      if (!installed) throw new ImportFailed(candidate.name, "it wasn't in the fetched Source");
       return [candidate.path, installed.path] as const;
     }),
   );
@@ -92,6 +94,8 @@ export interface FetchedSource {
 }
 
 export interface ImporterOptions {
+  /** The core's one write queue (review #8); a queue of its own when left out (tests). */
+  writes?: WriteQueue;
   home: string;
   libraryHome: string;
   library: Library;
@@ -109,7 +113,7 @@ export interface ImporterOptions {
  */
 export class Importer {
   readonly #options: ImporterOptions;
-  #queue: Promise<unknown> = Promise.resolve();
+  readonly #ownWrites = new WriteQueue();
 
   constructor(options: ImporterOptions) {
     this.#options = options;
@@ -277,9 +281,7 @@ export class Importer {
   }
 
   #serial<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.#queue.then(task, task);
-    this.#queue = run.catch(() => {});
-    return run;
+    return (this.#options.writes ?? this.#ownWrites).run(task);
   }
 
   async preview(input: string): Promise<ImportPreview> {
