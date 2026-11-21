@@ -2,7 +2,11 @@ import { Tabs } from "@base-ui/react/tabs";
 import type { SkillDetail } from "@dark-matter/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { AddToProjectsDialog } from "@/components/add-to-projects";
+import { DeleteSkillDialog } from "@/components/delete-skill-dialog";
+import { ModifiedBadge } from "@/components/modified-badge";
 import { skillTabs } from "@/components/skill-tabs";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
@@ -23,10 +27,16 @@ const provenanceLine = ({ entry }: SkillDetail) => {
 };
 
 function SkillHeader({ skill }: { skill: SkillDetail }) {
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
+  const [adding, setAdding] = useState(false);
   return (
     <div className="flex items-start gap-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <h1 className="font-semibold text-2xl tracking-tight">{skill.name}</h1>
+        <h1 className="flex items-center gap-2 font-semibold text-2xl tracking-tight">
+          {skill.name}
+          {skill.modified && <ModifiedBadge />}
+        </h1>
         <p data-testid="skill-provenance-line" className="flex flex-wrap items-center gap-2 text-sm">
           <Link
             to="/namespace"
@@ -42,6 +52,21 @@ function SkillHeader({ skill }: { skill: SkillDetail }) {
         <FolderOpen />
         Reveal in Finder
       </Button>
+      <Button size="sm" onClick={() => setAdding(true)}>
+        <Plus />
+        Add to Projects
+      </Button>
+      {adding && <AddToProjectsDialog keys={[skill.key]} onClose={() => setAdding(false)} />}
+      <Button size="sm" variant="outline" onClick={() => setDeleting(true)}>
+        <Trash2 />
+        Delete
+      </Button>
+      <DeleteSkillDialog
+        skillKey={skill.key}
+        open={deleting}
+        onClose={() => setDeleting(false)}
+        onDeleted={() => void navigate({ to: "/library" })}
+      />
     </div>
   );
 }

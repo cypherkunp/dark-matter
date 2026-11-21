@@ -1,5 +1,5 @@
 import { Dialog } from "@base-ui/react/dialog";
-import type { AdoptOutcome, AdoptPlanSkill, PlanStep } from "@dark-matter/contracts";
+import type { AdoptOutcome, AdoptPlan, AdoptPlanSkill, PlanStep } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ export const stepText = (step: PlanStep): string => {
       return `remove symlink ${step.path}`;
     case "removeCopy":
       return `remove identical copy ${step.path}`;
+    case "removeFolder":
+      return `remove folder ${step.path}`;
     case "editFile":
       return `edit ${step.path}: ${step.change}${step.backup ? ` (backup ${step.backup})` : ""}`;
     case "storeSecret":
@@ -67,7 +69,16 @@ function PlannedSkill({ skill }: { skill: AdoptPlanSkill }) {
  * The dry run for Adopting some findings, and the confirmation that applies it.
  * Nothing changes on disk until "Adopt" is pressed.
  */
-export function AdoptDialog({ findings, onClose }: { findings: string[] | null; onClose: () => void }) {
+export function AdoptDialog({
+  findings,
+  onClose,
+  onAdopted,
+}: {
+  findings: string[] | null;
+  onClose: () => void;
+  /** After the Adopt is applied, e.g. to open the Add to Projects grid. */
+  onAdopted?: (plan: AdoptPlan) => void;
+}) {
   const trpc = useTRPC();
   const open = findings !== null && findings.length > 0;
   const plan = useQuery({
@@ -78,9 +89,17 @@ export function AdoptDialog({ findings, onClose }: { findings: string[] | null; 
   });
   const execute = useMutation(
     // A stale plan is refused by the core: show the fresh one to review again.
-    trpc.adopt.execute.mutationOptions({ onSuccess: onClose, onError: () => void plan.refetch() }),
+    trpc.adopt.execute.mutationOptions({
+      onSuccess: (applied) => {
+        onClose();
+        onAdopted?.(applied);
+      },
+      onError: () => void plan.refetch(),
+    }),
   );
   const count = findings?.length ?? 0;
+  // Untracked Project Skills go back into their Project as a Link (#29).
+  const keepLink = (findings ?? []).every((id) => id.startsWith("untracked-skill:"));
   const error = plan.error ?? execute.error;
 
   return (
@@ -96,10 +115,12 @@ export function AdoptDialog({ findings, onClose }: { findings: string[] | null; 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(42rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">Adopt {plural(count, "Skill")}</Dialog.Title>
+          <Dialog.Title className="font-semibold text-lg">
+            {keepLink ? "Adopt & keep Link" : "Adopt"} {plural(count, "Skill")}
+          </Dialog.Title>
           <Dialog.Description className="text-muted-foreground text-sm">
-            Each Skill moves into the Library. Nothing is deleted, and you can Undo Adopt from the Skill's Provenance
-            tab.
+            Each Skill moves into the Library{keepLink ? " and a Link to it goes back where it was, On" : ""}. Nothing
+            is deleted, and you can Undo Adopt from the Skill's Provenance tab.
           </Dialog.Description>
           {plan.data && (
             <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">

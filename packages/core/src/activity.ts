@@ -1,18 +1,65 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readdir, readFile, stat } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import {
   type ActivityClient,
   ActivityEntry,
+  type ActivityExport,
+  type ActivityFilter,
   type ActivityList,
   type ActivityQuery,
+  type ActivityRetention,
   type ActivitySubject,
   isTaggedError,
 } from "@dark-matter/contracts";
 import { homeRelative } from "./home-path";
+import type { DailyJob } from "./scheduler";
 
 const DAY_FILE = /^\d{4}-\d{2}-\d{2}\.jsonl$/;
+
+const hasSubject = (kind: string) =>
+  `EXISTS (SELECT 1 FROM json_each(entry, '$.subjects') WHERE json_extract(value, '$.kind') = '${kind}' AND json_extract(value, '$.id') = ?)`;
+
+/** The SQL for an Activity filter, as a WHERE clause over the `activity` index. */
+const whereClause = (filter: ActivityFilter): { where: string; params: SQLInputValue[] } => {
+  const conditions: string[] = [];
+  const params: SQLInputValue[] = [];
+  if (filter.skill !== undefined) {
+    conditions.push(hasSubject("skill"));
+    params.push(filter.skill);
+  }
+  const anyOf = (field: string, values: readonly string[] | undefined) => {
+    // An empty list is no filter, like a filter menu with nothing picked.
+    if (!values?.length) return;
+    conditions.push(`json_extract(entry, '$.${field}') IN (${values.map(() => "?").join(", ")})`);
+    params.push(...values);
+  };
+  anyOf("action", filter.actions);
+  anyOf("client", filter.clients);
+  if (filter.failuresOnly) conditions.push("json_extract(entry, '$.result') = 'error'");
+  if (filter.from !== undefined) {
+    conditions.push("time >= ?");
+    params.push(new Date(filter.from).toISOString());
+  }
+  if (filter.to !== undefined) {
+    conditions.push("time < ?");
+    params.push(new Date(filter.to).toISOString());
+  }
+  const search = filter.search?.trim();
+  if (search) {
+    // Text values only, not field names or bookkeeping (the entry id, its time, its result, subject kinds).
+    conditions.push(`EXISTS (SELECT 1 FROM json_tree(entry) WHERE type = 'text'
+      AND fullkey NOT IN ('$.id', '$.time', '$.result') AND key IS NOT 'kind'
+      AND instr(lower(value), lower(?)) > 0)`);
+    params.push(search);
+  }
+  if (filter.project !== undefined) {
+    conditions.push(hasSubject("project"));
+    params.push(filter.project);
+  }
+  return { where: conditions.length === 0 ? "" : `WHERE ${conditions.join(" AND ")}`, params };
+};
 
 /** What a change is, before it runs. */
 export interface ActivityOperation {
@@ -29,7 +76,7 @@ export interface ActivityLogOptions {
   libraryHome: string;
   home: string;
   cache: DatabaseSync;
-  /** Called after each entry is recorded. */
+  /** Called after each entry is recorded, and after retention deletes day files. */
   onRecorded: () => void;
   now?: () => Date;
 }
@@ -88,7 +135,7 @@ export class ActivityLog {
       const entry = ActivityEntry.parse({
         ...input,
         id: randomUUID(),
-        time: (this.#options.now?.() ?? new Date()).toISOString(),
+        time: this.#now().toISOString(),
         filesWritten: input.filesWritten.map((path) => homeRelative(this.#options.home, path)),
       });
       const name = `${entry.time.slice(0, 10)}.jsonl`;
@@ -107,11 +154,54 @@ export class ActivityLog {
     return run;
   }
 
-  list({ limit }: ActivityQuery): ActivityList {
+  /** Entries matching the filters, newest first. */
+  list({ limit, ...filter }: ActivityQuery): ActivityList {
+    return { entries: this.#select(filter, limit) };
+  }
+
+  /** Every entry matching the filter, newest first, with when and how it was filtered. */
+  export(filter: ActivityFilter): ActivityExport {
+    return { exportedAt: this.#now().toISOString(), filter, entries: this.#select(filter, -1) };
+  }
+
+  /** `limit` -1 is no limit. */
+  #select(filter: ActivityFilter, limit: number): ActivityEntry[] {
+    const { where, params } = whereClause(filter);
     const rows = this.#options.cache
-      .prepare("SELECT entry FROM activity ORDER BY time DESC, rowid DESC LIMIT ?")
-      .all(limit) as { entry: string }[];
-    return { entries: rows.map((row) => ActivityEntry.parse(JSON.parse(row.entry))) };
+      .prepare(`SELECT entry FROM activity ${where} ORDER BY time DESC, rowid DESC LIMIT ?`)
+      .all(...params, limit) as { entry: string }[];
+    return rows.map((row) => ActivityEntry.parse(JSON.parse(row.entry)));
+  }
+
+  #now(): Date {
+    return this.#options.now?.() ?? new Date();
+  }
+
+  /**
+   * Deletes the day files older than `retention` days before today (UTC, like
+   * the file names) and drops them from the index. It isn't recorded itself:
+   * it follows the retention setting, and changing that setting is recorded.
+   */
+  prune(retention: ActivityRetention): Promise<string[]> {
+    const run = this.#queue.then(async () => {
+      if (retention === "forever") return [];
+      const cutoff = new Date(this.#now());
+      cutoff.setUTCDate(cutoff.getUTCDate() - retention);
+      const oldest = `${cutoff.toISOString().slice(0, 10)}.jsonl`;
+      const expired = (await this.#dayFiles()).filter((name) => name < oldest);
+      for (const name of expired) {
+        await rm(join(this.#dir, name), { force: true });
+        this.#transaction(() => this.#forget(name));
+      }
+      if (expired.length > 0) this.#options.onRecorded();
+      return expired;
+    });
+    this.#queue = run.catch(() => {});
+    return run;
+  }
+
+  async #dayFiles(): Promise<string[]> {
+    return (await readdir(this.#dir).catch(() => [] as string[])).filter((name) => DAY_FILE.test(name)).sort();
   }
 
   /** Whether any recorded entry has this action, e.g. whether a Scan has ever run. */
@@ -138,7 +228,7 @@ export class ActivityLog {
 
   /** Re-reads each day file whose size differs from what the index has seen, and forgets deleted ones. */
   async #reindex(): Promise<void> {
-    const names = (await readdir(this.#dir).catch(() => [] as string[])).filter((name) => DAY_FILE.test(name)).sort();
+    const names = await this.#dayFiles();
     const cache = this.#options.cache;
     const indexed = new Map(
       (cache.prepare("SELECT name, size FROM activity_files").all() as { name: string; size: number }[]).map((row) => [
@@ -204,3 +294,11 @@ export class ActivityLog {
     }
   }
 }
+
+/** The daily run's retention cleanup: day files that have aged past the setting are deleted. */
+export const retentionJob = (activity: ActivityLog, retention: () => ActivityRetention): DailyJob => ({
+  name: "activity retention",
+  run: async () => {
+    await activity.prune(retention());
+  },
+});

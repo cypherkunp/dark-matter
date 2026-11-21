@@ -253,6 +253,7 @@ describe("the Scan of confirmed Projects", () => {
         path: join(app, ".agents/skills/pdf"),
         realPath: join(app, ".agents/skills/pdf"),
         symlink: false,
+        tracked: false,
       },
       {
         name: "lint",
@@ -261,6 +262,7 @@ describe("the Scan of confirmed Projects", () => {
         path: join(app, ".claude/skills/lint"),
         realPath: join(home, "code/shared/lint"),
         symlink: true,
+        tracked: false,
       },
     ]);
     // Project Skills are not Global Skills.

@@ -1,6 +1,5 @@
-import { execFile } from "node:child_process";
 import { mkdir, readFile, rm } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import {
   type AgentId,
   InvalidOwnedFile,
@@ -19,6 +18,7 @@ import { type AgentAdapter, type AgentPathEnv, agentAdapters } from "./agents";
 import { writeFileAtomic } from "./atomic";
 import { editConfigFile, readConfigText } from "./config-edit";
 import { gitExcludeFile, MCP_EXCLUDE_BLOCK, withExcludeBlock } from "./delivery";
+import { gitTrackedPaths } from "./git-tracked";
 import { fromHomeRelative, homeRelative } from "./home-path";
 import { type AgentMcp, type McpTarget, mcpConfigEdits } from "./mcp-agents";
 import { definitionOf, fillSecrets, type McpLibrary } from "./mcp-library";
@@ -52,12 +52,9 @@ export interface McpDeliveryModeAdapter {
   excluded: boolean;
 }
 
-const git = (cwd: string, args: string[]) =>
-  new Promise<boolean>((resolve) => execFile("git", ["-C", cwd, ...args], (error) => resolve(!error)));
-
 /** Whether `file` (Project-relative) is tracked by the Project's git repo. No git means not tracked. */
 export const isTracked = async (project: string, file: string): Promise<boolean> =>
-  (await gitExcludeFile(project)) !== null && git(project, ["ls-files", "--error-unmatch", "--", file]);
+  (await gitTrackedPaths(project, [join(project, file)])).size > 0;
 
 /** Personal (#38): written only where you see it, with real Secret values, never committed. */
 export const personalMode: McpDeliveryModeAdapter = {

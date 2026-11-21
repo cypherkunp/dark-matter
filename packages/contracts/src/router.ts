@@ -2,6 +2,8 @@ import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { isTaggedError } from "./errors";
 import {
+  ActivityExport,
+  ActivityFilter,
   ActivityList,
   ActivityQuery,
   AddProjectMcpServers,
@@ -14,14 +16,18 @@ import {
   ApplyMcpAdoptInput,
   ApplyRenameNamespaceInput,
   type ClientKind,
+  CopyDiff,
   type CoreEvent,
   CoreInfo,
   type CoreNotification,
+  FulfilLockInput,
   Inbox,
   LibraryList,
   LibraryMcpList,
+  ManagedMcpServer,
   McpAdoptInput,
   McpAdoptPlan,
+  McpOffScope,
   McpServerName,
   McpTarget,
   OffScope,
@@ -34,17 +40,25 @@ import {
   ProjectMcpServers,
   ProjectPath,
   ProjectSkill,
+  ProjectSkillChange,
   ProjectSkillRef,
   ProjectSkills,
   ProjectSummary,
   RenameNamespaceInput,
   RenameNamespacePlan,
+  RepoSkills,
+  SavedSkillFile,
+  SaveSkillFileInput,
   ScanResult,
   ScanStatus,
   SchedulerStatus,
   SetSecretInput,
   SettingsFile,
+  SkillDeletePlan,
   SkillDetail,
+  SkillFileContent,
+  SkillFilePath,
+  SkillFiles,
   SkillProjectUse,
   SuggestedProjects,
   UpdateMcpDefinitionInput,
@@ -77,6 +91,8 @@ export interface CoreServices {
   };
   activity: {
     list(query: ActivityQuery): ActivityList;
+    /** Every entry matching the filter, for saving as JSON. Not recorded, like any view. */
+    export(filter: ActivityFilter): ActivityExport;
   };
   scan: {
     /** Runs a read-only Scan, or joins the one already running. */
@@ -90,6 +106,8 @@ export interface CoreServices {
   };
   agents: {
     list(): AgentCard[];
+    /** Every Agent-managed MCP Server the latest Scan found, off ones included (#40). */
+    managedMcp(): ManagedMcpServer[];
   };
   managedSkills: {
     /**
@@ -97,6 +115,13 @@ export interface CoreServices {
      * own global settings, with a targeted, format-preserving edit.
      */
     turnOff(input: { id: string; scope: OffScope }, client: ClientKind): Promise<void>;
+  };
+  managedMcp: {
+    /**
+     * "Turn off everywhere" for an Agent-managed MCP Server, through its Agent's
+     * own documented global setting, with a targeted, format-preserving edit.
+     */
+    turnOff(input: { id: string; scope: McpOffScope }, client: ClientKind): Promise<void>;
   };
   adopt: {
     /** The dry run: what Adopting these findings would do. Writes nothing. */
@@ -126,6 +151,15 @@ export interface CoreServices {
   skill: {
     /** A Library Skill's page: SKILL.md split into frontmatter and body, warnings and its Library Lock entry. */
     get(key: string): Promise<SkillDetail>;
+    /** The Skill's file tree for the Files tab. */
+    files(key: string): Promise<SkillFiles>;
+    readFile(input: SkillFilePath): Promise<SkillFileContent>;
+    /** Saves one file atomically, exactly as given (SKILL.md is never rewritten). Frontmatter problems are warnings. */
+    saveFile(input: SaveSkillFileInput, client: ClientKind): Promise<SavedSkillFile>;
+    /** Deleting's dry run: the trash retention and the Projects whose Links would break or Copies stay behind. */
+    deletePlan(key: string): Promise<SkillDeletePlan>;
+    /** Moves the Skill into `trash/` (purged after the configured days) and drops it from the Library Lock. */
+    delete(key: string, client: ClientKind): Promise<void>;
   };
   namespace: {
     /** Rename Namespace's dry run. Writes nothing. */
@@ -158,9 +192,19 @@ export interface CoreServices {
     /** Adds Library Skills to Projects (Link by default) and delivers them On. Re-adding one turns it On. */
     addSkills(input: AddProjectSkills, client: ClientKind): Promise<ProjectSkills[]>;
     /** On re-delivers a Project Skill; Off removes its delivery but keeps it in `projects.json`. */
-    setSkillOn(input: ProjectSkillRef & { on: boolean }, client: ClientKind): Promise<ProjectSkills>;
+    setSkillOn(input: ProjectSkillChange & { on: boolean }, client: ClientKind): Promise<ProjectSkills>;
     /** Removes a Project Skill: its delivery goes and the Project forgets it. */
-    removeSkill(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    removeSkill(input: ProjectSkillChange, client: ClientKind): Promise<ProjectSkills>;
+    /** Replaces an On Copy's files and lock entry with the Library's version (Update, Take Library version). */
+    updateCopy(input: ProjectSkillChange, client: ClientKind): Promise<ProjectSkills>;
+    /** A Copy's edits against the Library. */
+    copyDiff(input: ProjectSkillRef): Promise<CopyDiff>;
+    /** Copies a Copy's files into its Library Skill (marked Modified when it has a Source); other Copies become outdated. */
+    pullCopy(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
+    /** Committed Skills it didn't create (Vendored) and `skills-lock.json` entries waiting to be fulfilled. Read-only. */
+    repoSkills(path: string): Promise<RepoSkills>;
+    /** Makes `skills-lock.json` entries Copies of their Library Skills; a committed folder is kept as is. */
+    fulfilLock(input: FulfilLockInput, client: ClientKind): Promise<ProjectSkills>;
     /** Resolves a Name Conflict: `key` wins and the other same-name Project Skills are removed. */
     resolveConflict(input: ProjectSkillRef, client: ClientKind): Promise<ProjectSkills>;
     /** Its Project MCP Servers, with each Agent's delivery (#38). */
@@ -211,6 +255,10 @@ export const createAppRouter = (services: CoreServices) =>
         .input(ActivityQuery)
         .output(ActivityList)
         .query(({ input }) => services.activity.list(input)),
+      export: t.procedure
+        .input(ActivityFilter)
+        .output(ActivityExport)
+        .query(({ input }) => services.activity.export(input)),
     }),
     scan: t.router({
       run: t.procedure.output(ScanResult).mutation(({ ctx }) => services.scan.run(ctx.client)),
@@ -224,11 +272,17 @@ export const createAppRouter = (services: CoreServices) =>
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+      managedMcp: t.procedure.output(ManagedMcpServer.array()).query(() => services.agents.managedMcp()),
     }),
     managedSkills: t.router({
       turnOff: t.procedure
         .input(z.object({ id: z.string().min(1), scope: OffScope }))
         .mutation(({ input, ctx }) => services.managedSkills.turnOff(input, ctx.client)),
+    }),
+    managedMcp: t.router({
+      turnOff: t.procedure
+        .input(z.object({ id: z.string().min(1), scope: McpOffScope }))
+        .mutation(({ input, ctx }) => services.managedMcp.turnOff(input, ctx.client)),
     }),
     adopt: t.router({
       plan: t.procedure
@@ -305,13 +359,33 @@ export const createAppRouter = (services: CoreServices) =>
         .output(ProjectSkills.array())
         .mutation(({ input, ctx }) => services.project.addSkills(input, ctx.client)),
       setSkillOn: t.procedure
-        .input(ProjectSkillRef.extend({ on: z.boolean() }))
+        .input(ProjectSkillChange.extend({ on: z.boolean() }))
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.setSkillOn(input, ctx.client)),
       removeSkill: t.procedure
-        .input(ProjectSkillRef)
+        .input(ProjectSkillChange)
         .output(ProjectSkills)
         .mutation(({ input, ctx }) => services.project.removeSkill(input, ctx.client)),
+      updateCopy: t.procedure
+        .input(ProjectSkillChange)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.updateCopy(input, ctx.client)),
+      copyDiff: t.procedure
+        .input(ProjectSkillRef)
+        .output(CopyDiff)
+        .query(({ input }) => services.project.copyDiff(input)),
+      pullCopy: t.procedure
+        .input(ProjectSkillRef)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.pullCopy(input, ctx.client)),
+      repoSkills: t.procedure
+        .input(ProjectPath)
+        .output(RepoSkills)
+        .query(({ input }) => services.project.repoSkills(input.path)),
+      fulfilLock: t.procedure
+        .input(FulfilLockInput)
+        .output(ProjectSkills)
+        .mutation(({ input, ctx }) => services.project.fulfilLock(input, ctx.client)),
       resolveConflict: t.procedure
         .input(ProjectSkillRef)
         .output(ProjectSkills)
@@ -342,6 +416,25 @@ export const createAppRouter = (services: CoreServices) =>
         .input(z.object({ key: z.string().min(1) }))
         .output(SkillDetail)
         .query(({ input }) => services.skill.get(input.key)),
+      files: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .output(SkillFiles)
+        .query(({ input }) => services.skill.files(input.key)),
+      readFile: t.procedure
+        .input(SkillFilePath)
+        .output(SkillFileContent)
+        .query(({ input }) => services.skill.readFile(input)),
+      saveFile: t.procedure
+        .input(SaveSkillFileInput)
+        .output(SavedSkillFile)
+        .mutation(({ input, ctx }) => services.skill.saveFile(input, ctx.client)),
+      deletePlan: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .output(SkillDeletePlan)
+        .query(({ input }) => services.skill.deletePlan(input.key)),
+      delete: t.procedure
+        .input(z.object({ key: z.string().min(1) }))
+        .mutation(({ input, ctx }) => services.skill.delete(input.key, ctx.client)),
     }),
     namespace: t.router({
       plan: t.procedure

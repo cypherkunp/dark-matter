@@ -46,6 +46,8 @@ export const LibrarySkill = z.object({
   localSource: z.string().nullable(),
   /** Where Adopt moved it from, home-relative; null if it wasn't Adopted. */
   adoptedFrom: z.string().nullable(),
+  /** Changed since it was last Imported: its files no longer match the Library Lock's computedHash. */
+  modified: z.boolean(),
   /** How many Projects use it (On or Off). */
   projects: z.int().nonnegative(),
   /** It's in a Name Conflict in at least one Project. */
@@ -149,6 +151,8 @@ export const LibraryLockEntry = z.strictObject({
     .optional(),
   /** A Local Source: the folder it's authored in. The Library holds a symlink to it. */
   localSource: z.string().optional(),
+  /** Projects (home-relative) where Adopt & keep Link put a Link back (#29); Undo Adopt removes those Project Skills first. */
+  keptLinks: z.array(z.string()).optional(),
 });
 export type LibraryLockEntry = z.infer<typeof LibraryLockEntry>;
 
@@ -173,8 +177,49 @@ export const SkillDetail = z.object({
   body: z.string(),
   warnings: z.array(FrontmatterWarning),
   entry: LibraryLockEntry,
+  /** See LibrarySkill.modified. */
+  modified: z.boolean(),
 });
 export type SkillDetail = z.infer<typeof SkillDetail>;
+
+/** A file in a Skill folder, `/`-separated and relative to it. */
+export const SkillFilePath = z.object({ key: z.string().min(1), path: z.string().min(1) });
+export type SkillFilePath = z.infer<typeof SkillFilePath>;
+
+/** One entry of a Skill's file tree (#34). Binary files are listed but not editable. */
+export const SkillFileEntry = z.object({ path: z.string(), size: z.int().nonnegative(), binary: z.boolean() });
+export type SkillFileEntry = z.infer<typeof SkillFileEntry>;
+
+export const SkillFiles = z.object({ files: z.array(SkillFileEntry) });
+export type SkillFiles = z.infer<typeof SkillFiles>;
+
+/** A file's text for the editor; `content` is null for a binary file. */
+export const SkillFileContent = z.object({ path: z.string(), content: z.string().nullable(), binary: z.boolean() });
+export type SkillFileContent = z.infer<typeof SkillFileContent>;
+
+export const SaveSkillFileInput = SkillFilePath.extend({ content: z.string() });
+export type SaveSkillFileInput = z.infer<typeof SaveSkillFileInput>;
+
+/** After a save: SKILL.md's frontmatter warnings (never blocking) and whether the Skill is now Modified. */
+export const SavedSkillFile = z.object({ warnings: z.array(FrontmatterWarning), modified: z.boolean() });
+export type SavedSkillFile = z.infer<typeof SavedSkillFile>;
+
+/** A Project a Library Skill's deletion would affect: its Links break, its Copies stay behind. */
+export const SkillDeleteImpact = z.object({
+  path: z.string(),
+  projectName: z.string(),
+  mode: z.string(),
+  on: z.boolean(),
+});
+export type SkillDeleteImpact = z.infer<typeof SkillDeleteImpact>;
+
+/** What deleting a Library Skill would do: move it to `trash/` for `retentionDays`, and the Projects affected. */
+export const SkillDeletePlan = z.object({
+  key: z.string(),
+  retentionDays: z.int().positive(),
+  projects: z.array(SkillDeleteImpact),
+});
+export type SkillDeletePlan = z.infer<typeof SkillDeletePlan>;
 
 /** The owned files the core watches and validates. */
 export const OwnedFileName = z.enum(["settings.json", "projects.json", "library-lock.json"]);
@@ -214,7 +259,28 @@ export const ActivityEntry = z.object({
 });
 export type ActivityEntry = z.infer<typeof ActivityEntry>;
 
-export const ActivityQuery = z.object({ limit: z.int().min(1).max(5_000).default(500) }).prefault({});
+/**
+ * A filtered view of the Activity Log. Every filter is optional and they all
+ * apply together; list filters match any of their values.
+ */
+export const ActivityFilter = z.object({
+  actions: z.array(z.string()).optional(),
+  clients: z.array(ActivityClient).optional(),
+  /** A Library Skill key: entries with that `skill` subject. */
+  skill: z.string().optional(),
+  /** A Project's absolute path: entries with that `project` subject. */
+  project: z.string().optional(),
+  failuresOnly: z.boolean().optional(),
+  /** Inclusive lower bound on `time`. */
+  from: z.iso.datetime().optional(),
+  /** Exclusive upper bound on `time`. */
+  to: z.iso.datetime().optional(),
+  /** Case-insensitive text in the action, client, subjects, files written or error. */
+  search: z.string().optional(),
+});
+export type ActivityFilter = z.infer<typeof ActivityFilter>;
+
+export const ActivityQuery = ActivityFilter.extend({ limit: z.int().min(1).max(5_000).default(500) }).prefault({});
 export type ActivityQuery = z.infer<typeof ActivityQuery>;
 
 export const ActivityList = z.object({
@@ -222,6 +288,14 @@ export const ActivityList = z.object({
   entries: z.array(ActivityEntry),
 });
 export type ActivityList = z.infer<typeof ActivityList>;
+
+/** The JSON export of a filtered Activity view: every matching entry, newest first. */
+export const ActivityExport = z.object({
+  exportedAt: z.iso.datetime(),
+  filter: ActivityFilter,
+  entries: z.array(ActivityEntry),
+});
+export type ActivityExport = z.infer<typeof ActivityExport>;
 
 /** A v1 Agent, as Dark Matter's adapters know it. */
 export const AgentId = z.enum(["claude-code", "cursor", "opencode", "codex", "agents"]);
@@ -277,6 +351,8 @@ export const AgentScan = z.object({
   mcpConfig: z.string().nullable().default(null),
   /** Global MCP Servers declared in that file. */
   globalMcpServerCount: z.int().nonnegative().default(0),
+  /** Agent-managed MCP Servers it loads (#40). */
+  managedMcpServerCount: z.int().nonnegative().default(0),
 });
 export type AgentScan = z.infer<typeof AgentScan>;
 
@@ -306,6 +382,8 @@ export const ProjectSkillEntry = z.object({
   /** Absolute resolved real folder. */
   realPath: z.string(),
   symlink: z.boolean(),
+  /** Git tracks it (the entry or its real folder in the Project): a Vendored Skill, never offered for Adopt. */
+  tracked: z.boolean().default(false),
 });
 export type ProjectSkillEntry = z.infer<typeof ProjectSkillEntry>;
 
@@ -435,6 +513,58 @@ export const GlobalMcpServer = z.object({
 });
 export type GlobalMcpServer = z.infer<typeof GlobalMcpServer>;
 
+/**
+ * How "Turn off everywhere" reaches an Agent-managed MCP Server (#40): `server`
+ * turns off just this one, `plugin` the plugin it comes with, `connectors`
+ * every claude.ai connector.
+ */
+export const McpOffScope = z.enum(["server", "plugin", "connectors"]);
+export type McpOffScope = z.infer<typeof McpOffScope>;
+
+export const McpOffSwitch = z.object({
+  scope: McpOffScope,
+  /** The config file it writes, home-relative. */
+  file: z.string(),
+  /** The setting it writes, as the user would read it in that file. */
+  setting: z.string(),
+});
+export type McpOffSwitch = z.infer<typeof McpOffSwitch>;
+
+/**
+ * An MCP Server an Agent adds and controls itself (#40): a plugin's, a claude.ai
+ * connector, a built-in, a marketplace or team server, or one from a system,
+ * cloud or MDM config layer. Listed read-only; Dark Matter only ever turns one
+ * off through the Agent's own documented global setting.
+ */
+export const ManagedMcpServer = z.object({
+  /** Stable across Scans: `managed-mcp:<agent>:<name>`. */
+  id: z.string(),
+  agent: AgentId,
+  /** The name the Agent shows, e.g. `plugin:figma:figma`. */
+  name: z.string(),
+  kind: z.enum(["plugin", "connector", "builtin", "marketplace", "team", "system", "managed"]),
+  /** The plugin it comes with, as the Agent names it. */
+  plugin: z.string().nullable(),
+  /** The file that declares it (home-relative when under `$HOME`); null when it isn't in a file. */
+  source: z.string().nullable(),
+  /** Its definition with inline secrets masked; null when the Agent doesn't keep one on disk. */
+  definition: McpDefinition.nullable(),
+  /** Already off: turned off in the Agent's settings, or off until you opt in. */
+  off: z.boolean(),
+  /** Ways to turn it off everywhere, the narrowest first. Empty when it's read-only. */
+  offSwitches: z.array(McpOffSwitch),
+  /** Why it's read-only (and how to turn it off in the Agent), when there's no off switch. */
+  readOnly: z.string().nullable(),
+});
+export type ManagedMcpServer = z.infer<typeof ManagedMcpServer>;
+
+/** One Agent's Agent-managed MCP Servers, for the Inbox. */
+export const InboxManagedMcpGroup = z.object({
+  agent: AgentId,
+  findings: z.array(ManagedMcpServer),
+});
+export type InboxManagedMcpGroup = z.infer<typeof InboxManagedMcpGroup>;
+
 /** Global MCP Servers in one Agent config file, for the Inbox. */
 export const InboxMcpGroup = z.object({
   agent: AgentId,
@@ -454,6 +584,7 @@ export const ScanResult = z.object({
   projects: z.array(ProjectScan).default([]),
   managedSkills: z.array(ManagedSkill).default([]),
   globalMcpServers: z.array(GlobalMcpServer).default([]),
+  managedMcpServers: z.array(ManagedMcpServer).default([]),
 });
 export type ScanResult = z.infer<typeof ScanResult>;
 
@@ -480,6 +611,35 @@ export const InboxManagedGroup = z.object({
 });
 export type InboxManagedGroup = z.infer<typeof InboxManagedGroup>;
 
+/**
+ * A Skill in a confirmed Project's skill folder that git doesn't track and
+ * Dark Matter didn't deliver (#29). Adopt & keep Link moves it into the
+ * Library and puts a Link back, On.
+ */
+export const UntrackedSkill = z.object({
+  /** Stable across Scans: `untracked-skill:<realPath>`. */
+  id: z.string(),
+  /** The Project, absolute. */
+  project: z.string(),
+  name: z.string(),
+  description: z.string(),
+  /** Its resolved real folder, home-relative. */
+  realPath: z.string(),
+  /** Where the Project's Agents see it: `folder` is Project-relative, `path` home-relative. */
+  locations: z.array(SkillLocation).min(1),
+  /** Its real folder is outside the Project, so Adopt makes it a Local Source. */
+  localSource: z.boolean(),
+});
+export type UntrackedSkill = z.infer<typeof UntrackedSkill>;
+
+/** Untracked Skills in one Project, for the Inbox. */
+export const InboxProjectGroup = z.object({
+  project: z.string(),
+  name: z.string(),
+  findings: z.array(UntrackedSkill),
+});
+export type InboxProjectGroup = z.infer<typeof InboxProjectGroup>;
+
 /** Findings still waiting on a decision. Ignored findings are left out. */
 export const Inbox = z.object({
   /** The badge: findings waiting, across every kind. */
@@ -487,11 +647,15 @@ export const Inbox = z.object({
   globalSkills: z.array(InboxFolderGroup),
   /** Agent-managed Skills that are still on, by Agent. */
   managedSkills: z.array(InboxManagedGroup),
+  /** Untracked Project Skills, by Project (#29). */
+  untrackedSkills: z.array(InboxProjectGroup).default([]),
   ignoredCount: z.int().nonnegative(),
   /** Suggested Projects waiting to be confirmed or dismissed (listed on the Suggested screen). */
   suggestedProjects: z.int().nonnegative(),
   /** Global MCP Servers, by Agent config file. */
   mcpServers: z.array(InboxMcpGroup).default([]),
+  /** Agent-managed MCP Servers that are still on, by Agent. */
+  managedMcpServers: z.array(InboxManagedMcpGroup).default([]),
 });
 export type Inbox = z.infer<typeof Inbox>;
 
@@ -511,6 +675,10 @@ export const AgentCard = z.object({
   mcpConfig: z.string().nullable().default(null),
   /** Null until the first Scan, or when the Agent has no MCP surface. */
   globalMcpServerCount: z.int().nonnegative().nullable().default(null),
+  /** Agent-managed MCP Servers; null until the first Scan, or when the Agent has no MCP surface. */
+  managedMcpServerCount: z.int().nonnegative().nullable().default(null),
+  /** Agent-managed MCP Servers Dark Matter can't list from disk, and why (e.g. Cursor team servers). */
+  managedMcpNotes: z.array(z.string()).default([]),
 });
 export type AgentCard = z.infer<typeof AgentCard>;
 
@@ -528,6 +696,8 @@ export const PlanStep = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("removeLink"), path: z.string(), target: z.string() }),
   /** Remove a copy whose content is identical to `sameAs`, which is kept. */
   z.object({ kind: z.literal("removeCopy"), path: z.string(), sameAs: z.string() }),
+  /** Remove a real folder Dark Matter wrote, e.g. a Copy turned Off (#28). Never a symlink. */
+  z.object({ kind: z.literal("removeFolder"), path: z.string() }),
   /** Rewrite an owned or foreign file, e.g. `library-lock.json` or the `skills` CLI's global lock. */
   z.object({ kind: z.literal("editFile"), path: z.string(), change: z.string(), backup: z.string().optional() }),
   /** Store a Secret's value in the OS keychain under `name` (the value never appears in a plan). */
@@ -664,8 +834,8 @@ export type CoreEvent = z.infer<typeof CoreEvent>;
  * add Project Skills (#27), Project MCP Servers (#38) and the Grant as fields
  * with defaults, so older files stay valid.
  */
-/** How a Project Skill reaches the Project's Agents. #28 adds "copy". */
-export const DeliveryMode = z.enum(["link"]);
+/** How a Project Skill reaches the Project's Agents: a personal Link or a committed Copy (#28). */
+export const DeliveryMode = z.enum(["link", "copy"]);
 export type DeliveryMode = z.infer<typeof DeliveryMode>;
 
 /** One Project Skill in `projects.json`: owned intent, keyed by Library key. Off keeps it here, undelivered. */
@@ -764,6 +934,9 @@ export const CoreExitCode = {
   failed: 1,
 } as const;
 
+export const CopyState = z.enum(["current", "outdated", "modifiedInRepo"]);
+export type CopyState = z.infer<typeof CopyState>;
+
 /** What Adopt does with one MCP Server: as with Skills, minus Local Sources. */
 export const McpAdoptOutcome = AdoptOutcome.exclude(["localSource"]);
 export type McpAdoptOutcome = z.infer<typeof McpAdoptOutcome>;
@@ -815,6 +988,12 @@ export const ProjectSkill = z.object({
   conflictsWith: z.array(z.string()),
   /** Project-relative paths it is (or would be) delivered at. */
   paths: z.array(z.string()),
+  /**
+   * A delivered Copy against its `skills-lock.json` entry and the Library (#28):
+   * "current", "outdated" (the Library moved on: Update) or "modifiedInRepo"
+   * (its files were edited: Diff, Pull into Library). Absent for a Link or an Off Copy.
+   */
+  copyState: CopyState.optional(),
 });
 export type ProjectSkill = z.infer<typeof ProjectSkill>;
 
@@ -835,6 +1014,50 @@ export type SkillProjectUse = z.infer<typeof SkillProjectUse>;
 
 export const ProjectSkillRef = ProjectPath.extend({ key: z.string().min(1) });
 export type ProjectSkillRef = z.infer<typeof ProjectSkillRef>;
+
+/**
+ * A change that may replace or delete a Copy's files (#28). A Copy "modified
+ * in repo" is refused (`CopyModifiedInRepo`) unless `discardEdits` says you were asked.
+ */
+export const ProjectSkillChange = ProjectSkillRef.extend({ discardEdits: z.boolean().optional() });
+export type ProjectSkillChange = z.infer<typeof ProjectSkillChange>;
+
+/** A committed Skill in a Project that Dark Matter didn't create as a Copy: shown, never changed (#28). */
+export const VendoredSkill = z.object({
+  name: z.string(),
+  description: z.string(),
+  /** Project-relative entries that are this Skill (a folder and the symlinks to it). */
+  paths: z.array(z.string()),
+});
+export type VendoredSkill = z.infer<typeof VendoredSkill>;
+
+/** An entry in the Project's `skills-lock.json` that isn't one of its Project Skills yet: a wanted Skill to fulfil. */
+export const LockedSkill = z.object({
+  /** The installed name: the lock key and the folder under `.agents/skills`. */
+  name: z.string(),
+  source: z.string(),
+  sourceType: z.string(),
+  /** The Library Skill that fulfils it, or null when it isn't in the Library. */
+  key: z.string().nullable(),
+  /** Its folder is already in `.agents/skills` (kept as is when fulfilled). */
+  present: z.boolean(),
+  /** Why it can't be fulfilled now, e.g. not in the Library and no Import yet; null when it can. */
+  message: z.string().nullable(),
+});
+export type LockedSkill = z.infer<typeof LockedSkill>;
+
+export const RepoSkills = z.object({
+  vendored: z.array(VendoredSkill),
+  locked: z.array(LockedSkill),
+});
+export type RepoSkills = z.infer<typeof RepoSkills>;
+
+export const FulfilLockInput = ProjectPath.extend({ names: z.array(z.string().min(1)).min(1) });
+export type FulfilLockInput = z.infer<typeof FulfilLockInput>;
+
+/** A Copy's files against its Library Skill, as a unified diff (`a` = Library, `b` = the repo). Empty when they match. */
+export const CopyDiff = z.object({ patch: z.string() });
+export type CopyDiff = z.infer<typeof CopyDiff>;
 
 /**
  * One Agent's delivery of a Project MCP Server: "delivered" (its entry is

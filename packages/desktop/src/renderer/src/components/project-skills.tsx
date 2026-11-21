@@ -1,8 +1,9 @@
 import { Dialog } from "@base-ui/react/dialog";
-import type { ProjectSkill } from "@dark-matter/contracts";
+import type { DeliveryMode, ProjectSkill } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useState } from "react";
+import { CopyActions, CopyStateBadge, useProjectSkillChanges } from "@/components/copy-actions";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
@@ -11,6 +12,13 @@ import { cn } from "@/lib/utils";
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 const pill = "rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground";
+
+export const modeLabels: Record<DeliveryMode, string> = { link: "Link", copy: "Copy" };
+
+const modeHelp: Record<DeliveryMode, string> = {
+  link: "Link: a personal symlink to the Library, excluded from git. Only you get it.",
+  copy: "Copy: real files committed in .agents/skills and recorded in skills-lock.json, so teammates get it too.",
+};
 
 /** The On/Off switch for a Project Skill or Project MCP Server: blue On, grey Off. */
 export function OnOffSwitch({
@@ -49,12 +57,11 @@ export function OnOffSwitch({
 
 function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill }) {
   const trpc = useTRPC();
-  const setOn = useMutation(trpc.project.setSkillOn.mutationOptions());
-  const remove = useMutation(trpc.project.removeSkill.mutationOptions());
+  const changes = useProjectSkillChanges(path, skill);
   const resolve = useMutation(trpc.project.resolveConflict.mutationOptions());
   const conflict = skill.status === "nameConflict";
-  const busy = setOn.isPending || remove.isPending || resolve.isPending;
-  const error = setOn.error ?? remove.error ?? resolve.error;
+  const busy = changes.busy || resolve.isPending;
+  const error = changes.error ?? resolve.error;
   return (
     <div data-testid="project-skill-row" className="flex min-h-16 items-center gap-3 px-5 py-3">
       <StatusDot tone={conflict ? "warning" : skill.on ? "on" : "off"} />
@@ -62,7 +69,10 @@ function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill })
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-sm">{skill.name}</span>
           <span className={pill}>{skill.namespace}</span>
-          <span className={pill}>{skill.mode === "link" ? "Link" : skill.mode}</span>
+          <span data-testid="delivery-mode" className={pill}>
+            {modeLabels[skill.mode]}
+          </span>
+          <CopyStateBadge skill={skill} />
           {conflict && (
             <span className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px]">
               Name Conflict
@@ -85,24 +95,22 @@ function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill })
           Resolve: keep this
         </Button>
       )}
-      <Button size="sm" variant="ghost" disabled={busy} onClick={() => remove.mutate({ path, key: skill.key })}>
+      <CopyActions path={path} skill={skill} />
+      <Button size="sm" variant="ghost" disabled={busy} onClick={changes.removeSkill}>
         Remove
       </Button>
-      <OnOffSwitch
-        on={skill.on}
-        disabled={busy || conflict}
-        label={`${skill.name} On`}
-        onChange={(on) => setOn.mutate({ path, key: skill.key, on })}
-      />
+      <OnOffSwitch on={skill.on} disabled={busy || conflict} label={`${skill.name} On`} onChange={changes.toggle} />
+      {changes.dialog}
     </div>
   );
 }
 
-/** + Add Skills: pick Library Skills to add to this Project as Links. */
+/** + Add Skills: pick Library Skills to add to this Project as Links or Copies. */
 function AddSkillsDialog({ path, added, onClose }: { path: string; added: string[]; onClose: () => void }) {
   const trpc = useTRPC();
   const library = useQuery(trpc.library.list.queryOptions());
   const [picked, setPicked] = useState<string[]>([]);
+  const [mode, setMode] = useState<DeliveryMode>("link");
   const add = useMutation(trpc.project.addSkills.mutationOptions({ onSuccess: onClose }));
   const candidates = (library.data?.skills ?? []).filter((skill) => !added.includes(skill.key));
   return (
@@ -111,9 +119,24 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(36rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
           <Dialog.Title className="font-semibold text-lg">Add Skills</Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">
-            Each Skill is added as a Link: a personal symlink to the Library, excluded from git.
-          </Dialog.Description>
+          <Dialog.Description className="text-muted-foreground text-sm">{modeHelp[mode]}</Dialog.Description>
+          <div role="radiogroup" aria-label="Deliver as" className="flex gap-2">
+            {(["link", "copy"] as const).map((option) => (
+              <label
+                key={option}
+                className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm"
+              >
+                <input
+                  type="radio"
+                  name="delivery-mode"
+                  className="accent-primary"
+                  checked={mode === option}
+                  onChange={() => setMode(option)}
+                />
+                {modeLabels[option]}
+              </label>
+            ))}
+          </div>
           {candidates.length === 0 ? (
             <p className="text-muted-foreground text-sm">Every Library Skill is already in this Project.</p>
           ) : (
@@ -147,7 +170,7 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
             <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>
             <Button
               disabled={picked.length === 0 || add.isPending}
-              onClick={() => add.mutate({ skills: picked.map((key) => ({ path, key })) })}
+              onClick={() => add.mutate({ skills: picked.map((key) => ({ path, key, mode })) })}
             >
               Add {plural(picked.length, "Skill")}
             </Button>

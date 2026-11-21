@@ -71,7 +71,7 @@ const nonEmpty = <T extends object>(value: T | undefined): T | undefined =>
 const definition = (fields: { [K in keyof McpDefinition]: McpDefinition[K] | undefined }): McpDefinition =>
   Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined)) as McpDefinition;
 
-const entriesOf = (map: unknown, at: string[], read: (raw: Obj, name: string) => McpDefinition | null) => {
+export const entriesOf = (map: unknown, at: string[], read: (raw: Obj, name: string) => McpDefinition | null) => {
   if (!isObj(map)) return [];
   return Object.entries(map).flatMap(([name, raw]): McpEntry[] => {
     if (!isObj(raw)) return [];
@@ -83,14 +83,14 @@ const entriesOf = (map: unknown, at: string[], read: (raw: Obj, name: string) =>
 /** The replacement that turns a captured name into an `${env:…}` reference. */
 const ENV_REF = `$\{env:$1}`;
 /** Claude Code `${VAR}` → `${env:VAR}`. `${VAR:-default}` is kept as written. */
-const claudeRefs = (text: string) => text.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, ENV_REF);
+export const claudeRefs = (text: string) => text.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, ENV_REF);
 /** Cursor already writes `${env:VAR}`. */
-const cursorRefs = (text: string) => text;
+export const cursorRefs = (text: string) => text;
 /** OpenCode `{env:VAR}` → `${env:VAR}`. `{file:…}` is kept as written. */
 const opencodeRefs = (text: string) => text.replace(/(?<!\$)\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g, ENV_REF);
 
 /** The `mcpServers` entry shape shared by Claude Code and Cursor. */
-const mcpServersEntry =
+export const mcpServersEntry =
   (refs: (text: string) => string) =>
   (raw: Obj): McpDefinition | null => {
     const type = typeof raw.type === "string" ? raw.type : undefined;
@@ -152,7 +152,7 @@ const opencodeEntry = (raw: Obj): McpDefinition | null => {
 };
 
 /** Codex names env vars instead of interpolating: `env_vars`, `bearer_token_env_var`, `env_http_headers`. */
-const codexEntry = (raw: Obj): McpDefinition | null => {
+export const codexEntry = (raw: Obj): McpDefinition | null => {
   const envRef = (name: string) => `\${env:${name}}`;
   if (typeof raw.url === "string") {
     const headers = {
