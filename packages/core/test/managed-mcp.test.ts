@@ -172,6 +172,11 @@ describe("Agent-managed MCP Servers", () => {
     expect(await readFile(join(home, ".claude.json"), "utf8")).toBe(before);
     const after = (await trpc.inbox.list.query()).managedMcpServers[0]?.findings ?? [];
     expect(after.map((server) => server.name)).toEqual(["claude-in-chrome"]);
+    // The MCP Servers screen still lists the connectors, now off.
+    expect((await trpc.agents.managedMcp.query()).map(({ name, off }) => ({ name, off }))).toEqual([
+      { name: "claude-in-chrome", off: false },
+      { name: "claude.ai connectors", off: true },
+    ]);
   });
 
   test("Cursor's marketplace, team and local plugin servers are read-only and nothing is written", async () => {

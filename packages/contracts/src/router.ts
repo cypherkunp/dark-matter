@@ -19,6 +19,7 @@ import {
   Inbox,
   LibraryList,
   LibraryMcpList,
+  ManagedMcpServer,
   McpAdoptInput,
   McpAdoptPlan,
   McpOffScope,
@@ -84,6 +85,8 @@ export interface CoreServices {
   };
   agents: {
     list(): AgentCard[];
+    /** Every Agent-managed MCP Server the latest Scan found, off ones included (#40). */
+    managedMcp(): ManagedMcpServer[];
   };
   managedSkills: {
     /**
@@ -211,6 +214,7 @@ export const createAppRouter = (services: CoreServices) =>
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+      managedMcp: t.procedure.output(ManagedMcpServer.array()).query(() => services.agents.managedMcp()),
     }),
     managedSkills: t.router({
       turnOff: t.procedure

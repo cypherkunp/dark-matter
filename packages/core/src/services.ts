@@ -179,7 +179,10 @@ export const createServices = async ({
           bus.publish({ type: "invalidate", domains: ["settings", "inbox"] });
         }),
     },
-    agents: { list: () => agentCards(scans.latest, env) },
+    agents: {
+      list: () => agentCards(scans.latest, env),
+      managedMcp: () => scans.latest?.managedMcpServers ?? [],
+    },
     managedSkills: {
       turnOff: ({ id, scope }, client) =>
         activity.track(
