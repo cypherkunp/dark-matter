@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "composite": true,
+    "outDir": ".tsc/web",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "paths": { "@/*": ["./src/renderer/src/*"] }
+  },
+  "include": ["src/renderer/src", "src/shared"],
+  "references": [{ "path": "../contracts" }]
+}

@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsc/node",
+    "types": ["node"]
+  },
+  "include": ["src/main", "src/preload", "src/shared", "electron.vite.config.ts"],
+  "references": [{ "path": "../contracts" }]
+}

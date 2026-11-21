@@ -1,0 +1,23 @@
+{
+  "name": "@dark-matter/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsdown"
+  },
+  "dependencies": {
+    "@dark-matter/contracts": "catalog:",
+    "@trpc/server": "catalog:",
+    "ws": "catalog:"
+  },
+  "devDependencies": {
+    "@trpc/client": "catalog:",
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "tsdown": "catalog:"
+  }
+}

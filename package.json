@@ -1,0 +1,27 @@
+{
+  "name": "dark-matter",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.21.0",
+  "engines": {
+    "node": ">=24.11 <25",
+    "pnpm": ">=12.21"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @dark-matter/core build && pnpm --filter @dark-matter/desktop dev",
+    "build": "pnpm -r build",
+    "lint": "biome ci .",
+    "format": "biome check --write .",
+    "typecheck": "tsc -b",
+    "knip": "knip",
+    "test": "vitest run",
+    "test:e2e": "pnpm --filter @dark-matter/desktop test:e2e"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/node": "catalog:",
+    "knip": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
