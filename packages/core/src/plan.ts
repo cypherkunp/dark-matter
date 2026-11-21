@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { cp, lstat, mkdir, readFile, readlink, rename, rm, rmdir, stat, symlink, unlink } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";
-import { PathTaken, type PlanStep } from "@dark-matter/contracts";
+import { KeychainUnavailable, PathTaken, type PlanStep, PlanTargetChanged } from "@dark-matter/contracts";
 import type { Wrote } from "./activity";
 import { writeFileAtomic } from "./atomic";
 import { fromHomeRelative } from "./home-path";
@@ -151,7 +151,7 @@ export const applySteps = async (steps: readonly PlanStep[], context: ApplyConte
         }
         case "removeLink": {
           const path = abs(step.path);
-          if (!(await lstat(path)).isSymbolicLink()) throw new Error(`${path} is no longer a symlink`);
+          if (!(await lstat(path)).isSymbolicLink()) throw new PlanTargetChanged(path, "is no longer a symlink");
           const target = await readlink(path);
           await unlink(path);
           undo.push(() => symlink(target, path, "dir"));
@@ -162,7 +162,7 @@ export const applySteps = async (steps: readonly PlanStep[], context: ApplyConte
           // Re-checked right before removing: only a byte-for-byte duplicate of a kept folder goes.
           const path = abs(step.path);
           if ((await fingerprintSkillFolder(path)) !== (await fingerprintSkillFolder(abs(step.sameAs)))) {
-            throw new Error(`${path} no longer matches ${step.sameAs}; nothing was removed`);
+            throw new PlanTargetChanged(path, `no longer matches ${step.sameAs}`);
           }
           const into = await stash(path, context.libraryHome);
           stashed.push(into);
@@ -173,7 +173,7 @@ export const applySteps = async (steps: readonly PlanStep[], context: ApplyConte
         case "removeFolder": {
           const path = abs(step.path);
           const info = await lstat(path);
-          if (info.isSymbolicLink() || !info.isDirectory()) throw new Error(`${path} is no longer a folder`);
+          if (info.isSymbolicLink() || !info.isDirectory()) throw new PlanTargetChanged(path, "is no longer a folder");
           const into = await stash(path, context.libraryHome);
           stashed.push(into);
           undo.push(() => moveFolder(into, path, context.libraryHome));
@@ -196,7 +196,7 @@ export const applySteps = async (steps: readonly PlanStep[], context: ApplyConte
         }
         case "storeSecret":
         case "deleteSecret":
-          if (!context.secret) throw new Error(`no keychain to carry out ${step.kind} ${step.name}`);
+          if (!context.secret) throw new KeychainUnavailable(`nothing can carry out ${step.kind} ${step.name}`);
           await context.secret(step);
           break;
       }

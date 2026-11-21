@@ -452,3 +452,33 @@ export class TrashedSkillNotFound extends TaggedError<"TrashedSkillNotFound"> {
     super(`${id} isn't in the trash any more`);
   }
 }
+
+/** Something a plan step was about to change changed on disk since it was planned (review #21); nothing past it ran. */
+export class PlanTargetChanged extends TaggedError<"PlanTargetChanged"> {
+  readonly _tag = "PlanTargetChanged";
+  constructor(
+    readonly path: string,
+    readonly reason: string,
+  ) {
+    super(`${path} ${reason}; nothing was changed`);
+  }
+}
+
+/** A Skill couldn't be copied out of the fetched Source while Importing (review #21). */
+export class ImportFailed extends TaggedError<"ImportFailed"> {
+  readonly _tag = "ImportFailed";
+  constructor(
+    readonly skill: string,
+    readonly reason: string,
+  ) {
+    super(`${skill} couldn't be Imported: ${reason}`);
+  }
+}
+
+/** An approved Request arrived before the core could apply Requests (it's still starting). Try again. */
+export class RequestsNotReady extends TaggedError<"RequestsNotReady"> {
+  readonly _tag = "RequestsNotReady";
+  constructor() {
+    super("The core can't apply Requests yet: it's still starting. Try again in a moment.");
+  }
+}

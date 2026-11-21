@@ -16,6 +16,7 @@ import {
   type RequestRecord,
   type RequestStatus,
   type RequestsFile,
+  RequestsNotReady,
 } from "@dark-matter/contracts";
 import { policyFor, type RequestCategory } from "@dark-matter/contracts/policy";
 import type { GuardedCall } from "@dark-matter/contracts/router";
@@ -136,7 +137,7 @@ export class Requests {
       return waiter.done;
     }
     const applier = this.#applier;
-    if (!applier) throw new Error("The core can't apply Requests yet");
+    if (!applier) throw new RequestsNotReady();
     try {
       await this.#apply(id, () => applier(request));
     } catch {

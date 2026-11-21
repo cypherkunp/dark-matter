@@ -5,6 +5,7 @@ import {
   type ClientKind,
   type Domain,
   type ImportCandidate,
+  ImportFailed,
   type ImportPreview,
   type ImportResult,
   ImportSkillNotFound,
@@ -63,11 +64,11 @@ export const installFetched = async (
     symlinks: "reject",
   });
   const failure = result.failed[0];
-  if (failure) throw new Error(`${failure.skill}: ${failure.message}`);
+  if (failure) throw new ImportFailed(failure.skill, failure.message);
   return new Map(
     candidates.map((candidate) => {
       const installed = result.installed.find((target) => target.skill === candidate.name);
-      if (!installed) throw new Error(`${candidate.name} wasn't fetched`);
+      if (!installed) throw new ImportFailed(candidate.name, "it wasn't in the fetched Source");
       return [candidate.path, installed.path] as const;
     }),
   );
