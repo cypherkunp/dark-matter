@@ -277,6 +277,16 @@ export const createServices = async ({
         await activity.prune(activityRetention());
         return saved;
       },
+      completeFirstRun: (client) =>
+        activity.track(
+          { client, action: "settings.completeFirstRun", subjects: [{ kind: "settings", id: "firstRun" }] },
+          async (wrote) => {
+            const completedAt = clock.now().toISOString();
+            wrote(await settings.update((current) => ({ ...current, firstRun: current.firstRun ?? { completedAt } })));
+            bus.publish({ type: "invalidate", domains: ["settings"] });
+            return settings.value;
+          },
+        ),
     },
     ownedFiles: {
       problems: () => ownedFiles.flatMap((file) => (file.problem ? [file.problem] : [])),

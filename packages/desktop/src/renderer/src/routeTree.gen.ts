@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as CollectionRouteImport } from './routes/collection'
+import { Route as FirstRunRouteImport } from './routes/first-run'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as NamespaceRouteImport } from './routes/namespace'
@@ -38,6 +39,11 @@ const SplatRoute = SplatRouteImport.update({
 const CollectionRoute = CollectionRouteImport.update({
   id: '/collection',
   path: '/collection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FirstRunRoute = FirstRunRouteImport.update({
+  id: '/first-run',
+  path: '/first-run',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/collection': typeof CollectionRoute
+  '/first-run': typeof FirstRunRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/namespace': typeof NamespaceRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/collection': typeof CollectionRoute
+  '/first-run': typeof FirstRunRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/namespace': typeof NamespaceRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/collection': typeof CollectionRoute
+  '/first-run': typeof FirstRunRoute
   '/inbox': typeof InboxRoute
   '/library': typeof LibraryRoute
   '/namespace': typeof NamespaceRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/collection'
+    | '/first-run'
     | '/inbox'
     | '/library'
     | '/namespace'
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/collection'
+    | '/first-run'
     | '/inbox'
     | '/library'
     | '/namespace'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/collection'
+    | '/first-run'
     | '/inbox'
     | '/library'
     | '/namespace'
@@ -211,6 +223,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   CollectionRoute: typeof CollectionRoute
+  FirstRunRoute: typeof FirstRunRoute
   InboxRoute: typeof InboxRoute
   LibraryRoute: typeof LibraryRoute
   NamespaceRoute: typeof NamespaceRoute
@@ -246,6 +259,13 @@ declare module '@tanstack/react-router' {
       path: '/collection'
       fullPath: '/collection'
       preLoaderRoute: typeof CollectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/first-run': {
+      id: '/first-run'
+      path: '/first-run'
+      fullPath: '/first-run'
+      preLoaderRoute: typeof FirstRunRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -339,6 +359,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   CollectionRoute: CollectionRoute,
+  FirstRunRoute: FirstRunRoute,
   InboxRoute: InboxRoute,
   LibraryRoute: LibraryRoute,
   NamespaceRoute: NamespaceRoute,

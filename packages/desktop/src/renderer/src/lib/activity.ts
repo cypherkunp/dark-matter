@@ -3,6 +3,7 @@ import type { ActivityClient, ActivityEntry, ActivityFilter, ActivitySubject } f
 /** Human labels for Activity Log actions; unknown actions show as recorded. */
 const actionLabels: Record<string, string> = {
   "settings.updatePreferences": "Saved preferences",
+  "settings.completeFirstRun": "Finished the First run",
   "ownedFiles.discard": "Discarded a hand edit",
   "scan.run": "Scanned",
   "inbox.ignore": "Ignored a finding",
