@@ -188,6 +188,8 @@ interface Planned {
 const stepKey = (step: PlanStep) => toSortedJson(step);
 
 export interface McpAdoptOptions {
+  /** Where the Agents keep their files (review #15); `{ home }` when left out. */
+  env?: AgentPathEnv;
   /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
   writes?: WriteQueue;
   home: string;
@@ -330,7 +332,7 @@ export class McpAdopt {
 
   async #plan(ids: string[], names: Record<string, string>): Promise<Planned> {
     const { home, mcp, secrets } = this.#options;
-    const env: AgentPathEnv = { home };
+    const env: AgentPathEnv = this.#options.env ?? { home };
     const scan = this.#options.latestScan();
     const inProjects = ids.some((id) => id.startsWith("project-mcp:"))
       ? ((await this.#options.projectFindings?.()) ?? []).filter((finding) => !finding.tracked)

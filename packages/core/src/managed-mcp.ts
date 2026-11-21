@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { ManagedMcpServer, McpDefinition, McpOffScope } from "@dark-matter/contracts";
+import { claudeDir, claudeJsonFile, codexDir, opencodeDir } from "./agent-dirs";
 import type { AgentPathEnv } from "./agents";
 import { jsonc, toml } from "./config-edit";
 import { claudeRefs, codexEntry, cursorRefs, entriesOf, mcpServersEntry } from "./mcp-agents";
@@ -135,7 +136,7 @@ const CLAUDE_CONNECTORS = "claude.ai connectors";
 export const claudeManagedMcp: AgentManagedMcp = {
   async servers(env) {
     const found: FoundManagedMcp[] = [];
-    const registry = await readJson(join(env.home, ".claude/plugins/installed_plugins.json"));
+    const registry = await readJson(join(claudeDir(env), "plugins/installed_plugins.json"));
     for (const [plugin, installs] of Object.entries(asObject(registry?.plugins)).sort(([a], [b]) =>
       a.localeCompare(b),
     )) {
@@ -156,7 +157,7 @@ export const claudeManagedMcp: AgentManagedMcp = {
         }
       }
     }
-    const state = await readJson(join(env.home, ".claude.json"));
+    const state = await readJson(claudeJsonFile(env));
     if (state?.oauthAccount !== undefined) {
       found.push({ name: CLAUDE_CONNECTORS, kind: "connector", plugin: null, source: null, definition: null });
     }
@@ -173,7 +174,7 @@ export const claudeManagedMcp: AgentManagedMcp = {
     return found;
   },
   off: {
-    file: ({ home }) => join(home, ".claude/settings.json"),
+    file: (env) => join(claudeDir(env), "settings.json"),
     scopes: (server) => (server.kind === "plugin" ? ["plugin"] : server.kind === "connector" ? ["connectors"] : []),
     setting: (server, scope) =>
       scope === "plugin"
@@ -259,7 +260,7 @@ const mentionsMcp = (text: string | null) => text !== null && /\bmcp\b/i.test(te
  */
 export const opencodeManagedMcp: AgentManagedMcp = {
   async servers(env) {
-    const root = join(env.home, ".config/opencode");
+    const root = opencodeDir(env);
     const found: FoundManagedMcp[] = [];
     for (const folder of ["plugins", "plugin"]) {
       let names: string[] = [];
@@ -353,7 +354,7 @@ export const codexManagedMcp: AgentManagedMcp = {
     return found;
   },
   off: {
-    file: ({ home }) => join(home, ".codex/config.toml"),
+    file: (env) => join(codexDir(env), "config.toml"),
     scopes: (server) => (server.kind === "system" ? ["server"] : []),
     setting: (server) => `[mcp_servers.${tomlKey(server.name)}] enabled = false`,
     isOff: (config, server) => asObject(asObject(toml.read(config).mcp_servers)[server.name]).enabled === false,

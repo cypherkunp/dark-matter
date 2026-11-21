@@ -1,6 +1,8 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { ManagedSkill, OffScope } from "@dark-matter/contracts";
+import { claudeDir, codexDir, opencodeDir } from "./agent-dirs";
+import type { AgentPathEnv } from "./agents";
 import { jsonc, toml } from "./config-edit";
 import { fromHomeRelative } from "./home-path";
 
@@ -48,7 +50,7 @@ export const managedSkillRef = (
 /** "Turn off everywhere" through one Agent's global config file. */
 export interface OffSwitches {
   /** The config file it edits. */
-  file(home: string): Promise<string>;
+  file(env: AgentPathEnv): Promise<string>;
   /** The scopes it offers for a Skill, the narrowest first. */
   scopes(skill: ManagedSkillRef): OffScope[];
   /** The setting a scope writes, as the user would read it in the file. */
@@ -61,7 +63,7 @@ export interface OffSwitches {
 
 export interface AgentManagedSkills {
   /** Folders holding its Agent-managed Skills. Only reads. */
-  folders(home: string): Promise<ManagedFolder[]>;
+  folders(env: AgentPathEnv): Promise<ManagedFolder[]>;
   /** Null when the Agent has no off switch (Cursor), so Dark Matter never writes its settings. */
   off: OffSwitches | null;
 }
@@ -122,8 +124,8 @@ const pluginCacheFolders = async (
  * Off: `enabledPlugins` for a plugin's Skills, `skillOverrides: "off"` otherwise.
  */
 export const claudeManaged: AgentManagedSkills = {
-  async folders(home) {
-    const registry = await readJson(join(home, ".claude/plugins/installed_plugins.json"));
+  async folders(env) {
+    const registry = await readJson(join(claudeDir(env), "plugins/installed_plugins.json"));
     const folders: ManagedFolder[] = [];
     for (const [plugin, installs] of Object.entries(asObject(registry.plugins)).sort(([a], [b]) =>
       a.localeCompare(b),
@@ -134,11 +136,11 @@ export const claudeManaged: AgentManagedSkills = {
           folders.push({ path: join(installPath, "skills"), kind: "plugin", plugin });
       }
     }
-    folders.push({ path: join(home, ".claude/skills/synced"), kind: "synced", plugin: null });
+    folders.push({ path: join(claudeDir(env), "skills/synced"), kind: "synced", plugin: null });
     return folders;
   },
   off: {
-    file: async (home) => join(home, ".claude/settings.json"),
+    file: async (env) => join(claudeDir(env), "settings.json"),
     scopes: (skill) => (skill.plugin ? ["plugin"] : ["skill"]),
     setting: (skill, scope) =>
       scope === "plugin"
@@ -162,7 +164,7 @@ export const claudeManaged: AgentManagedSkills = {
  * cache. Cursor has no off switch, so these are read-only.
  */
 export const cursorManaged: AgentManagedSkills = {
-  folders: async (home) => [
+  folders: async ({ home }) => [
     { path: join(home, ".cursor/skills-cursor"), kind: "bundled", plugin: null },
     ...(await pluginCacheFolders(join(home, ".cursor/plugins/cache"), (_, plugin) => plugin)),
   ],
@@ -176,12 +178,12 @@ export const cursorManaged: AgentManagedSkills = {
  * (v2 `permissions` array, else v1 `permission.skill` map).
  */
 export const opencodeManaged: AgentManagedSkills = {
-  folders: async (home) =>
+  folders: async ({ home }) =>
     (await subdirs(join(home, ".cache/opencode/skills"))).map((path) => ({ path, kind: "cached", plugin: null })),
   off: {
-    async file(home) {
-      const jsoncFile = join(home, ".config/opencode/opencode.jsonc");
-      return (await exists(jsoncFile)) ? jsoncFile : join(home, ".config/opencode/opencode.json");
+    async file(env) {
+      const jsoncFile = join(opencodeDir(env), "opencode.jsonc");
+      return (await exists(jsoncFile)) ? jsoncFile : join(opencodeDir(env), "opencode.json");
     },
     scopes: () => ["skill"],
     setting: (skill) =>
@@ -222,12 +224,12 @@ const opencodeShape = (settings: Json): "v1" | "v2" =>
  * for one Skill, or `[skills.bundled] enabled = false` for every bundled one.
  */
 export const codexManaged: AgentManagedSkills = {
-  folders: async (home) => [
-    { path: join(home, ".codex/skills/.system"), kind: "bundled", plugin: null },
-    ...(await pluginCacheFolders(join(home, ".codex/plugins/cache"), (mkt, plugin) => `${plugin}@${mkt}`)),
+  folders: async (env) => [
+    { path: join(codexDir(env), "skills/.system"), kind: "bundled", plugin: null },
+    ...(await pluginCacheFolders(join(codexDir(env), "plugins/cache"), (mkt, plugin) => `${plugin}@${mkt}`)),
   ],
   off: {
-    file: async (home) => join(home, ".codex/config.toml"),
+    file: async (env) => join(codexDir(env), "config.toml"),
     scopes: (skill) => (skill.kind === "bundled" ? ["skill", "bundled"] : ["skill"]),
     setting: (skill, scope) =>
       scope === "bundled"

@@ -22,7 +22,7 @@ import {
 } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import type { ActivityLog, Wrote } from "./activity";
-import { agentAdapters } from "./agents";
+import { type AgentPathEnv, agentAdapters } from "./agents";
 import { editConfigFile, readConfigText, toml } from "./config-edit";
 import type { EventBus } from "./events";
 import { fromHomeRelative, homeRelative } from "./home-path";
@@ -44,6 +44,8 @@ import type { SecretStore } from "./secrets";
 import { WriteQueue } from "./write-queue";
 
 export interface ProjectMcpOptions {
+  /** Where the Agents keep their files (review #15); `{ home }` when left out. */
+  env?: AgentPathEnv;
   /** The core\'s one write queue (review #8); a queue of its own when left out (tests). */
   writes?: WriteQueue;
   home: string;
@@ -85,8 +87,8 @@ export class ProjectMcpService {
   constructor(private readonly options: ProjectMcpOptions) {}
 
   get #context() {
-    const { home, mcp, secrets } = this.options;
-    return { env: { home }, mcp, secrets };
+    const { mcp, secrets } = this.options;
+    return { env: this.#env, mcp, secrets };
   }
 
   #serial<T>(run: () => Promise<T>): Promise<T> {
@@ -121,6 +123,10 @@ export class ProjectMcpService {
         this.#changed();
       }
     });
+  }
+
+  get #env(): AgentPathEnv {
+    return this.options.env ?? { home: this.options.home };
   }
 
   #record(path: string): ProjectRecord {
@@ -311,12 +317,12 @@ export class ProjectMcpService {
         const targets = [];
         for (const adapter of agentAdapters) {
           if (!agents.includes(adapter.id) || !adapter.mcp) continue;
-          const target = await mcpDeliveryModes.personal.target(adapter.mcp, path, { home });
+          const target = await mcpDeliveryModes.personal.target(adapter.mcp, path, this.#env);
           targets.push({
             agent: adapter.id,
             file: homeRelative(home, target.file),
             personal: await mcpDeliveryModes.personal.offered(target, path),
-            shared: homeRelative(home, (await mcpDeliveryModes.shared.target(adapter.mcp, path, { home })).file),
+            shared: homeRelative(home, (await mcpDeliveryModes.shared.target(adapter.mcp, path, this.#env)).file),
           });
         }
         return targets;
@@ -448,12 +454,12 @@ export class ProjectMcpService {
           },
         ),
 
-      repoMcpServers: async (path) => repoMcpServers({ home }, path, this.#record(path)),
+      repoMcpServers: async (path) => repoMcpServers(this.#env, path, this.#record(path)),
 
       trustInCodex: (path, client) =>
         this.#change(client, "project.trustInCodex", [{ kind: "project", id: path }], async (wrote) => {
           const record = this.#record(path);
-          const written = await editConfigFile(codexUserConfig({ home }), (text) =>
+          const written = await editConfigFile(codexUserConfig(this.#env), (text) =>
             toml.set(text, ["projects", path], "trust_level", "trusted"),
           );
           if (written) wrote(written);
@@ -480,7 +486,7 @@ export class ProjectMcpService {
   async findings(): Promise<ProjectMcpFinding[]> {
     const found: ProjectMcpFinding[] = [];
     for (const [path, record] of Object.entries(this.options.projects.value.projects))
-      found.push(...(await projectMcpFindings({ home: this.options.home }, path, record)));
+      found.push(...(await projectMcpFindings(this.#env, path, record)));
     return found;
   }
 

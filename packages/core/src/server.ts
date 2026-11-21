@@ -80,6 +80,11 @@ export const startCore = async ({
       requestWaitMs,
       skillsSh: skillsSh ?? skillsShOptionsFrom(env),
       ...(env.DARK_MATTER_SYSTEM_ROOT && { systemRoot: env.DARK_MATTER_SYSTEM_ROOT }),
+      agentDirs: {
+        ...(env.CLAUDE_CONFIG_DIR && { claudeConfigDir: env.CLAUDE_CONFIG_DIR }),
+        ...(env.CODEX_HOME && { codexHome: env.CODEX_HOME }),
+        ...(env.XDG_CONFIG_HOME && { xdgConfigHome: env.XDG_CONFIG_HOME }),
+      },
       info: () => ({ version: pkg.version, pid: process.pid, libraryHome, startedAt }),
     });
     try {

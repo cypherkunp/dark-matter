@@ -171,10 +171,10 @@ const findManagedSkills = async (env: AgentPathEnv, adapters: readonly AgentAdap
   const found: ManagedSkill[] = [];
   for (const adapter of adapters) {
     const { off } = adapter.managed;
-    const configFile = off ? await off.file(env.home) : null;
+    const configFile = off ? await off.file(env) : null;
     const config = configFile ? ((await readConfigText(configFile).catch(() => null)) ?? "") : "";
     const seen = new Set<string>();
-    for (const folder of await adapter.managed.folders(env.home)) {
+    for (const folder of await adapter.managed.folders(env)) {
       for (const entry of await listSkillEntries({ path: folder.path })) {
         if (seen.has(entry.realPath)) continue;
         seen.add(entry.realPath);

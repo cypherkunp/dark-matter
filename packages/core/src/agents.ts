@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { AgentId } from "@dark-matter/contracts";
+import { claudeDir, codexDir, opencodeDir } from "./agent-dirs";
 import { claudeHistory, codexHistory, cursorHistory, opencodeHistory } from "./history";
 import {
   type AgentManagedMcp,
@@ -23,6 +24,12 @@ export interface AgentPathEnv {
   home: string;
   /** Where system-wide config (`/etc`, `/Library`) is read from; `/` by default. */
   systemRoot?: string;
+  /** `CLAUDE_CONFIG_DIR`: Claude Code's config folder instead of `~/.claude` (review #15). */
+  claudeConfigDir?: string;
+  /** `CODEX_HOME`: Codex's folder instead of `~/.codex`. */
+  codexHome?: string;
+  /** `XDG_CONFIG_HOME`: OpenCode's config lives in `<it>/opencode` instead of `~/.config/opencode`. */
+  xdgConfigHome?: string;
 }
 
 /** A folder an Agent loads Skills from, one `<name>/SKILL.md` per entry. */
@@ -76,20 +83,20 @@ export interface AgentAdapter {
   managedMcp: AgentManagedMcp | null;
 }
 
-const claudeSkills = ({ home }: AgentPathEnv): SkillFolder => ({
-  path: join(home, ".claude/skills"),
+const claudeSkills = (env: AgentPathEnv): SkillFolder => ({
+  path: join(claudeDir(env), "skills"),
   // claude.ai account Skills, synced and rewritten by Claude Code (`.trash` is hidden).
   ignore: ["synced"],
 });
 const agentsSkills = ({ home }: AgentPathEnv): SkillFolder => ({ path: join(home, ".agents/skills") });
-const codexSkills = ({ home }: AgentPathEnv): SkillFolder => ({ path: join(home, ".codex/skills") });
+const codexSkills = (env: AgentPathEnv): SkillFolder => ({ path: join(codexDir(env), "skills") });
 const cursorSkills = ({ home }: AgentPathEnv): SkillFolder => ({ path: join(home, ".cursor/skills") });
-const opencodeSkills = ({ home }: AgentPathEnv): SkillFolder => ({ path: join(home, ".config/opencode/skills") });
+const opencodeSkills = (env: AgentPathEnv): SkillFolder => ({ path: join(opencodeDir(env), "skills") });
 
 const claudeCode: AgentAdapter = {
   id: "claude-code",
   name: "Claude Code",
-  configDir: ({ home }) => join(home, ".claude"),
+  configDir: claudeDir,
   // Claude Code alone doesn't read `.agents/skills` (anthropics/claude-code#31005).
   skills: {
     globalFolders: (env) => [claudeSkills(env)],
@@ -123,7 +130,7 @@ const cursor: AgentAdapter = {
 const opencode: AgentAdapter = {
   id: "opencode",
   name: "OpenCode",
-  configDir: ({ home }) => join(home, ".config/opencode"),
+  configDir: opencodeDir,
   skills: {
     globalFolders: (env) => [opencodeSkills(env), claudeSkills(env), agentsSkills(env)],
     projectFolders: [".opencode/skills", ".claude/skills", ".agents/skills"],
@@ -139,7 +146,7 @@ const opencode: AgentAdapter = {
 const codex: AgentAdapter = {
   id: "codex",
   name: "Codex",
-  configDir: ({ home }) => join(home, ".codex"),
+  configDir: codexDir,
   // `~/.codex/skills` is deprecated but still loaded; its `.system/` (hidden) is Agent-managed.
   // The admin folder `/etc/codex/skills` is outside `$HOME` and not scanned yet.
   skills: {

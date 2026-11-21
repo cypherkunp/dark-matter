@@ -17,7 +17,7 @@ import {
 import type { CoreServices } from "@dark-matter/contracts/router";
 import { ActivityLog, retentionJob, type Wrote } from "./activity";
 import { Adopt } from "./adopt";
-import { agentAdapters } from "./agents";
+import { type AgentPathEnv, agentAdapters } from "./agents";
 import { openCache } from "./cache";
 import type { Clock } from "./clock";
 import { Collections } from "./collections";
@@ -65,6 +65,8 @@ export interface ServicesOptions {
   clock: Clock;
   /** Where system-wide Agent config is read from (`/` outside tests). */
   systemRoot?: string;
+  /** The Agents' own location overrides (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `XDG_CONFIG_HOME`), review #15. */
+  agentDirs?: Pick<AgentPathEnv, "claudeConfigDir" | "codexHome" | "xdgConfigHome">;
   notifier: Notifier;
   secrets: SecretStore;
   github: GitHubOptions;
@@ -92,6 +94,7 @@ export const createServices = async ({
   github,
   skillsSh,
   systemRoot,
+  agentDirs,
   requestWaitMs,
 }: ServicesOptions) => {
   const cache = await openCache(libraryHome);
@@ -150,7 +153,7 @@ export const createServices = async ({
         "requests",
       ],
     });
-  const env = { home, ...(systemRoot && { systemRoot }) };
+  const env: AgentPathEnv = { home, ...(systemRoot && { systemRoot }), ...agentDirs };
   const scans = new Scans({
     env,
     cache,
@@ -188,6 +191,7 @@ export const createServices = async ({
   const mcpLibrary = new McpLibrary(libraryHome);
   const mcpAdopt = new McpAdopt({
     writes,
+    env,
     home,
     libraryHome,
     mcp: mcpLibrary,
@@ -252,6 +256,7 @@ export const createServices = async ({
   keyRenameHooks.push(projectSkills.keyRenameHook());
   const projectMcp = new ProjectMcpService({
     writes,
+    env,
     home,
     mcp: mcpLibrary,
     secrets,
@@ -529,7 +534,7 @@ export const createServices = async ({
               throw new UnknownFinding(id);
             }
             const ref = managedSkillRef(skill, home);
-            const file = await off.file(home);
+            const file = await off.file(env);
             const written = await editConfigFile(file, (text) => off.turnOff(text, ref, scope));
             if (written) wrote(written);
             await scans.refresh();

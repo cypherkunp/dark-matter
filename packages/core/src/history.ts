@@ -3,6 +3,7 @@ import { isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { claudeDir, claudeJsonFile, codexDir } from "./agent-dirs";
 import type { AgentPathEnv } from "./agents";
 
 /**
@@ -57,10 +58,10 @@ const ClaudeJson = z.object({ projects: z.record(z.string(), z.unknown()) });
  * session logs in `~/.claude/projects/<slug>/*.jsonl`, whose lines carry the
  * `cwd` (the slug itself is lossy).
  */
-export const claudeHistory = async ({ home }: AgentPathEnv): Promise<string[]> => {
-  const config = ClaudeJson.safeParse(await readJson(join(home, ".claude.json")));
+export const claudeHistory = async (env: AgentPathEnv): Promise<string[]> => {
+  const config = ClaudeJson.safeParse(await readJson(claudeJsonFile(env)));
   const folders = config.success ? absolute(Object.keys(config.data.projects)) : [];
-  const sessions = join(home, ".claude/projects");
+  const sessions = join(claudeDir(env), "projects");
   for (const slug of await list(sessions)) {
     const logs = (await list(join(sessions, slug))).filter((name) => name.endsWith(".jsonl")).sort();
     // One session per folder is enough; try a few in case the first is all summaries.
@@ -125,8 +126,8 @@ export const opencodeHistory = async ({ home }: AgentPathEnv): Promise<string[]>
 };
 
 /** Codex: the `cwd` in the `session_meta` line heading each `~/.codex/sessions/**\/rollout-*.jsonl`. */
-export const codexHistory = async ({ home }: AgentPathEnv): Promise<string[]> => {
-  const sessions = join(home, ".codex/sessions");
+export const codexHistory = async (env: AgentPathEnv): Promise<string[]> => {
+  const sessions = join(codexDir(env), "sessions");
   let files: string[];
   try {
     files = await readdir(sessions, { recursive: true });
