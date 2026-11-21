@@ -180,7 +180,12 @@ function Found() {
           note="In Suggested Projects, not committed"
         >
           {untracked.map(({ project, skill }) => (
-            <Row key={skill.path} name={skill.name} folder={`${project.name}/${skill.folder}`} namespace="local" />
+            <Row
+              key={skill.path}
+              name={skill.name}
+              folder={`${project.name}/${skill.folder}`}
+              namespace={skill.namespace}
+            />
           ))}
         </Group>
       )}
@@ -191,7 +196,12 @@ function Found() {
           note="Committed in a repo; left as they are"
         >
           {vendored.map(({ project, skill }) => (
-            <Row key={skill.path} name={skill.name} folder={`${project.name}/${skill.folder}`} namespace="vendored" />
+            <Row
+              key={skill.path}
+              name={skill.name}
+              folder={`${project.name}/${skill.folder}`}
+              namespace={skill.namespace}
+            />
           ))}
         </Group>
       )}

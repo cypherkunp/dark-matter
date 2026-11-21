@@ -511,7 +511,8 @@ export type ProjectSkillEntry = z.infer<typeof ProjectSkillEntry>;
 export const SuggestedProjectSkills = z.object({
   path: z.string(),
   name: z.string(),
-  skills: z.array(ProjectSkillEntry),
+  /** Each with the Namespace Adopt would give it (review #18): its Source from `skills-lock.json`, else `local`. */
+  skills: z.array(ProjectSkillEntry.extend({ namespace: z.string() })),
 });
 export type SuggestedProjectSkills = z.infer<typeof SuggestedProjectSkills>;
 

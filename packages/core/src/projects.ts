@@ -13,6 +13,7 @@ import {
 } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import type { ActivityLog, Wrote } from "./activity";
+import { namespaceOf } from "./adopt";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters } from "./agents";
 import type { EventBus } from "./events";
 import type { OwnedFile } from "./owned-file";
@@ -20,6 +21,7 @@ import type { ProjectMcpProcedures } from "./project-mcp";
 import type { ProjectSkillProcedures } from "./project-skills";
 import { scanProject } from "./scanner";
 import type { Scans } from "./scans";
+import { readProjectLock } from "./skill-lock";
 
 const isDirectory = (path: string) =>
   stat(path).then(
@@ -188,10 +190,18 @@ export const projectServices = ({
         waitingSuggestions(scans.latest?.suggestedProjects ?? [], projects.value, settings.value).suggested.map(
           async ({ path, name }) => {
             const { skills } = await scanProject(path, agentAdapters);
+            // The Namespace Adopt would give each one (review #18): its Source in the Project's skills-lock.json.
+            const lock = await readProjectLock(path);
+            const inside = (real: string) => real === path || real.startsWith(`${path}${sep}`);
             return {
               path,
               name,
-              skills: skills.sort((a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path)),
+              skills: skills
+                .map((skill) => ({
+                  ...skill,
+                  namespace: inside(skill.realPath) ? namespaceOf(lock[basename(skill.path)]) : "local",
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path)),
             };
           },
         ),
