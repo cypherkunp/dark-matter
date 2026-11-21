@@ -21,6 +21,7 @@ catalog:
   class-variance-authority: 0.7.1
   cn: 0.5.2
   electron: 45.4.1
+  electron-builder: 26.18.1
   electron-vite: 6.0.0
   knip: 6.47.0
   lucide-react: 1.77.0
@@ -38,3 +39,5 @@ catalog:
 
 allowBuilds:
   electron: true
+  # Windows-only installer tooling pulled in by electron-builder; we never build for Windows.
+  electron-winstaller: false
