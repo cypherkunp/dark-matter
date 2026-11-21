@@ -1,7 +1,7 @@
-import { chmod, lstat, readdir, readFile, stat, symlink } from "node:fs/promises";
+import { chmod, lstat, readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { agentHome } from "./agent-home";
+import { agentHome, gitRepo } from "./agent-home";
 import { bootCore, connect, fakeClock, localTime, tempHome } from "./harness";
 
 const setup = async (clock = fakeClock(localTime(20, 12))) => {
@@ -25,7 +25,13 @@ const setup = async (clock = fakeClock(localTime(20, 12))) => {
       folder: join(libraryHome, "skills/vercel-labs/skills/find-skills"),
     };
   };
-  return { home, libraryHome, trpc, fixture, adopt, sourcedSkill, clock };
+  /** A git repo confirmed as a Project for Claude Code and Codex. */
+  const project = async (dir: string) => {
+    const path = await gitRepo(home, dir);
+    await trpc.project.add.mutate({ path, agents: ["claude-code", "codex"] });
+    return path;
+  };
+  return { home, libraryHome, trpc, fixture, adopt, sourcedSkill, clock, project };
 };
 
 describe("Saving a Skill file", () => {
@@ -89,20 +95,18 @@ describe("Saving a Skill file", () => {
   });
 
   test("an edit to a Linked Skill shows in every Project at once", async () => {
-    const { home, trpc, fixture, sourcedSkill } = await setup();
-    const { key, folder } = await sourcedSkill();
-    const links = [
-      join(home, "code/app/.agents/skills/find-skills"),
-      join(home, "code/api/.claude/skills/find-skills"),
-    ];
-    for (const link of links) {
-      await fixture.file(join(link, "..", ".keep"), "");
-      await symlink(folder, link, "dir");
-    }
+    const { trpc, sourcedSkill, project } = await setup();
+    const { key } = await sourcedSkill();
+    const projects = [await project("code/app"), await project("code/api")];
+    await trpc.project.addSkills.mutate({ skills: projects.map((path) => ({ path, key })) });
 
     await trpc.skill.saveFile.mutate({ key, path: "scripts/run.sh", content: "echo linked\n" });
 
-    for (const link of links) expect(await readFile(join(link, "scripts/run.sh"), "utf8")).toBe("echo linked\n");
+    for (const path of projects) {
+      for (const folder of [".agents/skills", ".claude/skills"]) {
+        expect(await readFile(join(path, folder, "find-skills/scripts/run.sh"), "utf8")).toBe("echo linked\n");
+      }
+    }
   });
 
   test("a Local Source is edited where it's authored", async () => {
@@ -172,6 +176,30 @@ describe("Deleting a Library Skill", () => {
     });
     const { entries } = await trpc.activity.list.query({});
     expect(entries[0]).toMatchObject({ action: "skill.delete", result: "ok", subjects: [{ kind: "skill", id: key }] });
+  });
+
+  test("warns about the Projects whose Links would break", async () => {
+    const { trpc, sourcedSkill, project } = await setup();
+    const { key } = await sourcedSkill();
+    const app = await project("code/app");
+    const api = await project("code/api");
+    await trpc.project.addSkills.mutate({
+      skills: [
+        { path: app, key },
+        { path: api, key },
+      ],
+    });
+    await trpc.project.setSkillOn.mutate({ path: api, key, on: false });
+
+    expect((await trpc.skill.deletePlan.query({ key })).projects).toEqual([
+      { path: api, projectName: "api", mode: "link", on: false },
+      { path: app, projectName: "app", mode: "link", on: true },
+    ]);
+
+    // Deleting anyway leaves the Projects readable.
+    await trpc.skill.delete.mutate({ key });
+    await expect(trpc.project.skills.query({ path: app })).resolves.toBeDefined();
+    await expect(trpc.library.list.query()).resolves.toEqual({ skills: [] });
   });
 
   test("a Local Source loses only its Library symlink; the folder it's authored in stays", async () => {

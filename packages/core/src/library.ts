@@ -29,7 +29,10 @@ export class Library {
     return join(this.libraryHome, "skills", ...key.split("/"));
   }
 
-  async list(): Promise<LibrarySkill[]> {
+  /** Every Library Skill; `usage` says how Projects use it (#27). */
+  async list(
+    usage: ReadonlyMap<string, Pick<LibrarySkill, "projects" | "nameConflict">> = new Map(),
+  ): Promise<LibrarySkill[]> {
     const entries = Object.entries(this.lock.value.skills).sort(([a], [b]) => a.localeCompare(b));
     return Promise.all(
       entries.map(async ([key, entry]) => {
@@ -43,6 +46,8 @@ export class Library {
           localSource: entry.localSource ?? null,
           adoptedFrom: entry.adoptedFrom ?? null,
           modified: await this.modified(key),
+          projects: usage.get(key)?.projects ?? 0,
+          nameConflict: usage.get(key)?.nameConflict ?? false,
         };
       }),
     );

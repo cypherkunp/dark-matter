@@ -160,7 +160,7 @@ describe("Confirming a Project", () => {
       folders: [".agents/skills"],
     });
     expect(JSON.parse(await readFile(join(libraryHome, "projects.json"), "utf8"))).toEqual({
-      projects: { [app]: { agents: ["cursor", "codex"] } },
+      projects: { [app]: { agents: ["cursor", "codex"], skills: {} } },
     });
     expect((await trpc.project.suggested.query()).suggested).toEqual([]);
     expect(await trpc.project.list.query()).toEqual([
@@ -218,7 +218,7 @@ describe("Confirming a Project", () => {
     const codexOnly = await trpc.project.setAgents.mutate({ path: app, agents: ["codex"] });
     expect(codexOnly.folders).toEqual([".agents/skills"]);
     expect(JSON.parse(await readFile(join(libraryHome, "projects.json"), "utf8"))).toEqual({
-      projects: { [app]: { agents: ["codex"] } },
+      projects: { [app]: { agents: ["codex"], skills: {} } },
     });
   });
 
@@ -286,7 +286,7 @@ describe("a Project whose folder is gone", () => {
 
     expect(located).toMatchObject({ path: moved, exists: true, agents: ["claude-code", "cursor"] });
     expect(JSON.parse(await readFile(join(libraryHome, "projects.json"), "utf8"))).toEqual({
-      projects: { [moved]: { agents: ["claude-code", "cursor"] } },
+      projects: { [moved]: { agents: ["claude-code", "cursor"], skills: {} } },
     });
     expect((await trpc.activity.list.query()).entries[0]).toMatchObject({
       action: "project.locate",

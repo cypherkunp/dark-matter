@@ -48,6 +48,10 @@ export const LibrarySkill = z.object({
   adoptedFrom: z.string().nullable(),
   /** Changed since it was last Imported: its files no longer match the Library Lock's computedHash. */
   modified: z.boolean(),
+  /** How many Projects use it (On or Off). */
+  projects: z.int().nonnegative(),
+  /** It's in a Name Conflict in at least one Project. */
+  nameConflict: z.boolean(),
 });
 export type LibrarySkill = z.infer<typeof LibrarySkill>;
 
@@ -603,9 +607,22 @@ export type CoreEvent = z.infer<typeof CoreEvent>;
  * add Project Skills (#27), Project MCP Servers (#38) and the Grant as fields
  * with defaults, so older files stay valid.
  */
+/** How a Project Skill reaches the Project's Agents. #28 adds "copy". */
+export const DeliveryMode = z.enum(["link"]);
+export type DeliveryMode = z.infer<typeof DeliveryMode>;
+
+/** One Project Skill in `projects.json`: owned intent, keyed by Library key. Off keeps it here, undelivered. */
+export const ProjectSkillRecord = z.strictObject({
+  mode: DeliveryMode,
+  on: z.boolean(),
+});
+export type ProjectSkillRecord = z.infer<typeof ProjectSkillRecord>;
+
 export const ProjectRecord = z.strictObject({
   /** The Agents chosen for this Project; they decide which folders get written. */
   agents: z.array(AgentId).default([]),
+  /** Project Skills by Library key (#27). */
+  skills: z.record(z.string(), ProjectSkillRecord).default({}),
 });
 export type ProjectRecord = z.infer<typeof ProjectRecord>;
 
@@ -661,3 +678,41 @@ export const CoreExitCode = {
   locked: 75,
   failed: 1,
 } as const;
+
+/**
+ * A Project Skill as the Project page and the Skill page show it.
+ * `status`: "on" (delivered), "off", or "nameConflict" (another Project Skill
+ * with the same name wants the same Agent folders: Resolve, switch disabled).
+ */
+export const ProjectSkill = z.object({
+  key: z.string(),
+  namespace: z.string(),
+  /** The folder name it's delivered under: its SKILL.md `name`. */
+  name: z.string(),
+  mode: DeliveryMode,
+  on: z.boolean(),
+  status: z.enum(["on", "off", "nameConflict"]),
+  /** The other Library keys with the same name in this Project. */
+  conflictsWith: z.array(z.string()),
+  /** Project-relative paths it is (or would be) delivered at. */
+  paths: z.array(z.string()),
+});
+export type ProjectSkill = z.infer<typeof ProjectSkill>;
+
+/** One Project Skill to add; `mode` defaults to Link. */
+export const AddProjectSkill = ProjectPath.extend({ key: z.string().min(1), mode: DeliveryMode.optional() });
+export type AddProjectSkill = z.infer<typeof AddProjectSkill>;
+
+export const AddProjectSkills = z.object({ skills: z.array(AddProjectSkill).min(1) });
+export type AddProjectSkills = z.infer<typeof AddProjectSkills>;
+
+/** A Project's Project Skills after a change. */
+export const ProjectSkills = z.object({ path: z.string(), skills: z.array(ProjectSkill) });
+export type ProjectSkills = z.infer<typeof ProjectSkills>;
+
+/** One Project using a Library Skill, for the Skill page's Projects tab. */
+export const SkillProjectUse = ProjectSkill.extend({ path: z.string(), projectName: z.string() });
+export type SkillProjectUse = z.infer<typeof SkillProjectUse>;
+
+export const ProjectSkillRef = ProjectPath.extend({ key: z.string().min(1) });
+export type ProjectSkillRef = z.infer<typeof ProjectSkillRef>;

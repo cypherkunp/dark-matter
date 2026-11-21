@@ -29,12 +29,23 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
             </span>
           )}
           {skill.modified && <ModifiedBadge />}
+          {skill.nameConflict && (
+            <span
+              data-testid="name-conflict"
+              className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px]"
+            >
+              Name Conflict
+            </span>
+          )}
         </div>
         {skill.description && <p className="truncate text-muted-foreground text-xs">{skill.description}</p>}
         <div className="truncate font-mono text-muted-foreground text-xs">
           {[skill.key, skill.localSource].filter(Boolean).join(" · ")}
         </div>
       </div>
+      <span data-testid="project-count" className="shrink-0 text-muted-foreground text-xs tabular-nums">
+        {plural(skill.projects, "Project")}
+      </span>
       <ChevronRight className="size-4 text-muted-foreground" />
     </Link>
   );

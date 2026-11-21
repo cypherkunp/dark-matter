@@ -15,6 +15,7 @@ import { managedSkillRef } from "./managed-skills";
 import { type KeyRenameHook, NamespaceRename } from "./namespace-rename";
 import type { Notifier } from "./notifier";
 import { OwnedFile } from "./owned-file";
+import { ProjectSkillService } from "./project-skills";
 import { projectServices, waitingSuggestions } from "./projects";
 import { Scans } from "./scans";
 import { scanJob } from "./scheduled-scan";
@@ -101,13 +102,19 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
     activity,
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill"] }),
   });
+  const projectSkills = new ProjectSkillService({ home, libraryHome, library, projects, activity, bus });
   const trash = new Trash({
     library,
     activity,
     clock,
     retentionDays: () => settings.value.preferences.trashRetentionDays,
-    // The Projects using a Skill come from Project delivery (#27): wire `project.forSkill` here once it lands.
-    usage: async () => [],
+    usage: async (key) =>
+      (await projectSkills.services().forSkill(key)).map(({ path, projectName, mode, on }) => ({
+        path,
+        projectName,
+        mode,
+        on,
+      })),
     onChange: () => bus.publish({ type: "invalidate", domains: ["library", "skill", "inbox", "project"] }),
   });
   dailyJobs.push(trash.job());
@@ -117,7 +124,7 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
 
   const services: Omit<CoreServices, "events" | "notifications"> = {
     info,
-    library: { list: async () => ({ skills: await library.list() }) },
+    library: { list: async () => ({ skills: await library.list(await projectSkills.usage()) }) },
     settings: {
       get: () => settings.value,
       updatePreferences: (patch, client) =>
@@ -194,7 +201,6 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       undo: (key, client) => adopt.undo(key, client),
     },
     scheduler: { status: () => scheduler.status() },
-    project: projectServices({ env, projects, settings, activity, scans, bus }),
     skill: {
       ...skillServices(library),
       files: (key) => skillEditor.files(key),
@@ -202,6 +208,10 @@ export const createServices = async ({ libraryHome, home, info, bus, clock, noti
       saveFile: (input, client) => skillEditor.saveFile(input, client),
       deletePlan: (key) => trash.plan(key),
       delete: (key, client) => trash.delete(key, client),
+    },
+    project: {
+      ...projectServices({ env, projects, settings, activity, scans, bus, deliver: projectSkills }),
+      ...projectSkills.services(),
     },
     namespace: {
       plan: (input) => namespaceRename.plan(input),

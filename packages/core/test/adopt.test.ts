@@ -56,6 +56,8 @@ describe("Adopt", () => {
         localSource: null,
         adoptedFrom: "~/.claude/skills/pdf",
         modified: false,
+        projects: 0,
+        nameConflict: false,
       },
     ]);
     expect((await trpc.inbox.list.query()).count).toBe(0);
