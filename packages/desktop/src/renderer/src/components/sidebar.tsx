@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Orbit, Search, Settings } from "lucide-react";
+import { ChevronRight, FolderGit2, Orbit, Search, Settings, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { tildify } from "@/lib/paths";
@@ -16,7 +16,13 @@ const rowClass =
 const activeRowClass = "bg-sidebar-accent font-medium hover:bg-sidebar-accent";
 
 /** Sidebar paths with a screen of their own; the rest open the placeholder screen. */
-const builtPaths = new Set(["/inbox", "/library", "/computer/agents", "/computer/activity"] as const);
+const builtPaths = new Set([
+  "/inbox",
+  "/library",
+  "/computer/agents",
+  "/computer/activity",
+  "/projects/suggested",
+] as const);
 type BuiltPath = typeof builtPaths extends Set<infer P> ? P : never;
 const isBuilt = (path: string): path is BuiltPath => builtPaths.has(path as BuiltPath);
 
@@ -43,13 +49,16 @@ export function Sidebar({ connected }: { connected: boolean }) {
   const library = useQuery(trpc.library.list.queryOptions());
   const problems = useQuery(trpc.ownedFiles.problems.queryOptions());
   const inbox = useQuery(trpc.inbox.list.queryOptions());
+  const projects = useQuery(trpc.project.list.queryOptions());
+  const suggested = useQuery(trpc.project.suggested.queryOptions());
   const { scanning, lastScanAt } = useScan();
   const now = useNow();
   const [filter, setFilter] = useState("");
 
   const skillCount = library.data?.skills.length;
   const counts: Record<string, number | undefined> = { "/inbox": inbox.data?.count, "/library": skillCount };
-  const sectionCounts: Record<string, number | undefined> = { Library: skillCount, Projects: 0 };
+  const sectionCounts: Record<string, number | undefined> = { Library: skillCount, Projects: projects.data?.length };
+  const groupCounts: Record<string, number | undefined> = { "/projects/suggested": suggested.data?.suggested.length };
   const matches = (item: { label: string }) => item.label.toLowerCase().includes(filter.trim().toLowerCase());
 
   return (
@@ -80,8 +89,12 @@ export function Sidebar({ connected }: { connected: boolean }) {
 
         {navSections.map((section) => {
           const items = section.items.filter(matches);
+          const projectRows =
+            section.title === "Projects"
+              ? (projects.data ?? []).map((project) => ({ ...project, label: project.name })).filter(matches)
+              : [];
           const group = section.group && matches(section.group) ? section.group : undefined;
-          if (filter && items.length === 0 && !group) return null;
+          if (filter && items.length === 0 && projectRows.length === 0 && !group) return null;
           return (
             <div key={section.title ?? "top"} className="flex flex-col gap-px">
               {section.title && (
@@ -106,6 +119,25 @@ export function Sidebar({ connected }: { connected: boolean }) {
                   )}
                 </NavLink>
               ))}
+              {projectRows.map((project) => (
+                <Link
+                  key={project.path}
+                  to="/project"
+                  search={{ path: project.path }}
+                  data-testid="sidebar-project"
+                  className={rowClass}
+                  activeProps={{ className: activeRowClass }}
+                  activeOptions={{ exact: true, includeSearch: true }}
+                >
+                  <FolderGit2 className="size-4 text-muted-foreground" />
+                  <span className="truncate">{project.label}</span>
+                  {project.exists ? (
+                    <StatusDot tone="off" className="ml-auto" />
+                  ) : (
+                    <TriangleAlert aria-label="Folder gone" className="ml-auto size-3.5 text-status-warning" />
+                  )}
+                </Link>
+              ))}
               {group && (
                 <NavLink
                   path={group.path}
@@ -113,7 +145,17 @@ export function Sidebar({ connected }: { connected: boolean }) {
                 >
                   {group.label}
                   <span className="ml-auto flex items-center gap-1 tabular-nums">
-                    0 <ChevronRight className="size-3.5" />
+                    {(groupCounts[group.path] ?? 0) > 0 ? (
+                      <span
+                        data-testid="suggested-badge"
+                        className="rounded-full border border-warning-border bg-warning-surface px-1.5 text-[11px] text-status-warning normal-case tracking-normal"
+                      >
+                        {groupCounts[group.path]}
+                      </span>
+                    ) : (
+                      0
+                    )}
+                    <ChevronRight className="size-3.5" />
                   </span>
                 </NavLink>
               )}

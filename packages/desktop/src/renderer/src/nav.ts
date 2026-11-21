@@ -52,6 +52,7 @@ export const navSections: NavSection[] = [
 /** The breadcrumb for a path: its section, then its own label. */
 export const breadcrumbFor = (path: string): string[] => {
   if (path === "/settings") return ["Settings"];
+  if (path === "/project") return ["Projects"];
   for (const section of navSections) {
     const entries = [...section.items, ...(section.group ? [section.group] : [])];
     const match = entries.find((entry) => entry.path === path);
