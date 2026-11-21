@@ -51,7 +51,7 @@ export function CheckUpstreamButton({ skill }: { skill: SkillDetail }) {
           )}
         </span>
       )}
-      {check.isError && <span className="text-destructive text-xs">{check.error.message}</span>}
+      {check.isError && <span className="text-status-warning text-xs">{check.error.message}</span>}
       <Button
         size="sm"
         variant="outline"
@@ -112,7 +112,7 @@ function UpdateRow({ update }: { update: SkillUpdate }) {
           it a local Skill that never updates.
         </p>
       )}
-      {apply.isError && <p className="text-destructive text-xs">{apply.error.message}</p>}
+      {apply.isError && <p className="text-status-warning text-xs">{apply.error.message}</p>}
       {showDiff && (
         <pre data-testid="update-diff" className="max-h-96 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">
           {diff.isPending ? "Loading…" : diff.isError ? diff.error.message : diff.data.patch || "No changes"}
@@ -167,7 +167,7 @@ function OrphanedRow({ skillKey, reason }: { skillKey: string; reason: string })
           Re-point
         </Button>
       </form>
-      {error && <p className="text-destructive text-xs">{error.message}</p>}
+      {error && <p className="text-status-warning text-xs">{error.message}</p>}
     </div>
   );
 }
@@ -197,7 +197,7 @@ export function UpdatesList() {
             </Button>
           )}
         </h2>
-        {apply.isError && <p className="text-destructive text-xs">{apply.error.message}</p>}
+        {apply.isError && <p className="text-status-warning text-xs">{apply.error.message}</p>}
         {updates.length === 0 ? (
           <p data-testid="updates-empty" className="rounded-xl border px-5 py-6 text-muted-foreground text-sm">
             Every Imported Skill matches its Source.

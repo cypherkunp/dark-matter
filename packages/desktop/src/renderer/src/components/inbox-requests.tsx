@@ -41,7 +41,7 @@ function RequestRow({ request }: { request: PendingRequest }) {
           {requester(request)} asked {relativeTime(Date.parse(request.createdAt), now)} ·{" "}
           {request.reasons.map((reason) => reasonLabels[reason]).join(" · ")}
         </p>
-        {error && <p className="text-destructive text-xs">{error}</p>}
+        {error && <p className="text-status-warning text-xs">{error}</p>}
       </div>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => deny.mutate({ id: request.id })}>
