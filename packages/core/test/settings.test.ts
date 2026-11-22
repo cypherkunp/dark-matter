@@ -12,6 +12,14 @@ describe("settings.json", () => {
 
     expect(settings.preferences).toEqual({
       activityRetention: 30,
+      adoptPermissions: {
+        "claude-code": { skills: false, mcp: false },
+        cursor: { skills: false, mcp: false },
+        opencode: { skills: false, mcp: false },
+        codex: { skills: false, mcp: false },
+        agents: { skills: true, mcp: true },
+      },
+      agentConfigGuard: true,
       scheduledScanTime: "09:00",
       startAtLogin: true,
       trashRetentionDays: 30,
@@ -33,6 +41,29 @@ describe("settings.json", () => {
   "ignoredFindings": [],
   "preferences": {
     "activityRetention": 30,
+    "adoptPermissions": {
+      "agents": {
+        "mcp": true,
+        "skills": true
+      },
+      "claude-code": {
+        "mcp": false,
+        "skills": false
+      },
+      "codex": {
+        "mcp": false,
+        "skills": false
+      },
+      "cursor": {
+        "mcp": false,
+        "skills": false
+      },
+      "opencode": {
+        "mcp": false,
+        "skills": false
+      }
+    },
+    "agentConfigGuard": true,
     "scheduledScanTime": "07:30",
     "startAtLogin": true,
     "trashRetentionDays": 30

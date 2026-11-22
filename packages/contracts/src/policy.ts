@@ -102,6 +102,9 @@ export const operationPolicy = {
   "importer.repoint": appOnly,
   "inbox.unignore": appOnly,
   "settings.completeFirstRun": appOnly,
+  // Adopt Permissions and the Agent Config Guard decide what may be moved or edited (ADR-0007).
+  "settings.setAdoptPermission": appOnly,
+  "settings.setAgentConfigGuard": appOnly,
   // Favourites are the app owner's own view (ADR-0006).
   "favourites.setSkill": appOnly,
   "favourites.setSource": appOnly,

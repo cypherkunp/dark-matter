@@ -3,12 +3,14 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { agentHome, snapshotTree } from "./agent-home";
-import { bootCore, connect, tempHome } from "./harness";
+import { allowAdoptEverywhere, bootCore, connect, tempHome } from "./harness";
 
 const setup = async () => {
   const { home, libraryHome } = await tempHome();
   const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome });
-  return { home, fixture: { home, ...agentHome(home) }, trpc: connect(core).trpc };
+  const { trpc } = connect(core);
+  await allowAdoptEverywhere(trpc);
+  return { home, fixture: { home, ...agentHome(home) }, trpc };
 };
 
 describe("Agent-managed MCP Servers", () => {

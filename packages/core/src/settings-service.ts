@@ -33,6 +33,21 @@ export const settingsServices = ({
         wrote(await settings.update((current) => ({ ...current, ignoredFindings: edit(current.ignoredFindings, id) })));
         bus.invalidate("settings", "inbox");
       });
+  /**
+   * Saves an Adopt Permission or the Agent Config Guard. What can be adopted
+   * changes with it, so the Inbox and the Scan's findings are refreshed.
+   */
+  const savePermissions = (
+    client: Parameters<CoreServices["settings"]["setAdoptPermission"]>[1],
+    action: "settings.setAdoptPermission" | "settings.setAgentConfigGuard",
+    id: string,
+    edit: (preferences: SettingsFile["preferences"]) => SettingsFile["preferences"],
+  ) =>
+    activity.track({ client, action, subjects: [{ kind: "settings", id }] }, async (wrote) => {
+      wrote(await settings.update((current) => ({ ...current, preferences: edit(current.preferences) })));
+      bus.invalidate("settings", "inbox", "scan", "agents");
+      return settings.value;
+    });
   return {
     settings: {
       get: () => settings.value,
@@ -50,6 +65,19 @@ export const settingsServices = ({
         await onPreferencesSaved();
         return saved;
       },
+      setAdoptPermission: ({ agent, kind, allowed }, client) =>
+        savePermissions(client, "settings.setAdoptPermission", "adoptPermissions", (preferences) => ({
+          ...preferences,
+          adoptPermissions: {
+            ...preferences.adoptPermissions,
+            [agent]: { ...preferences.adoptPermissions[agent], [kind]: allowed },
+          },
+        })),
+      setAgentConfigGuard: ({ on }, client) =>
+        savePermissions(client, "settings.setAgentConfigGuard", "agentConfigGuard", (preferences) => ({
+          ...preferences,
+          agentConfigGuard: on,
+        })),
       completeFirstRun: (client) =>
         activity.track(
           { client, action: "settings.completeFirstRun", subjects: [{ kind: "settings", id: "firstRun" }] },

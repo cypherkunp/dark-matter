@@ -1,6 +1,13 @@
 import type { DatabaseSync } from "node:sqlite";
-import { type ActivityClient, type ProjectMcpEntry, ScanResult, type ScanStatus } from "@dark-matter/contracts";
+import {
+  type ActivityClient,
+  type Preferences,
+  type ProjectMcpEntry,
+  ScanResult,
+  type ScanStatus,
+} from "@dark-matter/contracts";
 import type { ActivityLog } from "./activity";
+import { defaultPreferences, withAdoptability } from "./adopt-permissions";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { log } from "./log";
 import { scan } from "./scanner";
@@ -17,6 +24,8 @@ export interface ScansOptions {
   exclude?: readonly string[];
   /** Called when a Scan starts and when it finishes. */
   onChange: () => void;
+  /** The current settings, which decide each finding's `adoptable` (ADR-0007); the defaults when left out. */
+  preferences?: () => Pick<Preferences, "adoptPermissions" | "agentConfigGuard">;
 }
 
 /**
@@ -35,8 +44,13 @@ export class Scans {
     this.#latest = readCached(options.cache);
   }
 
+  /** The latest Scan, its findings' `adoptable` worked out from the current settings. */
   get latest(): ScanResult | null {
-    return this.#latest;
+    return this.#latest && this.#judged(this.#latest);
+  }
+
+  #judged(scan: ScanResult): ScanResult {
+    return withAdoptability(scan, this.#options.preferences?.() ?? defaultPreferences());
   }
 
   status(): ScanStatus {
@@ -56,7 +70,7 @@ export class Scans {
         this.#running = this.#start(() =>
           this.#options.activity.track({ client, action: "scan.run", subjects: [] }, () => this.#scan()),
         );
-        return await this.#running;
+        return this.#judged(await this.#running);
       } finally {
         this.#asked = null;
       }
@@ -84,7 +98,7 @@ export class Scans {
     if (this.#asked) return this.#asked;
     await this.settle();
     this.#running ??= this.#start(() => this.#scan());
-    return this.#running;
+    return this.#judged(await this.#running);
   }
 
   /** Waits for a running Scan, so the cache isn't closed under it. */

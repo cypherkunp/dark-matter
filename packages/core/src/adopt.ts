@@ -11,6 +11,7 @@ import {
   type GlobalSkill,
   InvalidOwnedFile,
   type LibraryLockEntry,
+  NotAdoptable,
   NotAdopted,
   PlanStale,
   type PlanStep,
@@ -77,7 +78,10 @@ export interface KeepLinks {
 }
 
 /** A Global Skill or an untracked Project Skill (with its Project), as Adopt plans it. */
-type Finding = Pick<GlobalSkill, "id" | "realPath" | "locations" | "localSource"> & { project: string | null };
+type Finding = Pick<
+  GlobalSkill,
+  "id" | "realPath" | "locations" | "localSource" | "adoptable" | "notAdoptableReason"
+> & { project: string | null };
 
 /** Everything a plan needs besides what goes back to the client. */
 interface Planned {
@@ -98,11 +102,12 @@ export interface AdoptOptions {
   home: string;
   library: Library;
   activity: ActivityLog;
+  /** The latest Scan, its findings' `adoptable` from the current settings: Adopt refuses the rest (ADR-0007). */
   latestScan: () => ScanResult | null;
   /** A fresh Scan after applying, so the Inbox drops what moved. */
   rescan: () => Promise<unknown>;
   onChange: () => void;
-  /** Untracked Project Skills from the latest Scan (#29). */
+  /** Untracked Project Skills from the latest Scan (#29), `adoptable` from the current settings. */
   untracked?: () => UntrackedSkill[];
   keepLinks?: KeepLinks;
   /** The Projects using a Library Skill, for Undo Adopt's plan. */
@@ -278,6 +283,9 @@ export class Adopt {
       if (found) return found;
       throw new FindingNotFound(id);
     });
+    // Refused in the core, not only hidden in the app (ADR-0007). Undo Adopt never asks.
+    for (const finding of findings)
+      if (!finding.adoptable) throw new NotAdoptable(finding.id, finding.notAdoptableReason ?? "adoptPermissionOff");
     const globalLock = await readGlobalLock(home);
     const agentsFolder = rel(join(home, ".agents/skills"));
 

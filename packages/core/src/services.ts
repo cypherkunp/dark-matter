@@ -168,6 +168,7 @@ export const createServices = async ({
       return record ? projectMcpEntries(env, path, record) : [];
     },
     exclude: [libraryHome],
+    preferences: () => settings.value.preferences,
     onChange: () => {
       bus.invalidate("scan", "inbox", "agents", "project", "scheduler");
       // After the first Scan, the Agents' folders are watched too.
@@ -204,6 +205,7 @@ export const createServices = async ({
     latestScan: () => scans.latest,
     rescan: () => scans.refresh(),
     onChange: bus.invalidator("mcp", "inbox", "project", "collections"),
+    preferences: () => settings.value.preferences,
     projectFindings: () => projectMcp.findings(),
     keepPersonal: {
       keep: (path, name, wrote) => projectMcp.keepPersonal(path, name, wrote),
@@ -228,12 +230,18 @@ export const createServices = async ({
   });
   /** Untracked Project Skills (#29) from the latest Scan; a Copy (#28) not yet committed isn't one. */
   const findUntracked = () =>
-    untrackedSkills(scans.latest, env, libraryHome, [
-      ...Object.values(libraryLock.value.skills).flatMap((entry) =>
-        entry.localSource ? [library.absolute(entry.localSource)] : [],
-      ),
-      ...projectSkills.copyFolders(),
-    ]);
+    untrackedSkills(
+      scans.latest,
+      env,
+      libraryHome,
+      [
+        ...Object.values(libraryLock.value.skills).flatMap((entry) =>
+          entry.localSource ? [library.absolute(entry.localSource)] : [],
+        ),
+        ...projectSkills.copyFolders(),
+      ],
+      settings.value.preferences,
+    );
   /** GitHub Import (#30); it also Imports `skills-lock.json` entries missing from the Library while fulfilling them. */
   const importer = new Importer({
     writes,
@@ -489,6 +497,7 @@ export const createServices = async ({
           id,
           client,
           rescan: () => scans.refresh(),
+          guarded: () => settings.value.preferences.agentConfigGuard,
           find: () => {
             const skill = scans.latest?.managedSkills.find((found) => found.id === id);
             const off = agentAdapters.find((adapter) => adapter.id === skill?.agent)?.managed.off;
@@ -506,6 +515,7 @@ export const createServices = async ({
           id,
           client,
           rescan: () => scans.refresh(),
+          guarded: () => settings.value.preferences.agentConfigGuard,
           find: () => {
             const server = scans.latest?.managedMcpServers.find((found) => found.id === id);
             const off = agentAdapters.find((adapter) => adapter.id === server?.agent)?.managedMcp?.off;

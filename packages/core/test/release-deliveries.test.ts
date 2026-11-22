@@ -5,7 +5,7 @@ import type { AgentId } from "@dark-matter/contracts";
 import { describe, expect, test } from "vitest";
 import { memorySecrets } from "../src/index";
 import { agentHome, gitRepo } from "./agent-home";
-import { bootCore, connect, tempHome } from "./harness";
+import { allowAdoptEverywhere, bootCore, connect, tempHome } from "./harness";
 
 const github = {
   transport: "stdio",
@@ -40,6 +40,7 @@ const setup = async (keys: string[] = ["local/pdf", "local/docx"]) => {
   );
   const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome }, { secrets });
   const { trpc } = connect(core);
+  await allowAdoptEverywhere(trpc);
   const project = async (dir: string, agents: AgentId[] = ["claude-code"]) => {
     const path = await gitRepo(home, dir);
     await trpc.project.add.mutate({ path, agents });

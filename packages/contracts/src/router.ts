@@ -83,6 +83,7 @@ import {
   ScanResult,
   ScanStatus,
   SchedulerStatus,
+  SetAdoptPermission,
   SetCollectionItemsInput,
   SetProjectMcpServerMode,
   SetProjectMcpServerOn,
@@ -149,6 +150,10 @@ export interface CoreServices {
     updatePreferences(patch: PreferencesPatch, client: ClientKind): Promise<SettingsFile>;
     /** Records that the First run is done (finished or skipped); keeps the first time. */
     completeFirstRun(client: ClientKind): Promise<SettingsFile>;
+    /** Turns one Agent's Skills or MCP Adopt Permission on or off (ADR-0007). App-only. */
+    setAdoptPermission(input: SetAdoptPermission, client: ClientKind): Promise<SettingsFile>;
+    /** Turns the Agent Config Guard on or off (ADR-0007). App-only. */
+    setAgentConfigGuard(input: { on: boolean }, client: ClientKind): Promise<SettingsFile>;
   };
   ownedFiles: {
     /** Hand edits the core is holding because they don't validate. */
@@ -415,6 +420,14 @@ export const createAppRouter = (services: CoreServices) => {
       completeFirstRun: t.procedure
         .output(SettingsFile)
         .mutation(({ ctx }) => services.settings.completeFirstRun(ctx.client)),
+      setAdoptPermission: t.procedure
+        .input(SetAdoptPermission)
+        .output(SettingsFile)
+        .mutation(({ input, ctx }) => services.settings.setAdoptPermission(input, ctx.client)),
+      setAgentConfigGuard: t.procedure
+        .input(z.strictObject({ on: z.boolean() }))
+        .output(SettingsFile)
+        .mutation(({ input, ctx }) => services.settings.setAgentConfigGuard(input, ctx.client)),
     }),
     ownedFiles: t.router({
       problems: t.procedure.output(OwnedFileProblem.array()).query(() => services.ownedFiles.problems()),

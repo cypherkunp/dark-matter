@@ -2,12 +2,13 @@ import { chmod, lstat, mkdir, readdir, readFile, readlink, writeFile } from "nod
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { agentHome, snapshotTree } from "./agent-home";
-import { bootCore, connect, tempHome } from "./harness";
+import { allowAdoptEverywhere, bootCore, connect, tempHome } from "./harness";
 
 const setup = async () => {
   const { home, libraryHome } = await tempHome();
   const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome });
   const { trpc } = connect(core);
+  await allowAdoptEverywhere(trpc);
   const fixture = { home, ...agentHome(home) };
   /** Scans, then plans and applies Adopt for the findings whose real paths are given. */
   const adopt = async (...realPaths: string[]) => {

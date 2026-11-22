@@ -1,4 +1,5 @@
 import type { AgentId, ProjectMcpEntry, ProjectRecord, RepoMcpServer, RepoMcpServers } from "@dark-matter/contracts";
+import { adoptability, defaultPreferences } from "./adopt-permissions";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { readConfigText } from "./config-edit";
 import { homeRelative } from "./home-path";
@@ -116,4 +117,6 @@ export const projectMcpEntries = async (
     file: homeRelative(env.home, finding.file),
     tracked: finding.tracked,
     definition: maskSecrets(finding.entry.name, finding.entry.definition).definition,
+    // The Scan's reader re-applies the current settings (ADR-0007).
+    ...adoptability(defaultPreferences(), "projectMcpServer", finding.agent),
   }));

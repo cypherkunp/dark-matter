@@ -82,6 +82,37 @@ export class UnknownFinding extends TaggedError<"UnknownFinding"> {
   }
 }
 
+/**
+ * Adopt was asked for a finding that can't be adopted (ADR-0007): its Owning
+ * Agent's Adopt Permission is off, the Agent Config Guard is on (a Global MCP
+ * Server), or it's Agent-managed.
+ */
+export class NotAdoptable extends TaggedError<"NotAdoptable"> {
+  readonly _tag = "NotAdoptable";
+  constructor(
+    readonly id: string,
+    readonly reason: "adoptPermissionOff" | "agentConfigGuard" | "agentManaged",
+  ) {
+    super(
+      reason === "agentConfigGuard"
+        ? `${id} can't be adopted while the Agent Config Guard is on: adopting it would edit the Agent's global config`
+        : reason === "agentManaged"
+          ? `${id} is managed by its Agent, so Dark Matter can't move it`
+          : `${id} can't be adopted: its Agent's Adopt Permission is off. Turn it on in Settings first.`,
+    );
+  }
+}
+
+/** Something would edit an Agent's global config while the Agent Config Guard is on (ADR-0007). */
+export class AgentConfigGuarded extends TaggedError<"AgentConfigGuarded"> {
+  readonly _tag = "AgentConfigGuarded";
+  constructor(readonly id: string) {
+    super(
+      `The Agent Config Guard is on, so Dark Matter won't edit an Agent's global config (${id}). Turn it off in Settings first.`,
+    );
+  }
+}
+
 /** A plan changed between its dry run and apply (the disk or the Scan moved on). Plan again. */
 export class PlanStale extends TaggedError<"PlanStale"> {
   readonly _tag = "PlanStale";

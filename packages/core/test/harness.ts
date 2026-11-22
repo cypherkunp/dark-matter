@@ -100,3 +100,15 @@ export const fakeNotifier = () => {
 
 /** A local wall-clock time on 2026-11-`day`. */
 export const localTime = (day: number, hours: number, minutes = 0) => new Date(2026, 10, day, hours, minutes);
+
+/**
+ * Turns every Adopt Permission on and the Agent Config Guard off (ADR-0007),
+ * for tests of Adopt and Agent-managed off switches themselves rather than of
+ * their gating (adopt-permissions.test.ts covers that).
+ */
+export const allowAdoptEverywhere = async (trpc: CoreClient["trpc"]) => {
+  await trpc.settings.setAgentConfigGuard.mutate({ on: false });
+  for (const agent of ["claude-code", "cursor", "opencode", "codex", "agents"] as const)
+    for (const kind of ["skills", "mcp"] as const)
+      await trpc.settings.setAdoptPermission.mutate({ agent, kind, allowed: true });
+};

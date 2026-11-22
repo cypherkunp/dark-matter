@@ -2,12 +2,13 @@ import { lstat, readFile, readlink } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { agentHome } from "./agent-home";
-import { bootCore, connect, tempHome } from "./harness";
+import { allowAdoptEverywhere, bootCore, connect, tempHome } from "./harness";
 
 const setup = async () => {
   const { home, libraryHome } = await tempHome();
   const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome });
   const { trpc } = connect(core);
+  await allowAdoptEverywhere(trpc);
   const fixture = agentHome(home);
   const adopt = async (...realPaths: string[]) => {
     await trpc.scan.run.mutate();

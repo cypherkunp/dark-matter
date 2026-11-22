@@ -50,7 +50,8 @@ const message = (skills: Found[], servers: Found[], drift: Found[]) => {
 /**
  * The daily run's Scan: read-only like every Scan (it never Adopts), and it
  * notifies about Global Skills, Global MCP Servers and drift it hasn't told you
- * about yet and that aren't ignored. What it has told you about is owned state
+ * about yet and that aren't ignored. Findings that can't be adopted (ADR-0007)
+ * are remembered but never notified about, even if they become adoptable later. What it has told you about is owned state
  * in `settings.json` (ADR-0005), so it doesn't matter which Scan found a
  * finding first (a watcher re-scan, the startup Scan) or whether the cache was
  * rebuilt. The first run only records what's there, as the baseline.
@@ -71,7 +72,12 @@ export const scanJob = ({ scans, settings, drift }: ScanJobOptions): DailyJob =>
     const known = new Set([...baseline, ...settings.value.ignoredFindings]);
     // The first run's baseline is the previous Scan's Global Skills; anything else there was already in the Inbox.
     const fresh = (found: Found[], all: boolean) => found.filter((item) => !known.has(item.id) && (all || !first));
-    const news = [fresh(skills, true), fresh(servers, false), fresh(drifted, false)] as const;
+    // Findings that can't be adopted stay read-only in the Inbox but aren't news (ADR-0007).
+    const adoptable = new Set(
+      [...result.globalSkills, ...result.globalMcpServers].filter((found) => found.adoptable).map((found) => found.id),
+    );
+    const canAdopt = (found: Found[]) => found.filter((item) => adoptable.has(item.id));
+    const news = [fresh(canAdopt(skills), true), fresh(canAdopt(servers), false), fresh(drifted, false)] as const;
     // Remember everything present now; a finding that went away is forgotten, so it's news if it comes back.
     const present = [...new Set([...skills, ...servers, ...drifted].map((item) => item.id))].sort();
     if (first || present.join("\n") !== (settings.value.notifiedFindings ?? []).join("\n"))
