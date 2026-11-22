@@ -41,7 +41,7 @@ The one Agent a skill folder or MCP config belongs to, decided by its path (`~/.
 _Avoid_: Reader, source Agent
 
 **Agent Config Guard**:
-A setting, on by default, that stops Dark Matter editing any Agent's global config: no turning Agent-managed Skills or MCP Servers off, and no Adopting Global MCP Servers. Delivering Project Skills and Project MCP Servers isn't affected.
+A setting, on by default, that stops Dark Matter editing any Agent's global config: no turning Agent-managed Skills or MCP Servers off, and no Adopting any MCP Server, Global or untracked in a Project. Delivering Project Skills and Project MCP Servers isn't affected. In Settings its switch reads "Never edit Agent config files".
 _Avoid_: Read-only mode, safe mode
 
 **Import**:
@@ -100,6 +100,14 @@ _Avoid_: User server, personal server
 A Skill that is committed in a Project but that Dark Matter didn't create as a Copy. Dark Matter shows it but leaves it alone.
 _Avoid_: Tracked skill, checked-in skill
 
+**Untracked Project Skill**:
+A Skill in one of a Project's Agent folders (`.agents/skills`, `.claude/skills`, …) that isn't committed and that Dark Matter didn't put there. It waits in the Inbox to Adopt; one in the Project's `.agents/skills` can always be adopted, one in an Agent's own folder only when that Agent's Adopt Permission allows. Shown as "Untracked Project Skill".
+_Avoid_: Untracked skill (alone), local skill, loose skill
+
+**Untracked Project MCP Server**:
+An MCP Server entry in a Project's config (or Claude Code's local scope for it) that isn't committed and that Dark Matter didn't write. Adopt moves it into the Library and puts it back as Personal, when its Owning Agent's MCP Adopt Permission allows and the Agent Config Guard is off.
+_Avoid_: Local server, loose server
+
 **Vendored MCP Server**:
 An MCP Server committed in a Project's config files that Dark Matter didn't write as Shared. Dark Matter shows it but leaves it alone.
 _Avoid_: Tracked server, checked-in server
@@ -115,6 +123,10 @@ _Avoid_: Cron, background sync
 **Suggested Project**:
 A folder that some Agent's history shows was worked in, which Dark Matter offers to manage. It becomes a Project only once you confirm it.
 _Avoid_: Detected project, recent workspace
+
+**Inventory**:
+Everything the latest Scan found, grouped by the folder or config that owns it with `.agents` first: Global, untracked Project, Vendored and Agent-managed Skills, and Global and Agent-managed MCP Servers, each with the Agents that see it and, when it can't be adopted, why. Shown in First run and Computer › Agents. Read-only: you act on findings from the Inbox.
+_Avoid_: Catalogue, findings list, scan results
 
 **Inbox**:
 The screen that collects everything still waiting on your decision: Scan findings (Global Skills and untracked Project Skills to Adopt, or shown read-only where Adopt isn't allowed, Agent-managed Skills you might turn off, and Suggested Projects) and pending Requests.
