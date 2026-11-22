@@ -14,6 +14,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight, Inbox as InboxIcon } from "lucide-react";
 import { useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
+import {
+  adoptTickedLabel,
+  ConsentError,
+  guardedOffSwitchText,
+  ReadOnlyReason,
+  TickBox,
+  useAgentConfigGuard,
+  useTicked,
+} from "@/components/adopt-consent";
 import { AdoptDialog } from "@/components/adopt-dialog";
 import { IgnoredFindings } from "@/components/ignored-findings";
 import { InboxDrift } from "@/components/inbox-drift";
@@ -35,13 +44,22 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
 
 type Adopt = (findings: string[]) => void;
 
-function Finding({ finding, onAdopt }: { finding: GlobalSkill; onAdopt: Adopt }) {
+/** What's ticked to Adopt on the page, by finding id (ADR-0007: nothing until you tick it). */
+type Ticked = ReturnType<typeof useTicked>;
+
+function Finding({ finding, onAdopt, ticked }: { finding: GlobalSkill; onAdopt: Adopt; ticked: Ticked }) {
   const trpc = useTRPC();
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   const reachedFrom = finding.locations.filter((location) => location.path !== finding.realPath);
   return (
     <div data-testid="inbox-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
-      <StatusDot tone="warning" />
+      <TickBox
+        name={finding.name}
+        adoptable={finding.adoptable}
+        checked={ticked.has(finding.id)}
+        onChange={(on) => ticked.toggle(finding.id, on)}
+      />
+      <StatusDot tone={finding.adoptable ? "warning" : "off"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm">{finding.name}</span>
@@ -57,20 +75,25 @@ function Finding({ finding, onAdopt }: { finding: GlobalSkill; onAdopt: Adopt })
             .filter(Boolean)
             .join(" · ")}
         </div>
+        {finding.notAdoptableReason && (
+          <ReadOnlyReason reason={finding.notAdoptableReason} owner={finding.owningAgent} />
+        )}
       </div>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={ignore.isPending} onClick={() => ignore.mutate({ id: finding.id })}>
           Ignore
         </Button>
-        <Button size="sm" variant="outline" onClick={() => onAdopt([finding.id])}>
-          Adopt
-        </Button>
+        {finding.adoptable && (
+          <Button size="sm" variant="outline" onClick={() => onAdopt([finding.id])}>
+            Adopt
+          </Button>
+        )}
       </div>
     </div>
   );
 }
 
-function FolderGroup({ group, onAdopt }: { group: InboxFolderGroup; onAdopt: Adopt }) {
+function FolderGroup({ group, onAdopt, ticked }: { group: InboxFolderGroup; onAdopt: Adopt; ticked: Ticked }) {
   return (
     <section data-testid="inbox-group" className="flex flex-col gap-3">
       <h2 className="flex flex-wrap items-center gap-2 font-semibold text-sm">
@@ -82,33 +105,29 @@ function FolderGroup({ group, onAdopt }: { group: InboxFolderGroup; onAdopt: Ado
               {agentName(agent)}
             </span>
           ))}
-          {group.findings.length > 1 && (
-            <Button
-              size="xs"
-              variant="ghost"
-              className="font-normal"
-              onClick={() => onAdopt(group.findings.map((finding) => finding.id))}
-            >
-              Adopt all {group.findings.length}
-            </Button>
-          )}
         </span>
       </h2>
       <div className="divide-y rounded-xl border">
         {group.findings.map((finding) => (
-          <Finding key={finding.id} finding={finding} onAdopt={onAdopt} />
+          <Finding key={finding.id} finding={finding} onAdopt={onAdopt} ticked={ticked} />
         ))}
       </div>
     </section>
   );
 }
 
-function UntrackedFinding({ finding, onAdopt }: { finding: UntrackedSkill; onAdopt: Adopt }) {
+function UntrackedFinding({ finding, onAdopt, ticked }: { finding: UntrackedSkill; onAdopt: Adopt; ticked: Ticked }) {
   const trpc = useTRPC();
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   return (
     <div data-testid="inbox-untracked-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
-      <StatusDot tone="warning" />
+      <TickBox
+        name={finding.name}
+        adoptable={finding.adoptable}
+        checked={ticked.has(finding.id)}
+        onChange={(on) => ticked.toggle(finding.id, on)}
+      />
+      <StatusDot tone={finding.adoptable ? "warning" : "off"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm">{finding.name}</span>
@@ -122,14 +141,19 @@ function UntrackedFinding({ finding, onAdopt }: { finding: UntrackedSkill; onAdo
         <div className="truncate font-mono text-muted-foreground text-xs">
           {finding.locations.map((location) => location.path).join(" · ")}
         </div>
+        {finding.notAdoptableReason && (
+          <ReadOnlyReason reason={finding.notAdoptableReason} owner={finding.owningAgent} />
+        )}
       </div>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={ignore.isPending} onClick={() => ignore.mutate({ id: finding.id })}>
           Ignore
         </Button>
-        <Button size="sm" variant="outline" onClick={() => onAdopt([finding.id])}>
-          Adopt & keep Link
-        </Button>
+        {finding.adoptable && (
+          <Button size="sm" variant="outline" onClick={() => onAdopt([finding.id])}>
+            Adopt & keep Link
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -177,7 +201,7 @@ function NewSkillsGroup({ group }: { group: InboxNewSkillsGroup }) {
   );
 }
 
-function ProjectGroup({ group, onAdopt }: { group: InboxProjectGroup; onAdopt: Adopt }) {
+function ProjectGroup({ group, onAdopt, ticked }: { group: InboxProjectGroup; onAdopt: Adopt; ticked: Ticked }) {
   return (
     <section data-testid="inbox-untracked-group" className="flex flex-col gap-3">
       <h2 className="flex items-center gap-2 font-semibold text-sm">
@@ -188,7 +212,7 @@ function ProjectGroup({ group, onAdopt }: { group: InboxProjectGroup; onAdopt: A
       </h2>
       <div className="divide-y rounded-xl border">
         {group.findings.map((finding) => (
-          <UntrackedFinding key={finding.id} finding={finding} onAdopt={onAdopt} />
+          <UntrackedFinding key={finding.id} finding={finding} onAdopt={onAdopt} ticked={ticked} />
         ))}
       </div>
     </section>
@@ -205,6 +229,7 @@ function ManagedFinding({ finding }: { finding: ManagedSkill }) {
   const trpc = useTRPC();
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   const turnOff = useMutation(trpc.managedSkills.turnOff.mutationOptions());
+  const guarded = useAgentConfigGuard();
   const busy = ignore.isPending || turnOff.isPending;
   return (
     <div data-testid="inbox-managed-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
@@ -223,14 +248,19 @@ function ManagedFinding({ finding }: { finding: ManagedSkill }) {
             {agentName(finding.agent)} has no off switch for its own Skills, so Dark Matter only lists it.
           </p>
         )}
-        {turnOff.error && <p className="text-status-warning text-xs">{turnOff.error.message}</p>}
+        {guarded && finding.offSwitches.length > 0 && (
+          <p data-testid="guarded-reason" className="text-muted-foreground text-xs">
+            {guardedOffSwitchText}
+          </p>
+        )}
+        <ConsentError error={turnOff.error} className="text-status-warning text-xs" />
       </div>
       {finding.offSwitches.map((offSwitch) => (
         <Button
           key={offSwitch.scope}
           size="sm"
           variant="outline"
-          disabled={busy}
+          disabled={busy || guarded}
           title={`Writes ${offSwitch.setting} in ${offSwitch.file}`}
           onClick={() => turnOff.mutate({ id: finding.id, scope: offSwitch.scope })}
         >
@@ -279,7 +309,8 @@ function Inbox() {
   const count = inbox.data?.count ?? 0;
   const ignored = inbox.data?.ignoredCount ?? 0;
   const [adopting, setAdopting] = useState<string[] | null>(null);
-  const allFindings = groups.flatMap((group) => group.findings.map((finding) => finding.id));
+  const skillFindings = [...groups.flatMap((group) => group.findings), ...untracked.flatMap((group) => group.findings)];
+  const ticked = useTicked(skillFindings.filter((finding) => finding.adoptable).map((finding) => finding.id));
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
@@ -325,21 +356,20 @@ function Inbox() {
           )}
           <InboxRequests requests={inbox.data?.requests ?? []} />
           <InboxDrift groups={inbox.data?.drift ?? []} />
-          {groups.length > 0 && (
-            <div className="flex items-start gap-4">
+          {skillFindings.length > 0 && (
+            <div data-testid="inbox-skills-actions" className="flex items-start gap-4">
               <p className="flex-1 text-muted-foreground text-sm">
-                Global Skills load in every Project. Adopt them into the Library so each Project asks for only what it
-                needs.
+                {groups.length > 0
+                  ? "Global Skills load in every Project. Tick the ones to Adopt into the Library so each Project asks for only what it needs."
+                  : "Tick the Skills to Adopt into the Library."}
               </p>
-              {allFindings.length > 1 && (
-                <Button size="sm" onClick={() => setAdopting(allFindings)}>
-                  Adopt all {allFindings.length}
-                </Button>
-              )}
+              <Button size="sm" disabled={ticked.ids.length === 0} onClick={() => setAdopting(ticked.ids)}>
+                {adoptTickedLabel(ticked.ids.length)}
+              </Button>
             </div>
           )}
           {groups.map((group) => (
-            <FolderGroup key={group.folder} group={group} onAdopt={setAdopting} />
+            <FolderGroup key={group.folder} group={group} onAdopt={setAdopting} ticked={ticked} />
           ))}
           {untracked.length > 0 && (
             <>
@@ -351,7 +381,7 @@ function Inbox() {
                 </p>
               </div>
               {untracked.map((group) => (
-                <ProjectGroup key={group.project} group={group} onAdopt={setAdopting} />
+                <ProjectGroup key={group.project} group={group} onAdopt={setAdopting} ticked={ticked} />
               ))}
             </>
           )}
@@ -378,7 +408,14 @@ function Inbox() {
         </>
       )}
       <IgnoredFindings count={ignored} />
-      <AdoptDialog findings={adopting} onClose={() => setAdopting(null)} onAdopted={adopted} />
+      <AdoptDialog
+        findings={adopting}
+        onClose={() => setAdopting(null)}
+        onAdopted={(plan) => {
+          ticked.clear();
+          adopted(plan);
+        }}
+      />
       {granting && (
         <AddToProjectsDialog
           keys={granting}

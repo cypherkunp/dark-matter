@@ -62,7 +62,7 @@ const seedComputer = async (home: string) => {
   return { app, api };
 };
 
-test("the First run Scans on consent, Adopts every Global Skill once, confirms Projects and sets one up", async ({
+test("the First run Scans on consent, Adopts only the Global Skills you tick, confirms Projects and sets one up", async ({
   launchApp,
   fixtureHome,
 }) => {
@@ -82,8 +82,25 @@ test("the First run Scans on consent, Adopts every Global Skill once, confirms P
   await expect(window.getByTestId("inventory")).toContainText("pdf");
   await window.getByRole("button", { name: "Continue" }).click();
 
-  // 3. One confirmation for every Global Skill, with the dry-run plan and the warning.
+  // 3. Nothing is pre-selected, and pdf can't be ticked: Claude Code's Adopt Permission is off.
   const confirm = window.getByTestId("first-run-adopt");
+  const pdf = confirm.getByRole("checkbox", { name: "pdf" });
+  await expect(pdf).toBeDisabled();
+  await expect(pdf).not.toBeChecked();
+  await expect(confirm.getByTestId("first-run-adopt-skill").filter({ hasText: "pdf" })).toContainText(
+    "Claude Code's Adopt Permission is off",
+  );
+  await expect(window.getByRole("button", { name: /^Adopt \d/ })).toBeHidden();
+
+  // The inline panel turns it on (the same setting as Settings › Agents); still nothing is ticked.
+  const permissions = window.getByTestId("first-run-adopt-permissions");
+  await permissions.getByRole("switch", { name: "Allow moving Skills from Claude Code" }).click();
+  await expect(pdf).toBeEnabled();
+  await expect(pdf).not.toBeChecked();
+  await expect(confirm).not.toContainText("~/.dark-matter/skills/local/pdf");
+
+  // Tick → the dry-run plan with its warning → confirm.
+  await pdf.check();
   await expect(confirm).toContainText("stops being visible to every Agent everywhere");
   await expect(confirm).toContainText("~/.claude/skills/pdf");
   await expect(confirm).toContainText("~/.dark-matter/skills/local/pdf");
@@ -191,4 +208,59 @@ test("declining the Adopt and skipping the rest leaves everything in the Inbox a
   await expect
     .poll(() => readFile(join(fixtureHome.libraryHome, "settings.json"), "utf8").then(JSON.parse, () => null))
     .toMatchObject({ firstRun: { completedAt: expect.any(String) }, preferences: { startAtLogin: false } });
+});
+
+test("the Adopt step is skipped when the Scan found no Global Skills to tick", async ({ launchApp, fixtureHome }) => {
+  const { home } = fixtureHome;
+  // Only things Adopt never moves from here: an Agent-managed Skill and a Global MCP Server.
+  const plugin = join(home, ".claude/plugins/cache/acme/review-kit/1.0.0");
+  await skill(join(plugin, "skills/review"), "review", "Review code");
+  await write(
+    join(home, ".claude/plugins/installed_plugins.json"),
+    JSON.stringify({
+      version: 2,
+      plugins: {
+        "review-kit@acme": [
+          { scope: "user", installPath: plugin, version: "1.0.0", installedAt: "2026-11-01T00:00:00Z" },
+        ],
+      },
+    }),
+  );
+  await write(
+    join(home, ".claude.json"),
+    JSON.stringify({ mcpServers: { "github-tools": { type: "stdio", command: "npx", args: ["github-tools"] } } }),
+  );
+  const window = await (await launchApp()).firstWindow();
+
+  await window.getByRole("button", { name: "Scan my computer" }).click();
+  await expect(window.getByTestId("inventory")).toContainText("review");
+  await window.getByRole("button", { name: "Continue" }).click();
+
+  await expect(window.getByRole("heading", { name: "Confirm your Projects" })).toBeVisible();
+  await expect(window.getByTestId("first-run-adopt")).toHaveCount(0);
+});
+
+test("a .agents Global Skill can be ticked straight away, but isn't until you tick it", async ({
+  launchApp,
+  fixtureHome,
+}) => {
+  const { home } = fixtureHome;
+  await skill(join(home, ".agents/skills/notes"), "notes", "Take notes");
+  await skill(join(home, ".agents/skills/todo"), "todo", "Track todos");
+  const window = await (await launchApp()).firstWindow();
+
+  await window.getByRole("button", { name: "Scan my computer" }).click();
+  await window.getByRole("button", { name: "Continue" }).click();
+
+  const confirm = window.getByTestId("first-run-adopt");
+  for (const name of ["notes", "todo"]) {
+    await expect(confirm.getByRole("checkbox", { name })).toBeEnabled();
+    await expect(confirm.getByRole("checkbox", { name })).not.toBeChecked();
+  }
+  await confirm.getByRole("checkbox", { name: "todo" }).check();
+  await window.getByRole("button", { name: "Adopt 1 Global Skill" }).click();
+
+  await expect(window.getByTestId("first-run-summary")).toContainText("1 moved into the Library");
+  expect(await kind(join(home, ".agents/skills/notes"))).toBe("folder");
+  expect(await kind(join(fixtureHome.libraryHome, "skills/local/todo"))).toBe("folder");
 });

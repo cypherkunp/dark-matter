@@ -14,7 +14,7 @@ const kindLabel: Record<InventoryItem["kind"], string> = {
 };
 
 /** Why an item can't be adopted, in words; `owner` is the Agent whose folder or config it's in. */
-const readOnlyText = (reason: InventoryReadOnlyReason, owner: AgentId) => {
+export const readOnlyText = (reason: InventoryReadOnlyReason, owner: AgentId) => {
   switch (reason) {
     case "adoptPermissionOff":
       return `${agentName(owner)}'s Adopt Permission is off. Turn it on in Settings to move it.`;

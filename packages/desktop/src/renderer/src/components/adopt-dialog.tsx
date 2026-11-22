@@ -2,6 +2,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import type { AdoptOutcome, AdoptPlan, AdoptPlanSkill, PlanStep } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
+import { ConsentError } from "@/components/adopt-consent";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
 
@@ -145,7 +146,7 @@ export function AdoptDialog({
               </ol>
             </div>
           )}
-          {error && <p className="text-sm text-status-warning">{error.message}</p>}
+          <ConsentError error={error} />
           <div className="flex justify-end gap-2">
             <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>
             <Button

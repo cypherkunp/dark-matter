@@ -1,6 +1,9 @@
 import { lstat, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "./fixtures";
+import { allowAdoptEverywhere, expect, test } from "./fixtures";
+
+// Tests Adopt and the off switches themselves; their gating (ADR-0007) is in inbox-consent and first-run.
+test.use({ preferences: allowAdoptEverywhere });
 
 test("Adopt moves one Global Skill into the Library after a dry-run plan", async ({ launchApp, fixtureHome }) => {
   const skill = join(fixtureHome.home, ".claude", "skills", "pdf");

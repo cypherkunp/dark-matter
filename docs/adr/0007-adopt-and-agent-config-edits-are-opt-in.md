@@ -16,7 +16,7 @@ The Scan is unchanged: it still reads every Agent's folders and configs (read-on
 - Scanned items carry the owning Agent and whether they may be adopted. The Adopt plan is refused in the core (not just hidden in the app) when the owning Agent doesn't allow it, or when the Guard is on and the item is an MCP Server.
 - Findings that can't be adopted stay visible in the Inbox as read-only, but don't trigger new-finding notifications from the Scheduled Scan.
 - Existing users get the safe defaults on upgrade, because the new preferences have defaults in the settings schema. Skills and servers already in the Library stay there.
-- First run's Adopt step is skipped when nothing can be ticked, and it carries an inline panel for the Adopt Permissions.
+- First run's Adopt step is skipped when nothing can be ticked, and it carries an inline panel for the Adopt Permissions. Because that panel can make Skills tickable, "nothing can be ticked" means the Scan found no Global Skills at all: when there are some but their Agents' Adopt Permissions are off, the step still shows, read-only, so the panel can allow them.
 - ADR-0002's "offers to Adopt any it finds" now holds only where the owning Agent allows it. Its "switched off with the Agent's own disable setting" now holds only while the Agent Config Guard is off.
 
 ## Considered Options

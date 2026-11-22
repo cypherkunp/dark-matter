@@ -38,22 +38,31 @@ export const test = base.extend<{
    * opens on the Library. `test.use({ firstRunDone: false })` to walk it.
    */
   firstRunDone: boolean;
+  /**
+   * Preferences seeded into `settings.json` before launch, e.g. to opt in to
+   * Adopt (ADR-0007): `test.use({ preferences: allowAdoptEverywhere })`.
+   */
+  preferences: Record<string, unknown> | null;
   fixtureHome: FixtureHome;
   launchApp: () => Promise<ElectronApplication>;
   startHeadlessCore: () => Promise<ChildProcess>;
 }>({
   firstRunDone: [true, { option: true }],
+  preferences: [null, { option: true }],
 
-  fixtureHome: async ({ firstRunDone }, use) => {
+  fixtureHome: async ({ firstRunDone, preferences }, use) => {
     const root = await realpath(await mkdtemp(join(tmpdir(), "dark-matter-e2e-")));
     const home = join(root, "home");
     const libraryHome = join(home, ".dark-matter");
     await mkdir(home);
-    if (firstRunDone) {
+    if (firstRunDone || preferences) {
       await mkdir(libraryHome);
       await writeFile(
         join(libraryHome, "settings.json"),
-        JSON.stringify({ firstRun: { completedAt: "2026-11-01T00:00:00.000Z" } }),
+        JSON.stringify({
+          ...(firstRunDone ? { firstRun: { completedAt: "2026-11-01T00:00:00.000Z" } } : {}),
+          ...(preferences ? { preferences } : {}),
+        }),
       );
     }
     await use({
@@ -110,5 +119,17 @@ export const test = base.extend<{
     for (const core of cores) core.kill("SIGKILL");
   },
 });
+
+/**
+ * Every Adopt Permission on and the Agent Config Guard off (ADR-0007), for
+ * tests of Adopt and Agent-managed off switches themselves rather than of
+ * their gating (first-run, inbox-consent and settings-agents cover that).
+ */
+export const allowAdoptEverywhere = {
+  agentConfigGuard: false,
+  adoptPermissions: Object.fromEntries(
+    ["claude-code", "cursor", "opencode", "codex", "agents"].map((agent) => [agent, { skills: true, mcp: true }]),
+  ),
+};
 
 export { expect };

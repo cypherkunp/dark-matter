@@ -1,6 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "./fixtures";
+import { allowAdoptEverywhere, expect, test } from "./fixtures";
+
+// Tests Adopt and the off switches themselves; their gating (ADR-0007) is in inbox-consent and first-run.
+test.use({ preferences: allowAdoptEverywhere });
 
 test("Agent-managed Skills are listed in the Inbox and turned off through the Agent's settings", async ({
   launchApp,

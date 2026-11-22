@@ -3,6 +3,7 @@ import type { McpAdoptOutcome, McpAdoptPlanServer } from "@dark-matter/contracts
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import { useState } from "react";
+import { ConsentError } from "@/components/adopt-consent";
 import { stepText } from "@/components/adopt-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,7 +80,16 @@ function PlannedServer({
  * The dry run for Adopting Global MCP Servers, and the confirmation that
  * applies it. Variants get a name you can change before applying.
  */
-export function McpAdoptDialog({ findings, onClose }: { findings: string[] | null; onClose: () => void }) {
+export function McpAdoptDialog({
+  findings,
+  onClose,
+  onAdopted,
+}: {
+  findings: string[] | null;
+  onClose: () => void;
+  /** After the Adopt is applied, e.g. to clear what was ticked. */
+  onAdopted?: () => void;
+}) {
   const trpc = useTRPC();
   const open = findings !== null && findings.length > 0;
   const [names, setNames] = useState<Record<string, string>>({});
@@ -97,7 +107,13 @@ export function McpAdoptDialog({ findings, onClose }: { findings: string[] | nul
     onClose();
   };
   const execute = useMutation(
-    trpc.mcp.adoptExecute.mutationOptions({ onSuccess: close, onError: () => void plan.refetch() }),
+    trpc.mcp.adoptExecute.mutationOptions({
+      onSuccess: () => {
+        close();
+        onAdopted?.();
+      },
+      onError: () => void plan.refetch(),
+    }),
   );
   const error = plan.error ?? execute.error;
 
@@ -149,7 +165,7 @@ export function McpAdoptDialog({ findings, onClose }: { findings: string[] | nul
               </ol>
             </div>
           )}
-          {error && <p className="text-sm text-status-warning">{error.message}</p>}
+          <ConsentError error={error} />
           <div className="flex justify-end gap-2">
             <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>
             <Button

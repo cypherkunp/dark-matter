@@ -1,5 +1,6 @@
 import type { InboxManagedMcpGroup, ManagedMcpServer, McpOffSwitch } from "@dark-matter/contracts";
 import { useMutation } from "@tanstack/react-query";
+import { ConsentError, guardedOffSwitchText, useAgentConfigGuard } from "@/components/adopt-consent";
 import { definitionSummary } from "@/components/inbox-mcp";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export function ManagedMcpRow({ server, inInbox = false }: { server: ManagedMcpS
   const trpc = useTRPC();
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   const turnOff = useMutation(trpc.managedMcp.turnOff.mutationOptions());
+  const guarded = useAgentConfigGuard();
   const busy = ignore.isPending || turnOff.isPending;
   return (
     <div data-testid="managed-mcp-server" className="flex min-h-16 items-center gap-3 px-5 py-3">
@@ -45,7 +47,12 @@ export function ManagedMcpRow({ server, inInbox = false }: { server: ManagedMcpS
           </div>
         )}
         {server.readOnly && <p className="text-muted-foreground text-xs">{server.readOnly}</p>}
-        {turnOff.error && <p className="text-status-warning text-xs">{turnOff.error.message}</p>}
+        {guarded && !server.off && server.offSwitches.length > 0 && (
+          <p data-testid="guarded-reason" className="text-muted-foreground text-xs">
+            {guardedOffSwitchText}
+          </p>
+        )}
+        <ConsentError error={turnOff.error} className="text-status-warning text-xs" />
       </div>
       {!server.off &&
         server.offSwitches.map((offSwitch) => (
@@ -53,7 +60,7 @@ export function ManagedMcpRow({ server, inInbox = false }: { server: ManagedMcpS
             key={offSwitch.scope}
             size="sm"
             variant="outline"
-            disabled={busy}
+            disabled={busy || guarded}
             title={`Writes ${offSwitch.setting} in ${offSwitch.file}`}
             onClick={() => turnOff.mutate({ id: server.id, scope: offSwitch.scope })}
           >

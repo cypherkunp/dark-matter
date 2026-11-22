@@ -1,10 +1,12 @@
-import type { AdoptOutcome, AdoptPlan } from "@dark-matter/contracts";
+import type { AdoptOutcome, AdoptPlan, AgentId, GlobalSkill } from "@dark-matter/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
+import { ConsentError, ReadOnlyReason, TickBox, useTicked } from "@/components/adopt-consent";
 import { stepText } from "@/components/adopt-dialog";
+import { AdoptPermissionSwitch } from "@/components/agents-settings";
 import { Inventory } from "@/components/inventory";
 import { plural } from "@/components/skill-list";
 import { Button } from "@/components/ui/button";
@@ -16,8 +18,9 @@ const steps = ["welcome", "found", "adopt", "summary", "projects", "setup", "don
 type Step = (typeof steps)[number];
 
 /**
- * The First run (#46, decided in #18): ask to Scan, show what was found, one
- * confirmation to Adopt every Global Skill, a summary, confirm Suggested
+ * The First run (#46, decided in #18): ask to Scan, show what was found, tick
+ * the Global Skills to Adopt and confirm the plan (nothing pre-selected,
+ * ADR-0007; skipped when there are none), a summary, confirm Suggested
  * Projects, set each up, then Start at login. Every step can be skipped; what's
  * left waits in the Inbox, and unconfirmed Projects stay under Suggested.
  * The step lives in the URL; completion lives in `settings.json`.
@@ -101,13 +104,28 @@ function Welcome() {
   );
 }
 
+/**
+ * The Global Skills the Adopt step offers. The step is skipped when there are
+ * none: then nothing could be ticked, even after turning an Adopt Permission
+ * on in its panel. When there are some but none can be ticked yet, the step
+ * still shows, so its panel can allow them (ADR-0007).
+ */
+const offeredSkills = (inbox: { globalSkills: { findings: GlobalSkill[] }[] } | undefined) =>
+  (inbox?.globalSkills ?? []).flatMap((group) => group.findings);
+
 function Found() {
+  const trpc = useTRPC();
   const go = useStep();
+  const inbox = useQuery(trpc.inbox.list.queryOptions());
   return (
     <Frame
       title="What the Scan found"
       lead="Every Skill and MCP Server your Agents can see today, by the folder that holds it. Read-only ones stay where they are."
-      actions={<Button onClick={() => go("adopt")}>Continue</Button>}
+      actions={
+        <Button disabled={!inbox.data} onClick={() => go(offeredSkills(inbox.data).length > 0 ? "adopt" : "projects")}>
+          Continue
+        </Button>
+      }
     >
       <Inventory empty="No Skills or MCP Servers found outside the Library." />
     </Frame>
@@ -121,11 +139,37 @@ const outcomeLabels: Record<AdoptOutcome, string> = {
   localSource: "Local Source",
 };
 
+/** The Adopt Permissions for the Agents that own the offered Skills, inline (same settings as Settings › Agents). */
+function AdoptPermissionsPanel({ owners }: { owners: AgentId[] }) {
+  return (
+    <section data-testid="first-run-adopt-permissions" className="flex flex-col gap-2 rounded-xl border px-4 py-3">
+      <div className="flex flex-col gap-0.5">
+        <span className="font-medium text-sm">Adopt Permissions</span>
+        <span className="text-muted-foreground text-xs">
+          Dark Matter only moves Skills out of an Agent's own folder when you allow it. You can change this later in
+          Settings › Agents.
+        </span>
+      </div>
+      {owners.map((agent) => (
+        <div key={agent} className="flex items-center gap-3">
+          <span className="flex-1 text-sm">Skills in {agentName(agent)}'s folder</span>
+          <AdoptPermissionSwitch agent={agent} kind="skills" />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+const ownerOrder: AgentId[] = ["agents", "claude-code", "cursor", "opencode", "codex"];
+
 function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
   const trpc = useTRPC();
   const go = useStep();
   const inbox = useQuery(trpc.inbox.list.queryOptions());
-  const findings = (inbox.data?.globalSkills ?? []).flatMap((group) => group.findings.map((finding) => finding.id));
+  const offered = offeredSkills(inbox.data);
+  const ticked = useTicked(offered.filter((finding) => finding.adoptable).map((finding) => finding.id));
+  const findings = ticked.ids;
+  const owners = ownerOrder.filter((agent) => offered.some((finding) => finding.owningAgent === agent));
   const plan = useQuery({
     ...trpc.adopt.plan.queryOptions({ findings }),
     enabled: findings.length > 0,
@@ -141,34 +185,61 @@ function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
       onError: () => void plan.refetch(),
     }),
   );
-  const error = plan.error ?? execute.error;
+  const error = findings.length > 0 ? (plan.error ?? execute.error) : null;
+  const shown = findings.length > 0 ? plan.data : undefined;
   return (
     <Frame
-      title="Move your Global Skills into the Library"
-      lead="One confirmation for all of them. Each Skill moves into the Library: nothing is deleted, and Undo Adopt puts it back."
+      title="Move Global Skills into the Library"
+      lead="Tick the Skills to move, check the plan, then confirm. Each moves into the Library: nothing is deleted, and Undo Adopt puts it back."
       actions={
-        findings.length === 0 ? (
+        offered.length === 0 ? (
           <Button onClick={() => go("projects")}>Continue</Button>
         ) : (
           <>
             <Button variant="outline" disabled={execute.isPending} onClick={() => go("projects")}>
               Keep them in the Inbox
             </Button>
-            <Button
-              disabled={!plan.data || execute.isPending}
-              onClick={() => plan.data && execute.mutate({ findings: plan.data.findings, planId: plan.data.planId })}
-            >
-              {execute.isPending ? "Adopting…" : `Adopt ${plural(findings.length, "Global Skill")}`}
-            </Button>
+            {findings.length > 0 && (
+              <Button
+                disabled={!shown || execute.isPending}
+                onClick={() => shown && execute.mutate({ findings: shown.findings, planId: shown.planId })}
+              >
+                {execute.isPending ? "Adopting…" : `Adopt ${plural(findings.length, "Global Skill")}`}
+              </Button>
+            )}
           </>
         )
       }
     >
       <div data-testid="first-run-adopt" className="flex flex-col gap-4">
-        {inbox.data && findings.length === 0 && (
+        {inbox.data && offered.length === 0 && (
           <p className="text-muted-foreground text-sm">No Global Skills to move.</p>
         )}
-        {plan.data?.warnings.map((warning) => (
+        {owners.length > 0 && <AdoptPermissionsPanel owners={owners} />}
+        {offered.length > 0 && (
+          <div className="divide-y rounded-xl border">
+            {offered.map((finding) => (
+              <div key={finding.id} data-testid="first-run-adopt-skill" className="flex items-start gap-3 px-4 py-2.5">
+                <span className="pt-0.5">
+                  <TickBox
+                    name={finding.name}
+                    adoptable={finding.adoptable}
+                    checked={ticked.has(finding.id)}
+                    onChange={(on) => ticked.toggle(finding.id, on)}
+                  />
+                </span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="font-medium text-sm">{finding.name}</span>
+                  <span className="truncate font-mono text-muted-foreground text-xs">{finding.folder}</span>
+                  {finding.notAdoptableReason && (
+                    <ReadOnlyReason reason={finding.notAdoptableReason} owner={finding.owningAgent} />
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {shown?.warnings.map((warning) => (
           <div
             key={warning}
             className="flex gap-2.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-sm"
@@ -177,10 +248,10 @@ function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
             <span>{warning}</span>
           </div>
         ))}
-        {plan.data && (
+        {shown && (
           <>
             <div className="divide-y rounded-xl border">
-              {plan.data.skills.map((skill) => (
+              {shown.skills.map((skill) => (
                 <div key={skill.finding} className="flex items-center gap-2 px-4 py-2.5">
                   <span className="font-medium text-sm">{skill.name}</span>
                   <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
@@ -193,7 +264,7 @@ function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
             <details open className="text-xs">
               <summary className="cursor-default text-muted-foreground">Dry-run plan</summary>
               <ol className="mt-2 flex flex-col gap-1 font-mono text-[11px] text-muted-foreground">
-                {plan.data.steps.map((step) => (
+                {shown.steps.map((step) => (
                   <li key={stepText(step)}>{stepText(step)}</li>
                 ))}
               </ol>
@@ -201,7 +272,7 @@ function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
           </>
         )}
         {execute.isPending && <p className="text-sm">Moving {plural(findings.length, "Skill")}…</p>}
-        {error && <p className="text-sm text-status-warning">{error.message}</p>}
+        <ConsentError error={error} />
       </div>
     </Frame>
   );

@@ -1,7 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { mkdir, readlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "./fixtures";
+import { allowAdoptEverywhere, expect, test } from "./fixtures";
+
+// Tests Adopt and the off switches themselves; their gating (ADR-0007) is in inbox-consent and first-run.
+test.use({ preferences: allowAdoptEverywhere });
 
 const linkTarget = (path: string) => readlink(path).catch(() => null);
 
@@ -59,7 +62,9 @@ test("after Adopting Global Skills the Add to Projects grid links them into Proj
   await window.getByRole("button", { name: "Scan now" }).click();
   await expect(window.getByTestId("inbox-badge")).toHaveText("2");
   await window.getByTestId("sidebar").getByRole("link", { name: /Inbox/ }).click();
-  await window.getByRole("button", { name: "Adopt all 2" }).first().click();
+  // Nothing is pre-selected: tick both, then Adopt what's ticked.
+  for (const name of ["pdf", "lint"]) await window.getByRole("checkbox", { name, exact: true }).check();
+  await window.getByTestId("inbox-skills-actions").getByRole("button", { name: "Adopt 2 ticked" }).click();
   await window
     .getByRole("dialog", { name: "Adopt 2 Skills" })
     .getByRole("button", { name: "Adopt", exact: true })

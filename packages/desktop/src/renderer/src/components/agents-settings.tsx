@@ -13,6 +13,29 @@ const hasMcpConfig = (agent: AgentId) => agent !== "agents";
 const guardName = "Never edit Agent config files";
 
 /**
+ * One Agent's Skills or MCP Adopt Permission (ADR-0007), saved straight away.
+ * Greyed out for MCP while the Agent Config Guard is on. Settings › Agents and
+ * First run's Adopt step share it.
+ */
+export function AdoptPermissionSwitch({ agent, kind }: { agent: AgentId; kind: AdoptPermissionKind }) {
+  const trpc = useTRPC();
+  const preferences = useQuery(trpc.settings.get.queryOptions()).data?.preferences;
+  const setPermission = useMutation(trpc.settings.setAdoptPermission.mutationOptions());
+  if (!preferences) return null;
+  return (
+    <span className="flex flex-col items-center gap-1">
+      <OnOffSwitch
+        on={preferences.adoptPermissions[agent][kind]}
+        disabled={setPermission.isPending || (kind === "mcp" && preferences.agentConfigGuard)}
+        label={`Allow moving ${kind === "skills" ? "Skills" : "MCP Servers"} from ${agentName(agent)}`}
+        onChange={(allowed) => setPermission.mutate({ agent, kind, allowed })}
+      />
+      {setPermission.error && <span className="text-status-warning text-xs">{setPermission.error.message}</span>}
+    </span>
+  );
+}
+
+/**
  * Settings › Agents (#54, ADR-0007): each Agent's Adopt Permissions, and the
  * Agent Config Guard. Each switch saves straight away; the MCP switches are
  * greyed out while the Guard is on.
@@ -20,20 +43,11 @@ const guardName = "Never edit Agent config files";
 export function AgentsSettings() {
   const trpc = useTRPC();
   const preferences = useQuery(trpc.settings.get.queryOptions()).data?.preferences;
-  const setPermission = useMutation(trpc.settings.setAdoptPermission.mutationOptions());
   const setGuard = useMutation(trpc.settings.setAgentConfigGuard.mutationOptions());
-  const busy = setPermission.isPending || setGuard.isPending;
-  const error = setPermission.error ?? setGuard.error;
   if (!preferences) return null;
   const guarded = preferences.agentConfigGuard;
-
   const permissionSwitch = (agent: AgentId, kind: AdoptPermissionKind) => (
-    <OnOffSwitch
-      on={preferences.adoptPermissions[agent][kind]}
-      disabled={busy || (kind === "mcp" && guarded)}
-      label={`Allow moving ${kind === "skills" ? "Skills" : "MCP Servers"} from ${agentName(agent)}`}
-      onChange={(allowed) => setPermission.mutate({ agent, kind, allowed })}
-    />
+    <AdoptPermissionSwitch agent={agent} kind={kind} />
   );
 
   return (
@@ -48,7 +62,12 @@ export function AgentsSettings() {
               no moving Global MCP Servers. What it delivers into Projects isn't affected.
             </p>
           </div>
-          <OnOffSwitch on={guarded} disabled={busy} label={guardName} onChange={(on) => setGuard.mutate({ on })} />
+          <OnOffSwitch
+            on={guarded}
+            disabled={setGuard.isPending}
+            label={guardName}
+            onChange={(on) => setGuard.mutate({ on })}
+          />
         </div>
         <div className="flex items-center gap-6 px-5 py-2 text-muted-foreground text-xs">
           <span className="flex-1">Adopt may move what it finds in each Agent's own folders and config.</span>
@@ -75,7 +94,7 @@ export function AgentsSettings() {
           </p>
         )}
       </div>
-      {error && <p className="text-sm text-status-warning">{error.message}</p>}
+      {setGuard.error && <p className="text-sm text-status-warning">{setGuard.error.message}</p>}
     </section>
   );
 }

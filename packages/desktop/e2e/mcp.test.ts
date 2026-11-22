@@ -1,6 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "./fixtures";
+import { allowAdoptEverywhere, expect, test } from "./fixtures";
+
+// Tests Adopt and the off switches themselves; their gating (ADR-0007) is in inbox-consent and first-run.
+test.use({ preferences: allowAdoptEverywhere });
 
 test("Adopt moves a Global MCP Server into the Library and out of the Agent's config", async ({
   launchApp,
