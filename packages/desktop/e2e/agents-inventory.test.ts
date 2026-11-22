@@ -38,4 +38,11 @@ test("Computer › Agents lists everything the Scan found, by owning folder, rea
   await expect(item("pdf").getByTestId("inventory-reason")).toContainText("Claude Code's Adopt Permission is off");
   await expect(item("linear")).toContainText("https://mcp.linear.app/mcp");
   await expect(item("linear").getByTestId("inventory-reason")).toContainText("Agent Config Guard is on");
+
+  // Allowing Claude Code's Skills in Settings makes its Skills adoptable here too.
+  await window.getByRole("link", { name: "Settings" }).click();
+  await window.getByRole("switch", { name: "Allow moving Skills from Claude Code" }).click();
+  await window.getByTestId("sidebar").getByRole("link", { name: "Agents" }).click();
+  await expect(item("pdf").getByTestId("inventory-read-only")).toBeHidden();
+  await expect(item("linear").getByTestId("inventory-read-only")).toBeVisible();
 });
