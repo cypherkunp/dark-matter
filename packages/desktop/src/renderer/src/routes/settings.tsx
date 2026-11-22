@@ -1,7 +1,8 @@
-import type { ActivityRetention, Preferences } from "@dark-matter/contracts";
+import type { ActivityRetention, Preferences, PreferencesPatch } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { AgentsSettings } from "@/components/agents-settings";
 import { GitHubSettings } from "@/components/github-settings";
 import { OwnedFileProblems } from "@/components/owned-file-problems";
 import { PageHead } from "@/components/page-head";
@@ -19,6 +20,16 @@ const retentionOptions: { value: ActivityRetention; label: string }[] = [
   { value: 365, label: "365 days" },
   { value: "forever", label: "Forever" },
 ];
+
+/** The preferences this form edits; Adopt Permissions and the Guard save on their own (Settings › Agents). */
+type FormPreferences = Required<PreferencesPatch>;
+
+const formPreferences = ({
+  scheduledScanTime,
+  startAtLogin,
+  trashRetentionDays,
+  activityRetention,
+}: Preferences): FormPreferences => ({ scheduledScanTime, startAtLogin, trashRetentionDays, activityRetention });
 
 function Row({
   label,
@@ -51,15 +62,17 @@ function Settings() {
   const info = useQuery(trpc.core.info.queryOptions());
   const nextScan = useQuery(trpc.scheduler.status.queryOptions()).data?.nextRunAt;
   const save = useMutation(trpc.settings.updatePreferences.mutationOptions());
-  const saved = settings.data?.preferences;
-  const [draft, setDraft] = useState<Preferences | undefined>(saved);
+  const preferences = settings.data?.preferences;
+  // Keyed on the form's own fields, so saving an Adopt Permission doesn't reset the draft.
+  const saved = preferences && JSON.stringify(formPreferences(preferences));
+  const [draft, setDraft] = useState<FormPreferences | undefined>(saved && JSON.parse(saved));
 
   // Follow the saved preferences when they change (a save, or a hand edit picked up by the core).
-  useEffect(() => setDraft(saved), [saved]);
+  useEffect(() => setDraft(saved && JSON.parse(saved)), [saved]);
 
   const held = (problems.data?.length ?? 0) > 0;
-  const dirty = draft !== undefined && saved !== undefined && JSON.stringify(draft) !== JSON.stringify(saved);
-  const update = (patch: Partial<Preferences>) => setDraft((current) => current && { ...current, ...patch });
+  const dirty = draft !== undefined && saved !== undefined && JSON.stringify(draft) !== saved;
+  const update = (patch: PreferencesPatch) => setDraft((current) => current && { ...current, ...patch });
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
@@ -137,6 +150,7 @@ function Settings() {
           </div>
         </form>
       )}
+      <AgentsSettings />
       <GitHubSettings />
     </div>
   );
