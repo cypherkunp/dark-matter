@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   type CoreInfo,
   type Inbox,
@@ -24,6 +24,7 @@ import { Favourites } from "./favourites";
 import { GitHubAccess, type GitHubOptions } from "./github";
 import { Importer, importerServices } from "./importer";
 import { agentCards, ignoredInbox, inboxFrom } from "./inbox";
+import { type InventoryProject, inventoryFrom, vendoredFrom } from "./inventory";
 import { Library } from "./library";
 import { startLiveRefresh } from "./live-refresh";
 import { log } from "./log";
@@ -439,6 +440,49 @@ export const createServices = async ({
     libraryUpdates: async () => (await updates.view()).updates.length,
   });
 
+  /** Every confirmed and waiting Suggested Project's own Skills, for the Inventory (#55). */
+  const inventoryProjects = async (): Promise<InventoryProject[]> => {
+    const scan = scans.latest;
+    if (!scan) return [];
+    const untracked = findUntracked();
+    const confirmed = await Promise.all(
+      scan.projects
+        .filter((project) => project.exists && projects.value.projects[project.path])
+        .map(async ({ path }) => ({
+          path,
+          name: basename(path),
+          untracked: untracked.find((group) => group.project === path)?.findings ?? [],
+          vendored: (await projectSkills.services().repoSkills(path)).vendored,
+        })),
+    );
+    // Suggested Projects aren't in the Scan's Projects, so their Skills are read now, as First run does.
+    const suggested = await projectProcedures.suggestedSkills();
+    const suggestedUntracked = untrackedSkills(
+      {
+        ...scan,
+        projects: suggested.map(({ path, skills }) => ({
+          path,
+          exists: true,
+          skillFolders: [],
+          skills,
+          mcpServers: [],
+        })),
+      },
+      env,
+      libraryHome,
+      [],
+      settings.value.preferences,
+    );
+    return [
+      ...confirmed,
+      ...suggested.map(({ path, name, skills }) => ({
+        path,
+        name,
+        untracked: suggestedUntracked.find((group) => group.project === path)?.findings ?? [],
+        vendored: vendoredFrom(path, skills),
+      })),
+    ];
+  };
   const ownSettings = settingsServices({
     settings,
     activity,
@@ -487,6 +531,7 @@ export const createServices = async ({
     drift: bound(drift, "restore", "accept"),
     agents: {
       list: () => agentCards(scans.latest, env),
+      inventory: async () => inventoryFrom(scans.latest, env, await inventoryProjects()),
       managedMcp: () => scans.latest?.managedMcpServers ?? [],
     },
     managedSkills: {

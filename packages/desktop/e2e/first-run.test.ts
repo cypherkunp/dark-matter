@@ -77,18 +77,9 @@ test("the First run Scans on consent, Adopts every Global Skill once, confirms P
   expect(await kind(join(libraryHome, "settings.json"))).toBeNull();
   await window.getByRole("button", { name: "Scan my computer" }).click();
 
-  // 2. What was found, grouped. Global MCP Servers are left to the Inbox.
+  // 2. What was found: the shared Inventory (its own test below).
   await expect(window.getByRole("heading", { name: "What the Scan found" })).toBeVisible();
-  const global = window.getByTestId("first-run-global");
-  await expect(global).toContainText("pdf");
-  await expect(global).toContainText("~/.claude/skills");
-  await expect(global).toContainText("local");
-  await expect(window.getByTestId("first-run-untracked")).toContainText("notes");
-  await expect(window.getByTestId("first-run-untracked")).toContainText("app");
-  await expect(window.getByTestId("first-run-vendored")).toContainText("team");
-  await expect(window.getByTestId("first-run-managed")).toContainText("review");
-  await expect(window.getByTestId("first-run-managed")).toContainText("can't be moved");
-  await expect(window.getByText("github-tools")).toBeHidden();
+  await expect(window.getByTestId("inventory")).toContainText("pdf");
   await window.getByRole("button", { name: "Continue" }).click();
 
   // 3. One confirmation for every Global Skill, with the dry-run plan and the warning.
@@ -138,6 +129,41 @@ test("the First run Scans on consent, Adopts every Global Skill once, confirms P
   const again = await (await launchApp()).firstWindow();
   await expect(again.getByRole("heading", { name: "All Skills" })).toBeVisible();
   await expect(again.getByRole("heading", { name: "Skills belong to Projects" })).toBeHidden();
+});
+
+test("the Found step lists everything by owning folder, .agents first, with who sees it and why it's read-only", async ({
+  launchApp,
+  fixtureHome,
+}) => {
+  await seedComputer(fixtureHome.home);
+  const window = await (await launchApp()).firstWindow();
+
+  await window.getByRole("button", { name: "Scan my computer" }).click();
+
+  await expect(window.getByRole("heading", { name: "What the Scan found" })).toBeVisible();
+  const groups = window.getByTestId("inventory-group");
+  await expect(groups).toHaveCount(5);
+  expect(await groups.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-folder")))).toEqual([
+    "app/.agents/skills",
+    "~/.claude.json",
+    "~/.claude/skills",
+    "app/.claude/skills",
+    "~/.claude",
+  ]);
+  const item = (name: string) => window.getByTestId("inventory-item").filter({ hasText: name });
+  // The Project's .agents/skills can always be adopted, and every Agent but Claude Code reads it.
+  await expect(item("notes")).toContainText("Untracked Skill");
+  await expect(item("notes").getByTestId("inventory-agents")).toHaveText("Seen by Cursor, OpenCode, Codex, .agents");
+  await expect(item("notes").getByTestId("inventory-read-only")).toBeHidden();
+  // Everything else is read-only here, with the reason.
+  await expect(item("pdf").getByTestId("inventory-agents")).toHaveText("Seen by Claude Code, Cursor, OpenCode");
+  await expect(item("pdf").getByTestId("inventory-reason")).toContainText("Claude Code's Adopt Permission is off");
+  await expect(item("github-tools")).toContainText("Global MCP Server");
+  await expect(item("github-tools").getByTestId("inventory-reason")).toContainText("Agent Config Guard is on");
+  await expect(item("team")).toContainText("Vendored Skill");
+  await expect(item("team").getByTestId("inventory-reason")).toContainText("Committed in the repo");
+  await expect(item("review")).toContainText("Agent-managed Skill");
+  await expect(item("review").getByTestId("inventory-reason")).toContainText("Claude Code installs and controls it");
 });
 
 test("declining the Adopt and skipping the rest leaves everything in the Inbox and Suggested", async ({

@@ -45,6 +45,7 @@ import {
   CreateCollectionInput,
   FulfilLockInput,
   Inbox,
+  Inventory,
   LibraryList,
   LibraryMcpList,
   ManagedMcpServer,
@@ -182,6 +183,8 @@ export interface CoreServices {
   };
   agents: {
     list(): AgentCard[];
+    /** Everything the latest Scan found, grouped by owning folder (#55); empty before the first Scan. */
+    inventory(): Promise<Inventory>;
     /** Every Agent-managed MCP Server the latest Scan found, off ones included (#40). */
     managedMcp(): ManagedMcpServer[];
   };
@@ -472,6 +475,7 @@ export const createAppRouter = (services: CoreServices) => {
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+      inventory: t.procedure.output(Inventory).query(() => services.agents.inventory()),
       managedMcp: t.procedure.output(ManagedMcpServer.array()).query(() => services.agents.managedMcp()),
     }),
     managedSkills: t.router({

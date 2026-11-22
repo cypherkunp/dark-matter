@@ -974,6 +974,66 @@ export const AgentCard = z.object({
 export type AgentCard = z.infer<typeof AgentCard>;
 
 /**
+ * Why an Inventory item is read-only: a Scan finding that can't be adopted
+ * (ADR-0007), or a Vendored Skill, which is committed in its repo and left as it is.
+ */
+export const InventoryReadOnlyReason = z.enum([...NotAdoptableReason.options, "vendored"]);
+export type InventoryReadOnlyReason = z.infer<typeof InventoryReadOnlyReason>;
+
+/** One Skill or MCP Server in the Inventory. */
+export const InventoryItem = z.object({
+  /** The Scan finding's id; a Vendored Skill's is `vendored-skill:<absolute entry path>`. */
+  id: z.string(),
+  kind: z.enum([
+    "globalSkill",
+    "untrackedSkill",
+    "vendoredSkill",
+    "managedSkill",
+    "globalMcpServer",
+    "managedMcpServer",
+  ]),
+  name: z.string(),
+  /** A Skill's description, or how an MCP Server runs (its command or URL). */
+  detail: z.string(),
+  /** Every Agent that can see it. */
+  agents: z.array(AgentId),
+  /** Adopt may move it (still subject to the user ticking it). */
+  adoptable: z.boolean(),
+  /** Why it's read-only; null when it's adoptable. */
+  readOnlyReason: InventoryReadOnlyReason.nullable(),
+  /** An Agent-managed one already turned off in its Agent's settings. */
+  off: z.boolean(),
+});
+export type InventoryItem = z.infer<typeof InventoryItem>;
+
+/** Everything in one owning folder or config: an Agent's skill folder, a Project's, an MCP config, or what an Agent manages. */
+export const InventoryGroup = z.object({
+  /** Unique within the Inventory. */
+  id: z.string(),
+  /** The folder or file as the user reads it: home-relative, or `<Project>/<folder>` inside a Project. */
+  label: z.string(),
+  /** Where it is: a global folder or config, inside a Project, or Agent-managed. */
+  scope: z.enum(["global", "project", "managed"]),
+  /** The Agent that owns it (ADR-0007); its Adopt Permission decides its items. */
+  owningAgent: AgentId,
+  /** The Project (absolute) for a Project folder; null otherwise. */
+  project: z.string().nullable(),
+  /** The Agents that read this folder or config. */
+  agents: z.array(AgentId),
+  items: z.array(InventoryItem),
+});
+export type InventoryGroup = z.infer<typeof InventoryGroup>;
+
+/**
+ * Everything a Scan found (#55), for First run and Computer › Agents: Global,
+ * untracked Project, Vendored and Agent-managed Skills, and Global and
+ * Agent-managed MCP Servers, grouped by owning folder with `.agents` first.
+ * Ignored findings are listed too.
+ */
+export const Inventory = z.object({ groups: z.array(InventoryGroup) });
+export type Inventory = z.infer<typeof Inventory>;
+
+/**
  * One filesystem change in a plan. Every mutation that writes files returns its
  * plan (a dry run) before it is applied; paths are home-relative.
  */

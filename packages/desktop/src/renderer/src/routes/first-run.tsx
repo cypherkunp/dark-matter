@@ -5,6 +5,7 @@ import { TriangleAlert } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { stepText } from "@/components/adopt-dialog";
+import { Inventory } from "@/components/inventory";
 import { plural } from "@/components/skill-list";
 import { Button } from "@/components/ui/button";
 import { agentName } from "@/lib/agents";
@@ -100,129 +101,15 @@ function Welcome() {
   );
 }
 
-function Group({
-  title,
-  note,
-  testId,
-  children,
-}: {
-  title: string;
-  note: string;
-  testId: string;
-  children: ReactNode;
-}) {
-  return (
-    <section data-testid={testId} className="flex flex-col gap-2">
-      <div className="flex items-baseline gap-2">
-        <h2 className="font-semibold text-sm">{title}</h2>
-        <span className="text-muted-foreground text-xs">{note}</span>
-      </div>
-      <div className="divide-y rounded-xl border">{children}</div>
-    </section>
-  );
-}
-
-/** One row: the Skill's name, its Agent folder and its Namespace. */
-function Row({ name, folder, namespace }: { name: string; folder: string; namespace: string }) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-2.5">
-      <span className="font-medium text-sm">{name}</span>
-      <span className="truncate font-mono text-muted-foreground text-xs">{folder}</span>
-      <span className="ml-auto shrink-0 rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-        {namespace}
-      </span>
-    </div>
-  );
-}
-
 function Found() {
-  const trpc = useTRPC();
   const go = useStep();
-  const inbox = useQuery(trpc.inbox.list.queryOptions());
-  const inProjects = useQuery(trpc.project.suggestedSkills.queryOptions());
-  const global = inbox.data?.globalSkills ?? [];
-  const managed = inbox.data?.managedSkills ?? [];
-  const projects = inProjects.data ?? [];
-  const untracked = projects.flatMap((project) =>
-    project.skills.filter((skill) => !skill.tracked).map((skill) => ({ project, skill })),
-  );
-  const vendored = projects.flatMap((project) =>
-    project.skills.filter((skill) => skill.tracked).map((skill) => ({ project, skill })),
-  );
-  const globalCount = global.reduce((sum, group) => sum + group.findings.length, 0);
-  const empty = globalCount + untracked.length + vendored.length + managed.length === 0;
   return (
     <Frame
       title="What the Scan found"
-      lead="Every Skill your Agents can see today. MCP Servers it found wait in the Inbox."
+      lead="Every Skill and MCP Server your Agents can see today, by the folder that holds it. Read-only ones stay where they are."
       actions={<Button onClick={() => go("adopt")}>Continue</Button>}
     >
-      {inbox.isPending || inProjects.isPending ? null : empty ? (
-        <p className="text-muted-foreground text-sm">No Skills found outside the Library.</p>
-      ) : null}
-      {globalCount > 0 && (
-        <Group
-          testId="first-run-global"
-          title={`Global Skills · ${globalCount}`}
-          note="Loaded by every Agent in every Project"
-        >
-          {global.flatMap((group) =>
-            group.findings.map((finding) => (
-              <Row key={finding.id} name={finding.name} folder={group.folder} namespace={finding.source ?? "local"} />
-            )),
-          )}
-        </Group>
-      )}
-      {untracked.length > 0 && (
-        <Group
-          testId="first-run-untracked"
-          title={`Untracked Project Skills · ${untracked.length}`}
-          note="In Suggested Projects, not committed"
-        >
-          {untracked.map(({ project, skill }) => (
-            <Row
-              key={skill.path}
-              name={skill.name}
-              folder={`${project.name}/${skill.folder}`}
-              namespace={skill.namespace}
-            />
-          ))}
-        </Group>
-      )}
-      {vendored.length > 0 && (
-        <Group
-          testId="first-run-vendored"
-          title={`Vendored Skills · ${vendored.length}`}
-          note="Committed in a repo; left as they are"
-        >
-          {vendored.map(({ project, skill }) => (
-            <Row
-              key={skill.path}
-              name={skill.name}
-              folder={`${project.name}/${skill.folder}`}
-              namespace={skill.namespace}
-            />
-          ))}
-        </Group>
-      )}
-      {managed.length > 0 && (
-        <Group
-          testId="first-run-managed"
-          title={`Agent-managed Skills · ${managed.reduce((sum, group) => sum + group.findings.length, 0)}`}
-          note="For information: they can't be moved. Turn them off from the Inbox."
-        >
-          {managed.flatMap((group) =>
-            group.findings.map((finding) => (
-              <Row
-                key={finding.id}
-                name={finding.name}
-                folder={`${agentName(group.agent)} · ${finding.path}`}
-                namespace={finding.plugin ?? finding.kind}
-              />
-            )),
-          )}
-        </Group>
-      )}
+      <Inventory empty="No Skills or MCP Servers found outside the Library." />
     </Frame>
   );
 }
