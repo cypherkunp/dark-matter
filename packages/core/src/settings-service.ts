@@ -1,4 +1,4 @@
-import type { SettingsFile } from "@dark-matter/contracts";
+import type { ClientKind, SettingsFile } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import type { ActivityLog } from "./activity";
 import type { Clock } from "./clock";
@@ -28,24 +28,24 @@ export const settingsServices = ({
   /** Ignoring or Un-ignoring an Inbox finding edits `ignoredFindings` (kept sorted). */
   const ignored =
     (action: "inbox.ignore" | "inbox.unignore", edit: (current: string[], id: string) => string[]) =>
-    (id: string, client: Parameters<CoreServices["inbox"]["ignore"]>[1]) =>
+    (id: string, client: ClientKind) =>
       activity.track({ client, action, subjects: [{ kind: "finding", id }] }, async (wrote) => {
         wrote(await settings.update((current) => ({ ...current, ignoredFindings: edit(current.ignoredFindings, id) })));
         bus.invalidate("settings", "inbox");
       });
   /**
-   * Saves an Adopt Permission or the Agent Config Guard. What can be adopted
-   * changes with it, so the Inbox and the Scan's findings are refreshed.
+   * Saves an Adopt Permission or the Agent Config Guard (ADR-0007). What can be
+   * adopted changes with it, so every view of the Scan's findings is refreshed.
    */
-  const savePermissions = (
-    client: Parameters<CoreServices["settings"]["setAdoptPermission"]>[1],
+  const saveAdoptGate = (
+    client: ClientKind,
     action: "settings.setAdoptPermission" | "settings.setAgentConfigGuard",
     id: string,
     edit: (preferences: SettingsFile["preferences"]) => SettingsFile["preferences"],
   ) =>
     activity.track({ client, action, subjects: [{ kind: "settings", id }] }, async (wrote) => {
       wrote(await settings.update((current) => ({ ...current, preferences: edit(current.preferences) })));
-      bus.invalidate("settings", "inbox", "scan", "agents");
+      bus.invalidate("settings", "inbox", "scan", "agents", "project");
       return settings.value;
     });
   return {
@@ -66,7 +66,7 @@ export const settingsServices = ({
         return saved;
       },
       setAdoptPermission: ({ agent, kind, allowed }, client) =>
-        savePermissions(client, "settings.setAdoptPermission", "adoptPermissions", (preferences) => ({
+        saveAdoptGate(client, "settings.setAdoptPermission", "adoptPermissions", (preferences) => ({
           ...preferences,
           adoptPermissions: {
             ...preferences.adoptPermissions,
@@ -74,7 +74,7 @@ export const settingsServices = ({
           },
         })),
       setAgentConfigGuard: ({ on }, client) =>
-        savePermissions(client, "settings.setAgentConfigGuard", "agentConfigGuard", (preferences) => ({
+        saveAdoptGate(client, "settings.setAgentConfigGuard", "agentConfigGuard", (preferences) => ({
           ...preferences,
           agentConfigGuard: on,
         })),

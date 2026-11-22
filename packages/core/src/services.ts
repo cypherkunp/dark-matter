@@ -166,10 +166,10 @@ export const createServices = async ({
     projectPaths: () => Object.keys(projects.value.projects),
     projectMcp: async (path) => {
       const record = projects.value.projects[path];
-      return record ? projectMcpEntries(env, path, record) : [];
+      return record ? projectMcpEntries(env, path, record, settings.value.preferences) : [];
     },
     exclude: [libraryHome],
-    preferences: () => settings.value.preferences,
+    adoptGate: () => settings.value.preferences,
     onChange: () => {
       bus.invalidate("scan", "inbox", "agents", "project", "scheduler");
       // After the first Scan, the Agents' folders are watched too.
@@ -206,7 +206,7 @@ export const createServices = async ({
     latestScan: () => scans.latest,
     rescan: () => scans.refresh(),
     onChange: bus.invalidator("mcp", "inbox", "project", "collections"),
-    preferences: () => settings.value.preferences,
+    adoptGate: () => settings.value.preferences,
     projectFindings: () => projectMcp.findings(),
     keepPersonal: {
       keep: (path, name, wrote) => projectMcp.keepPersonal(path, name, wrote),
@@ -277,6 +277,7 @@ export const createServices = async ({
     projects,
     activity,
     bus,
+    adoptGate: () => settings.value.preferences,
   });
   /** A changed record (e.g. Agents) re-delivers Project Skills, then Project MCP Servers. */
   const deliverProject = {
@@ -314,6 +315,7 @@ export const createServices = async ({
     library,
     activity,
     latestScan: () => scans.latest,
+    adoptGate: () => settings.value.preferences,
     rescan: () => scans.refresh(),
     onChange: bus.invalidator("library", "inbox", "skill"),
     untracked: () => findUntracked().flatMap((group) => group.findings),

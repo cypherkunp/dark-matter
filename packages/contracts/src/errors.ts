@@ -1,3 +1,6 @@
+import { readOnlyReasonText } from "./adopt-text";
+import type { AgentId, NotAdoptableReason } from "./schemas";
+
 /**
  * The tagged-error convention (ADR-0004): every expected failure is an Error
  * with a stable string `_tag`. tRPC responses carry the tag in `error.data.tag`.
@@ -84,22 +87,17 @@ export class UnknownFinding extends TaggedError<"UnknownFinding"> {
 
 /**
  * Adopt was asked for a finding that can't be adopted (ADR-0007): its Owning
- * Agent's Adopt Permission is off, the Agent Config Guard is on (a Global MCP
+ * Agent's Adopt Permission is off, the Agent Config Guard is on (an MCP
  * Server), or it's Agent-managed.
  */
 export class NotAdoptable extends TaggedError<"NotAdoptable"> {
   readonly _tag = "NotAdoptable";
   constructor(
     readonly id: string,
-    readonly reason: "adoptPermissionOff" | "agentConfigGuard" | "agentManaged",
+    readonly reason: NotAdoptableReason,
+    readonly owningAgent: AgentId,
   ) {
-    super(
-      reason === "agentConfigGuard"
-        ? `${id} can't be adopted while the Agent Config Guard is on: adopting it would edit the Agent's global config`
-        : reason === "agentManaged"
-          ? `${id} is managed by its Agent, so Dark Matter can't move it`
-          : `${id} can't be adopted: its Agent's Adopt Permission is off. Turn it on in Settings first.`,
-    );
+    super(`${id} can't be adopted. ${readOnlyReasonText(reason, owningAgent)}`);
   }
 }
 

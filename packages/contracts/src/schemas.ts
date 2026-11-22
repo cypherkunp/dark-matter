@@ -173,7 +173,7 @@ export type SetAdoptPermission = z.infer<typeof SetAdoptPermission>;
 
 /**
  * Why a Scan finding can't be adopted (ADR-0007): its Owning Agent's Adopt
- * Permission is off, the Agent Config Guard is on (Global MCP Servers), or the
+ * Permission is off, the Agent Config Guard is on (any MCP Server), or the
  * Agent installs and controls it itself (Agent-managed).
  */
 export const NotAdoptableReason = z.enum(["adoptPermissionOff", "agentConfigGuard", "agentManaged"]);
@@ -212,8 +212,8 @@ export const Preferences = z.strictObject({
   adoptPermissions: AdoptPermissions.prefault({}),
   /**
    * The Agent Config Guard (ADR-0007): while on, Dark Matter never edits an
-   * Agent's global config (no Agent-managed off switches, no Global MCP Server
-   * Adopt). Changed only through `settings.setAgentConfigGuard`.
+   * Agent's global config (no Agent-managed off switches) and no MCP Server is
+   * adopted. Changed only through `settings.setAgentConfigGuard`.
    */
   agentConfigGuard: z.boolean().default(true),
 });
@@ -1661,6 +1661,8 @@ export const RepoMcpServer = z.object({
   file: z.string(),
   /** Inline secrets masked as `${secret:…}`. */
   definition: McpDefinition,
+  /** Whether Adopt may move it, from the current settings (ADR-0007). Vendored entries are left alone whatever it says. */
+  ...Adoptability.shape,
 });
 export type RepoMcpServer = z.infer<typeof RepoMcpServer>;
 

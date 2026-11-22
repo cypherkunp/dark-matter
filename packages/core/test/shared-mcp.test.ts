@@ -436,6 +436,9 @@ describe("MCP entries already in a Project", () => {
         name: "team",
         file: "~/code/app/.mcp.json",
         definition: { transport: "stdio", command: "team-server" },
+        owningAgent: "claude-code",
+        adoptable: true,
+        notAdoptableReason: null,
       },
     ]);
     expect(found.untracked.map((entry) => entry.id)).toEqual([

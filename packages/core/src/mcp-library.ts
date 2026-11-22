@@ -22,7 +22,7 @@ import {
   SecretMissing,
 } from "@dark-matter/contracts";
 import type { ActivityLog, Wrote } from "./activity";
-import { adoptability, defaultPreferences } from "./adopt-permissions";
+import { type AdoptGate, adoptability, defaultAdoptGate } from "./adopt-permissions";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { writeFileAtomic } from "./atomic";
 import { editConfigFile, readConfigText } from "./config-edit";
@@ -208,7 +208,7 @@ export interface McpAdoptOptions {
    * defaults when left out. Adopt is refused when they don't allow it; Undo
    * Adopt ignores them.
    */
-  preferences?: () => Parameters<typeof adoptability>[0];
+  adoptGate?: () => AdoptGate;
   /** Untracked and Claude local-scope entries in Projects (#39), Adopted by their `project-mcp:` ids. */
   projectFindings?: () => Promise<ProjectMcpFinding[]>;
   /** Puts an Adopted Project entry back as Personal, and releases it on Undo (#39). */
@@ -354,11 +354,11 @@ export class McpAdopt {
       throw new FindingNotFound(id);
     });
     // Refused in the core, not only hidden in the app (ADR-0007).
-    const preferences = this.#options.preferences?.() ?? defaultPreferences();
+    const gate = this.#options.adoptGate?.() ?? defaultAdoptGate();
     for (const finding of findings) {
-      const subject = finding.project ? "projectMcpServer" : "globalMcpServer";
-      const { notAdoptableReason } = adoptability(preferences, subject, finding.agent);
-      if (notAdoptableReason) throw new NotAdoptable(finding.id, notAdoptableReason);
+      const subject = finding.project ? "untrackedMcpServer" : "globalMcpServer";
+      const { notAdoptableReason } = adoptability(gate, subject, finding.agent);
+      if (notAdoptableReason) throw new NotAdoptable(finding.id, notAdoptableReason, finding.agent);
     }
 
     // Every Library MCP Server, compared by its definition with Secrets filled in.

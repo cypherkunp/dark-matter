@@ -272,16 +272,26 @@ describe("Adopt Permissions and the Agent Config Guard (ADR-0007)", () => {
       expect(JSON.parse(await readFile(join(home, ".claude.json"), "utf8")).mcpServers).toHaveProperty("github");
     });
 
-    test("an untracked Project MCP entry follows its Agent's MCP permission, not the Guard", async () => {
+    test("an untracked Project MCP entry is refused while the Guard is on, then follows its Agent's MCP permission", async () => {
       const { trpc, project } = await setup();
       const app = await project("code/app", ["cursor"]);
       await mkdir(join(app, ".cursor"));
       await writeFile(join(app, ".cursor/mcp.json"), `{ "mcpServers": { "notes": { "command": "notes" } } }\n`);
+      await trpc.settings.setAdoptPermission.mutate({ agent: "cursor", kind: "mcp", allowed: true });
       await trpc.scan.run.mutate();
       const ids = [`project-mcp:cursor:${app}:notes`];
+      const inboxVerdicts = async () => (await trpc.inbox.list.query()).untrackedMcpServers[0]?.findings.map(verdict);
 
-      const [group] = (await trpc.inbox.list.query()).untrackedMcpServers;
-      expect(group?.findings.map(verdict)).toEqual([
+      expect(await inboxVerdicts()).toEqual([
+        { owningAgent: "cursor", adoptable: false, notAdoptableReason: "agentConfigGuard" },
+      ]);
+      await expect(trpc.mcp.adoptPlan.query({ findings: ids })).rejects.toMatchObject({
+        data: { tag: "NotAdoptable" },
+      });
+
+      await trpc.settings.setAgentConfigGuard.mutate({ on: false });
+      await trpc.settings.setAdoptPermission.mutate({ agent: "cursor", kind: "mcp", allowed: false });
+      expect(await inboxVerdicts()).toEqual([
         { owningAgent: "cursor", adoptable: false, notAdoptableReason: "adoptPermissionOff" },
       ]);
       await expect(trpc.mcp.adoptPlan.query({ findings: ids })).rejects.toMatchObject({
@@ -292,6 +302,27 @@ describe("Adopt Permissions and the Agent Config Guard (ADR-0007)", () => {
       const plan = await trpc.mcp.adoptPlan.query({ findings: ids });
       await trpc.mcp.adoptExecute.mutate({ findings: ids, planId: plan.planId });
       expect((await trpc.mcp.list.query()).servers.map((server) => server.name)).toEqual(["notes"]);
+    });
+
+    test("the Project page lists untracked MCP entries with whether each can be adopted, from the current settings", async () => {
+      const { trpc, project } = await setup();
+      const app = await project("code/app", ["cursor"]);
+      await mkdir(join(app, ".cursor"));
+      await writeFile(join(app, ".cursor/mcp.json"), `{ "mcpServers": { "notes": { "command": "notes" } } }\n`);
+      const verdicts = async () =>
+        (await trpc.project.repoMcpServers.query({ path: app })).untracked.map((entry) => verdict(entry));
+
+      expect(await verdicts()).toEqual([
+        { owningAgent: "cursor", adoptable: false, notAdoptableReason: "agentConfigGuard" },
+      ]);
+
+      await trpc.settings.setAgentConfigGuard.mutate({ on: false });
+      expect(await verdicts()).toEqual([
+        { owningAgent: "cursor", adoptable: false, notAdoptableReason: "adoptPermissionOff" },
+      ]);
+
+      await trpc.settings.setAdoptPermission.mutate({ agent: "cursor", kind: "mcp", allowed: true });
+      expect(await verdicts()).toEqual([{ owningAgent: "cursor", adoptable: true, notAdoptableReason: null }]);
     });
   });
 

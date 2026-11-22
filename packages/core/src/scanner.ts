@@ -13,7 +13,7 @@ import type {
 } from "@dark-matter/contracts";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { adoptability, defaultPreferences, globalFolderOwner } from "./adopt-permissions";
+import { type AdoptGate, adoptability, defaultAdoptGate, globalFolderOwner } from "./adopt-permissions";
 import { type AgentAdapter, type AgentPathEnv, agentAdapters, type SkillFolder } from "./agents";
 import { readConfigText } from "./config-edit";
 import { isDirectory } from "./fs-util";
@@ -31,7 +31,7 @@ export interface ScanOptions {
   /** Folders never suggested as Projects (the Library). */
   exclude?: readonly string[];
   /** Decides each finding's `adoptable` (ADR-0007); the defaults when left out. Readers re-apply the current ones. */
-  preferences?: Parameters<typeof adoptability>[0];
+  adoptGate?: AdoptGate;
 }
 /**
  * The Scan (#10): a strictly read-only sweep of every Agent's global skill
@@ -46,7 +46,7 @@ export const scan = async (
   options: ScanOptions = {},
 ): Promise<ScanResult> => {
   const folders = uniqueFolders(adapters, env);
-  const preferences = options.preferences ?? defaultPreferences();
+  const gate = options.adoptGate ?? defaultAdoptGate();
   const lock = (await readGlobalLock(env.home))?.entries ?? {};
   const ownRoots = await realPaths([
     ...folders.map((folder) => folder.path),
@@ -94,13 +94,13 @@ export const scan = async (
       agents: adapters.map((adapter) => adapter.id).filter((id) => agents.has(id)),
       source: locked?.source ?? null,
       localSource: !ownRoots.some((root) => found.realPath.startsWith(root + sep)),
-      ...adoptability(preferences, "globalSkill", globalFolderOwner(env, home.folder)),
+      ...adoptability(gate, "globalSkill", globalFolderOwner(env, home.folder)),
     });
   }
   globalSkills.sort((a, b) => a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name));
-  const managedSkills = await findManagedSkills(env, adapters, preferences);
-  const mcp = await findGlobalMcpServers(env, adapters, preferences);
-  const managedMcpServers = await findManagedMcpServers(env, adapters, preferences);
+  const managedSkills = await findManagedSkills(env, adapters, gate);
+  const mcp = await findGlobalMcpServers(env, adapters, gate);
+  const managedMcpServers = await findManagedMcpServers(env, adapters, gate);
 
   const agents: AgentScan[] = await Promise.all(
     adapters.map(async (adapter) => {
@@ -175,7 +175,7 @@ export const scanProject = async (path: string, adapters: readonly AgentAdapter[
 const findManagedSkills = async (
   env: AgentPathEnv,
   adapters: readonly AgentAdapter[],
-  preferences: Gate,
+  gate: AdoptGate,
 ): Promise<ManagedSkill[]> => {
   const rel = (path: string) => homeRelative(env.home, path);
   const found: ManagedSkill[] = [];
@@ -206,7 +206,7 @@ const findManagedSkills = async (
             off && configFile
               ? off.scopes(ref).map((scope) => ({ scope, file: rel(configFile), setting: off.setting(ref, scope) }))
               : [],
-          ...adoptability(preferences, "managedSkill", adapter.id),
+          ...adoptability(gate, "managedSkill", adapter.id),
         });
       }
     }
@@ -221,7 +221,7 @@ const findManagedSkills = async (
  * secrets are masked as Secret references here, so their values never reach
  * the cache or a client. Only reads.
  */
-const findGlobalMcpServers = async (env: AgentPathEnv, adapters: readonly AgentAdapter[], preferences: Gate) => {
+const findGlobalMcpServers = async (env: AgentPathEnv, adapters: readonly AgentAdapter[], gate: AdoptGate) => {
   const files = new Map<string, string>();
   const servers: GlobalMcpServer[] = [];
   for (const adapter of adapters) {
@@ -238,7 +238,7 @@ const findGlobalMcpServers = async (env: AgentPathEnv, adapters: readonly AgentA
         file,
         definition: masked.definition,
         inlineSecrets: masked.secrets.map((secret) => secret.key),
-        ...adoptability(preferences, "globalMcpServer", adapter.id),
+        ...adoptability(gate, "globalMcpServer", adapter.id),
       });
     }
   }
@@ -253,7 +253,7 @@ const findGlobalMcpServers = async (env: AgentPathEnv, adapters: readonly AgentA
 const findManagedMcpServers = async (
   env: AgentPathEnv,
   adapters: readonly AgentAdapter[],
-  preferences: Gate,
+  gate: AdoptGate,
 ): Promise<ManagedMcpServer[]> => {
   const rel = (path: string) => homeRelative(env.home, path);
   const found: ManagedMcpServer[] = [];
@@ -281,7 +281,7 @@ const findManagedMcpServers = async (
             ? scopes.map((scope) => ({ scope, file: rel(configFile), setting: off.setting(server, scope) }))
             : [],
         readOnly: scopes.length > 0 ? null : managed.readOnly(server),
-        ...adoptability(preferences, "managedMcpServer", adapter.id),
+        ...adoptability(gate, "managedMcpServer", adapter.id),
       });
     }
   }
@@ -296,8 +296,6 @@ const isOffOrUnknown = (check: () => boolean) => {
     return false;
   }
 };
-
-type Gate = Parameters<typeof adoptability>[0];
 
 interface Entry {
   path: string;

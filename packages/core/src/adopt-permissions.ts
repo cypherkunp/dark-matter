@@ -1,6 +1,6 @@
 import {
   type Adoptability,
-  type AdoptPermissions,
+  type AdoptPermissionKind,
   type AgentId,
   type NotAdoptableReason,
   Preferences,
@@ -11,40 +11,51 @@ import { fromHomeRelative } from "./home-path";
 
 /**
  * What a Scan finding is, for Adopt (ADR-0007): a Skill or an MCP Server, found
- * in an Agent's global folder or config, or inside a Project, or one the Agent
- * manages itself.
+ * in an Agent's global folder or config, untracked inside a Project, or one the
+ * Agent manages itself. Named like the Inventory's kinds.
  */
 export type AdoptSubject =
   | "globalSkill"
-  | "projectSkill"
-  | "globalMcpServer"
-  | "projectMcpServer"
+  | "untrackedSkill"
   | "managedSkill"
+  | "globalMcpServer"
+  | "untrackedMcpServer"
   | "managedMcpServer";
 
-/** The defaults ADR-0007 sets: everything off but `.agents`, the Guard on. */
-export const defaultPreferences = (): Preferences => Preferences.parse({});
+/** Which of the Owning Agent's two Adopt Permissions decides each subject. */
+const permissionFor: Record<AdoptSubject, AdoptPermissionKind> = {
+  globalSkill: "skills",
+  untrackedSkill: "skills",
+  managedSkill: "skills",
+  globalMcpServer: "mcp",
+  untrackedMcpServer: "mcp",
+  managedMcpServer: "mcp",
+};
 
-type Gate = Pick<Preferences, "adoptPermissions" | "agentConfigGuard">;
+/** The settings that decide Adopt (ADR-0007): the Adopt Permissions and the Agent Config Guard. */
+export type AdoptGate = Pick<Preferences, "adoptPermissions" | "agentConfigGuard">;
+
+/** The defaults ADR-0007 sets: everything off but `.agents`, the Guard on. */
+export const defaultAdoptGate = (): AdoptGate => Preferences.parse({});
 
 /**
  * Whether Adopt may move one finding, owned by `owningAgent` (ADR-0007):
- * Agent-managed things never move; a Project's `.agents/skills` always may;
- * Global MCP Servers need the Agent Config Guard off (Adopt deletes their
- * global entry); everything else follows the Owning Agent's Skills or MCP
- * Adopt Permission. Undo Adopt doesn't ask.
+ * Agent-managed things never move; a Project's `.agents/skills` always may; no
+ * MCP Server moves while the Agent Config Guard is on; everything else follows
+ * the Owning Agent's Skills or MCP Adopt Permission. Undo Adopt doesn't ask.
  */
-export const adoptability = (preferences: Gate, subject: AdoptSubject, owningAgent: AgentId): Adoptability => {
-  const verdict = (reason: NotAdoptableReason | null): Adoptability => ({
+export const adoptability = (gate: AdoptGate, subject: AdoptSubject, owningAgent: AgentId): Adoptability => {
+  const allowed: Adoptability = { owningAgent, adoptable: true, notAdoptableReason: null };
+  const refused = (reason: NotAdoptableReason): Adoptability => ({
     owningAgent,
-    adoptable: reason === null,
+    adoptable: false,
     notAdoptableReason: reason,
   });
-  if (subject === "managedSkill" || subject === "managedMcpServer") return verdict("agentManaged");
-  if (subject === "projectSkill" && owningAgent === "agents") return verdict(null);
-  if (subject === "globalMcpServer" && preferences.agentConfigGuard) return verdict("agentConfigGuard");
-  const kind: keyof AdoptPermissions[AgentId] = subject.endsWith("McpServer") ? "mcp" : "skills";
-  return verdict(preferences.adoptPermissions[owningAgent][kind] ? null : "adoptPermissionOff");
+  if (subject === "managedSkill" || subject === "managedMcpServer") return refused("agentManaged");
+  if (subject === "untrackedSkill" && owningAgent === "agents") return allowed;
+  const permission = permissionFor[subject];
+  if (permission === "mcp" && gate.agentConfigGuard) return refused("agentConfigGuard");
+  return gate.adoptPermissions[owningAgent][permission] ? allowed : refused("adoptPermissionOff");
 };
 
 /**
@@ -64,22 +75,22 @@ export const projectFolderOwner = (folder: string): AgentId =>
   agentAdapters.find((adapter) => adapter.skills.ownProjectFolder === folder)?.id ?? "agents";
 
 /** A Scan's findings with `adoptable` worked out again from the current settings. */
-export const withAdoptability = (scan: ScanResult, preferences: Gate): ScanResult => {
-  const judge =
+export const withAdoptability = (scan: ScanResult, gate: AdoptGate): ScanResult => {
+  const recomputeAs =
     (subject: AdoptSubject) =>
     <F extends Adoptability>(finding: F): F => ({
       ...finding,
-      ...adoptability(preferences, subject, finding.owningAgent),
+      ...adoptability(gate, subject, finding.owningAgent),
     });
   return {
     ...scan,
-    globalSkills: scan.globalSkills.map(judge("globalSkill")),
-    globalMcpServers: scan.globalMcpServers.map(judge("globalMcpServer")),
-    managedSkills: scan.managedSkills.map(judge("managedSkill")),
-    managedMcpServers: scan.managedMcpServers.map(judge("managedMcpServer")),
+    globalSkills: scan.globalSkills.map(recomputeAs("globalSkill")),
+    globalMcpServers: scan.globalMcpServers.map(recomputeAs("globalMcpServer")),
+    managedSkills: scan.managedSkills.map(recomputeAs("managedSkill")),
+    managedMcpServers: scan.managedMcpServers.map(recomputeAs("managedMcpServer")),
     projects: scan.projects.map((project) => ({
       ...project,
-      mcpServers: project.mcpServers.map(judge("projectMcpServer")),
+      mcpServers: project.mcpServers.map(recomputeAs("untrackedMcpServer")),
     })),
   };
 };
