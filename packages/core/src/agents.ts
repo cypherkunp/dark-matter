@@ -56,6 +56,13 @@ export interface AgentAdapter {
   skills: {
     /** Global skill folders it loads: its own first, then compatibility folders. */
     globalFolders(env: AgentPathEnv): SkillFolder[];
+    /**
+     * The global skill folder this Agent owns (ADR-0007): its Adopt Permission
+     * decides Adopt from there, whichever other Agents read it too.
+     */
+    ownGlobalFolder(env: AgentPathEnv): string;
+    /** The Project-relative skill folder this Agent owns, e.g. `.claude/skills`. */
+    ownProjectFolder: string;
     /** Project-relative skill folders it loads, e.g. `.agents/skills`. */
     projectFolders: readonly string[];
     /**
@@ -100,7 +107,9 @@ const claudeCode: AgentAdapter = {
   // Claude Code alone doesn't read `.agents/skills` (anthropics/claude-code#31005).
   skills: {
     globalFolders: (env) => [claudeSkills(env)],
+    ownGlobalFolder: (env) => claudeSkills(env).path,
     projectFolders: [".claude/skills"],
+    ownProjectFolder: ".claude/skills",
     deliveryFolder: ".claude/skills",
   },
   project: { markers: [".claude", "CLAUDE.md"] },
@@ -117,7 +126,9 @@ const cursor: AgentAdapter = {
   // `~/.cursor/skills-cursor/` holds Cursor's built-ins: Agent-managed, not global.
   skills: {
     globalFolders: (env) => [cursorSkills(env), agentsSkills(env), claudeSkills(env), codexSkills(env)],
+    ownGlobalFolder: (env) => cursorSkills(env).path,
     projectFolders: [".cursor/skills", ".agents/skills", ".claude/skills", ".codex/skills"],
+    ownProjectFolder: ".cursor/skills",
     deliveryFolder: ".agents/skills",
   },
   project: { markers: [".cursor"] },
@@ -133,7 +144,9 @@ const opencode: AgentAdapter = {
   configDir: opencodeDir,
   skills: {
     globalFolders: (env) => [opencodeSkills(env), claudeSkills(env), agentsSkills(env)],
+    ownGlobalFolder: (env) => opencodeSkills(env).path,
     projectFolders: [".opencode/skills", ".claude/skills", ".agents/skills"],
+    ownProjectFolder: ".opencode/skills",
     deliveryFolder: ".agents/skills",
   },
   project: { markers: [".opencode", "opencode.json", "opencode.jsonc"] },
@@ -151,7 +164,9 @@ const codex: AgentAdapter = {
   // The admin folder `/etc/codex/skills` is outside `$HOME` and not scanned yet.
   skills: {
     globalFolders: (env) => [agentsSkills(env), codexSkills(env)],
+    ownGlobalFolder: (env) => codexSkills(env).path,
     projectFolders: [".agents/skills"],
+    ownProjectFolder: ".codex/skills",
     deliveryFolder: ".agents/skills",
   },
   project: { markers: [".codex"] },
@@ -167,7 +182,9 @@ const agents: AgentAdapter = {
   configDir: ({ home }) => join(home, ".agents"),
   skills: {
     globalFolders: (env) => [agentsSkills(env)],
+    ownGlobalFolder: (env) => agentsSkills(env).path,
     projectFolders: [".agents/skills"],
+    ownProjectFolder: ".agents/skills",
     deliveryFolder: ".agents/skills",
   },
   project: { markers: [".agents", "AGENTS.md"] },

@@ -45,6 +45,7 @@ import {
   CreateCollectionInput,
   FulfilLockInput,
   Inbox,
+  Inventory,
   LibraryList,
   LibraryMcpList,
   ManagedMcpServer,
@@ -83,6 +84,7 @@ import {
   ScanResult,
   ScanStatus,
   SchedulerStatus,
+  SetAdoptPermission,
   SetCollectionItemsInput,
   SetProjectMcpServerMode,
   SetProjectMcpServerOn,
@@ -149,6 +151,10 @@ export interface CoreServices {
     updatePreferences(patch: PreferencesPatch, client: ClientKind): Promise<SettingsFile>;
     /** Records that the First run is done (finished or skipped); keeps the first time. */
     completeFirstRun(client: ClientKind): Promise<SettingsFile>;
+    /** Turns one Agent's Skills or MCP Adopt Permission on or off (ADR-0007). App-only. */
+    setAdoptPermission(input: SetAdoptPermission, client: ClientKind): Promise<SettingsFile>;
+    /** Turns the Agent Config Guard on or off (ADR-0007). App-only. */
+    setAgentConfigGuard(input: { on: boolean }, client: ClientKind): Promise<SettingsFile>;
   };
   ownedFiles: {
     /** Hand edits the core is holding because they don't validate. */
@@ -177,6 +183,8 @@ export interface CoreServices {
   };
   agents: {
     list(): AgentCard[];
+    /** Everything the latest Scan found, grouped by owning folder (#55); empty before the first Scan. */
+    inventory(): Promise<Inventory>;
     /** Every Agent-managed MCP Server the latest Scan found, off ones included (#40). */
     managedMcp(): ManagedMcpServer[];
   };
@@ -415,6 +423,14 @@ export const createAppRouter = (services: CoreServices) => {
       completeFirstRun: t.procedure
         .output(SettingsFile)
         .mutation(({ ctx }) => services.settings.completeFirstRun(ctx.client)),
+      setAdoptPermission: t.procedure
+        .input(SetAdoptPermission)
+        .output(SettingsFile)
+        .mutation(({ input, ctx }) => services.settings.setAdoptPermission(input, ctx.client)),
+      setAgentConfigGuard: t.procedure
+        .input(z.strictObject({ on: z.boolean() }))
+        .output(SettingsFile)
+        .mutation(({ input, ctx }) => services.settings.setAgentConfigGuard(input, ctx.client)),
     }),
     ownedFiles: t.router({
       problems: t.procedure.output(OwnedFileProblem.array()).query(() => services.ownedFiles.problems()),
@@ -459,6 +475,7 @@ export const createAppRouter = (services: CoreServices) => {
     }),
     agents: t.router({
       list: t.procedure.output(AgentCard.array()).query(() => services.agents.list()),
+      inventory: t.procedure.output(Inventory).query(() => services.agents.inventory()),
       managedMcp: t.procedure.output(ManagedMcpServer.array()).query(() => services.agents.managedMcp()),
     }),
     managedSkills: t.router({

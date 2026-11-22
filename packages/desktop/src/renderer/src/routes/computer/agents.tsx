@@ -2,6 +2,7 @@ import type { AgentCard } from "@dark-matter/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
+import { Inventory } from "@/components/inventory";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
 import { useTRPC } from "@/lib/trpc";
@@ -90,6 +91,22 @@ function Agents() {
         {list.map((agent) => (
           <Card key={agent.id} agent={agent} />
         ))}
+      </section>
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="font-semibold text-base">Everything found</h2>
+          <p className="text-muted-foreground text-sm">
+            Every Skill and MCP Server the last Scan found, by the folder or config that holds it, and the Agents that
+            see each one.
+          </p>
+        </div>
+        <Inventory
+          empty={
+            agents.data?.some((agent) => agent.detected !== null)
+              ? "Nothing found outside the Library."
+              : "Not scanned yet."
+          }
+        />
       </section>
     </div>
   );

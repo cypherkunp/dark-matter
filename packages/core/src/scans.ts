@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { type ActivityClient, type ProjectMcpEntry, ScanResult, type ScanStatus } from "@dark-matter/contracts";
 import type { ActivityLog } from "./activity";
+import { type AdoptGate, defaultAdoptGate, withAdoptability } from "./adopt-permissions";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { log } from "./log";
 import { scan } from "./scanner";
@@ -17,6 +18,8 @@ export interface ScansOptions {
   exclude?: readonly string[];
   /** Called when a Scan starts and when it finishes. */
   onChange: () => void;
+  /** The current settings, which decide each finding's `adoptable` (ADR-0007); the defaults when left out. */
+  adoptGate?: () => AdoptGate;
 }
 
 /**
@@ -35,8 +38,17 @@ export class Scans {
     this.#latest = readCached(options.cache);
   }
 
+  /** The latest Scan, its findings' `adoptable` worked out from the current settings. */
   get latest(): ScanResult | null {
-    return this.#latest;
+    return this.#latest && this.#withCurrentAdoptability(this.#latest);
+  }
+
+  #gate(): AdoptGate {
+    return this.#options.adoptGate?.() ?? defaultAdoptGate();
+  }
+
+  #withCurrentAdoptability(scan: ScanResult): ScanResult {
+    return withAdoptability(scan, this.#gate());
   }
 
   status(): ScanStatus {
@@ -56,7 +68,7 @@ export class Scans {
         this.#running = this.#start(() =>
           this.#options.activity.track({ client, action: "scan.run", subjects: [] }, () => this.#scan()),
         );
-        return await this.#running;
+        return this.#withCurrentAdoptability(await this.#running);
       } finally {
         this.#asked = null;
       }
@@ -84,7 +96,7 @@ export class Scans {
     if (this.#asked) return this.#asked;
     await this.settle();
     this.#running ??= this.#start(() => this.#scan());
-    return this.#running;
+    return this.#withCurrentAdoptability(await this.#running);
   }
 
   /** Waits for a running Scan, so the cache isn't closed under it. */
@@ -105,6 +117,7 @@ export class Scans {
     const result = await scan(this.#options.env, agentAdapters, new Date(), {
       projects: this.#options.projectPaths?.() ?? [],
       exclude: this.#options.exclude ?? [],
+      adoptGate: this.#gate(),
     });
     const projectMcp = this.#options.projectMcp;
     if (projectMcp)

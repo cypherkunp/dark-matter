@@ -2,12 +2,13 @@ import { chmod, lstat, readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { agentHome, gitRepo } from "./agent-home";
-import { bootCore, connect, fakeClock, localTime, tempHome } from "./harness";
+import { allowAdoptEverywhere, bootCore, connect, fakeClock, localTime, tempHome } from "./harness";
 
 const setup = async (clock = fakeClock(localTime(20, 12))) => {
   const { home, libraryHome } = await tempHome();
   const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome }, { clock });
   const { trpc } = connect(core);
+  await allowAdoptEverywhere(trpc);
   const fixture = agentHome(home);
   const adopt = async (...realPaths: string[]) => {
     await trpc.scan.run.mutate();

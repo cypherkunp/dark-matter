@@ -141,6 +141,59 @@ export const ActivityRetention = z.union([
 ]);
 export type ActivityRetention = z.infer<typeof ActivityRetention>;
 
+/** A v1 Agent, as Dark Matter's adapters know it. */
+export const AgentId = z.enum(["claude-code", "cursor", "opencode", "codex", "agents"]);
+export type AgentId = z.infer<typeof AgentId>;
+
+/** One Agent's Adopt Permission (ADR-0007): Adopt from the skill folders / MCP config that Agent owns. */
+const agentAdoptPermission = (on: boolean) =>
+  z.strictObject({ skills: z.boolean().default(on), mcp: z.boolean().default(on) }).prefault({});
+
+/**
+ * Adopt Permissions by Owning Agent (ADR-0007). Off by default, except for the
+ * generic `.agents` convention. Undo Adopt ignores them; a Project's
+ * `.agents/skills` is always adoptable whatever `agents.skills` says.
+ */
+export const AdoptPermissions = z.strictObject({
+  "claude-code": agentAdoptPermission(false),
+  cursor: agentAdoptPermission(false),
+  opencode: agentAdoptPermission(false),
+  codex: agentAdoptPermission(false),
+  agents: agentAdoptPermission(true),
+});
+export type AdoptPermissions = z.infer<typeof AdoptPermissions>;
+
+/** Which of an Agent's two Adopt Permissions: its Skills or its MCP Servers. */
+export const AdoptPermissionKind = z.enum(["skills", "mcp"]);
+export type AdoptPermissionKind = z.infer<typeof AdoptPermissionKind>;
+
+/** `settings.setAdoptPermission`'s input: turn one Agent's Skills or MCP Adopt Permission on or off. */
+export const SetAdoptPermission = z.strictObject({ agent: AgentId, kind: AdoptPermissionKind, allowed: z.boolean() });
+export type SetAdoptPermission = z.infer<typeof SetAdoptPermission>;
+
+/**
+ * Why a Scan finding can't be adopted (ADR-0007): its Owning Agent's Adopt
+ * Permission is off, the Agent Config Guard is on (any MCP Server), or the
+ * Agent installs and controls it itself (Agent-managed).
+ */
+export const NotAdoptableReason = z.enum(["adoptPermissionOff", "agentConfigGuard", "agentManaged"]);
+export type NotAdoptableReason = z.infer<typeof NotAdoptableReason>;
+
+/**
+ * What every Scan finding says about Adopt (ADR-0007). `adoptable` and its
+ * reason follow the current settings: they're worked out again whenever the
+ * finding is read, not only when it was scanned.
+ */
+export const Adoptability = z.object({
+  /** The one Agent whose skill folder or config the finding is in, by path (`~/.claude/skills` → Claude Code). */
+  owningAgent: AgentId,
+  /** Adopt may move it. False findings are listed read-only and can't be ticked. */
+  adoptable: z.boolean().default(false),
+  /** Why it can't be adopted; null when it can. */
+  notAdoptableReason: NotAdoptableReason.nullable().default(null),
+});
+export type Adoptability = z.infer<typeof Adoptability>;
+
 const preferenceFields = {
   /** Local time of the daily Scheduled Scan, `HH:MM`. */
   scheduledScanTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use 24-hour HH:MM"),
@@ -155,6 +208,14 @@ export const Preferences = z.strictObject({
   startAtLogin: preferenceFields.startAtLogin.default(true),
   trashRetentionDays: preferenceFields.trashRetentionDays.default(30),
   activityRetention: preferenceFields.activityRetention.default(30),
+  /** Per-Agent Adopt Permissions (ADR-0007). Changed only through `settings.setAdoptPermission`. */
+  adoptPermissions: AdoptPermissions.prefault({}),
+  /**
+   * The Agent Config Guard (ADR-0007): while on, Dark Matter never edits an
+   * Agent's global config (no Agent-managed off switches) and no MCP Server is
+   * adopted. Changed only through `settings.setAgentConfigGuard`.
+   */
+  agentConfigGuard: z.boolean().default(true),
 });
 export type Preferences = z.infer<typeof Preferences>;
 
@@ -415,10 +476,6 @@ export const ActivityExport = z.object({
 });
 export type ActivityExport = z.infer<typeof ActivityExport>;
 
-/** A v1 Agent, as Dark Matter's adapters know it. */
-export const AgentId = z.enum(["claude-code", "cursor", "opencode", "codex", "agents"]);
-export type AgentId = z.infer<typeof AgentId>;
-
 /** One place an Agent skill folder reaches a Skill. Paths are home-relative. */
 export const SkillLocation = z.object({
   /** The Agent skill folder, e.g. `~/.claude/skills`. */
@@ -451,6 +508,7 @@ export const GlobalSkill = z.object({
   source: z.string().nullable(),
   /** Its real folder is outside every Agent folder, so Adopt makes it a Local Source. */
   localSource: z.boolean(),
+  ...Adoptability.shape,
 });
 export type GlobalSkill = z.infer<typeof GlobalSkill>;
 
@@ -553,6 +611,7 @@ export const ManagedSkill = z.object({
   off: z.boolean(),
   /** Ways to turn it off, the narrowest first. Empty when the Agent has no off switch (Cursor). */
   offSwitches: z.array(OffSwitch),
+  ...Adoptability.shape,
 });
 export type ManagedSkill = z.infer<typeof ManagedSkill>;
 
@@ -631,6 +690,7 @@ export const GlobalMcpServer = z.object({
   definition: McpDefinition,
   /** The env and header keys whose inline values Adopt moves into the keychain. */
   inlineSecrets: z.array(z.string()),
+  ...Adoptability.shape,
 });
 export type GlobalMcpServer = z.infer<typeof GlobalMcpServer>;
 
@@ -676,6 +736,7 @@ export const ManagedMcpServer = z.object({
   offSwitches: z.array(McpOffSwitch),
   /** Why it's read-only (and how to turn it off in the Agent), when there's no off switch. */
   readOnly: z.string().nullable(),
+  ...Adoptability.shape,
 });
 export type ManagedMcpServer = z.infer<typeof ManagedMcpServer>;
 
@@ -711,6 +772,7 @@ export const ProjectMcpEntry = z.object({
   tracked: z.boolean(),
   /** Inline secrets masked as `${secret:…}`. */
   definition: McpDefinition,
+  ...Adoptability.shape,
 });
 export type ProjectMcpEntry = z.infer<typeof ProjectMcpEntry>;
 
@@ -781,6 +843,7 @@ export const UntrackedSkill = z.object({
   locations: z.array(SkillLocation).min(1),
   /** Its real folder is outside the Project, so Adopt makes it a Local Source. */
   localSource: z.boolean(),
+  ...Adoptability.shape,
 });
 export type UntrackedSkill = z.infer<typeof UntrackedSkill>;
 
@@ -909,6 +972,66 @@ export const AgentCard = z.object({
   managedMcpNotes: z.array(z.string()).default([]),
 });
 export type AgentCard = z.infer<typeof AgentCard>;
+
+/**
+ * Why an Inventory item is read-only: a Scan finding that can't be adopted
+ * (ADR-0007), or a Vendored Skill, which is committed in its repo and left as it is.
+ */
+export const InventoryReadOnlyReason = z.enum([...NotAdoptableReason.options, "vendored"]);
+export type InventoryReadOnlyReason = z.infer<typeof InventoryReadOnlyReason>;
+
+/** One Skill or MCP Server in the Inventory. */
+export const InventoryItem = z.object({
+  /** The Scan finding's id; a Vendored Skill's is `vendored-skill:<absolute entry path>`. */
+  id: z.string(),
+  kind: z.enum([
+    "globalSkill",
+    "untrackedSkill",
+    "vendoredSkill",
+    "managedSkill",
+    "globalMcpServer",
+    "managedMcpServer",
+  ]),
+  name: z.string(),
+  /** A Skill's description, or how an MCP Server runs (its command or URL). */
+  detail: z.string(),
+  /** Every Agent that can see it. */
+  agents: z.array(AgentId),
+  /** Adopt may move it (still subject to the user ticking it). */
+  adoptable: z.boolean(),
+  /** Why it's read-only; null when it's adoptable. */
+  readOnlyReason: InventoryReadOnlyReason.nullable(),
+  /** An Agent-managed one already turned off in its Agent's settings. */
+  off: z.boolean(),
+});
+export type InventoryItem = z.infer<typeof InventoryItem>;
+
+/** Everything in one owning folder or config: an Agent's skill folder, a Project's, an MCP config, or what an Agent manages. */
+export const InventoryGroup = z.object({
+  /** Unique within the Inventory. */
+  id: z.string(),
+  /** The folder or file as the user reads it: home-relative, or `<Project>/<folder>` inside a Project. */
+  label: z.string(),
+  /** Where it is: a global folder or config, inside a Project, or Agent-managed. */
+  scope: z.enum(["global", "project", "managed"]),
+  /** The Agent that owns it (ADR-0007); its Adopt Permission decides its items. */
+  owningAgent: AgentId,
+  /** The Project (absolute) for a Project folder; null otherwise. */
+  project: z.string().nullable(),
+  /** The Agents that read this folder or config. */
+  agents: z.array(AgentId),
+  items: z.array(InventoryItem),
+});
+export type InventoryGroup = z.infer<typeof InventoryGroup>;
+
+/**
+ * Everything a Scan found (#55), for First run and Computer › Agents: Global,
+ * untracked Project, Vendored and Agent-managed Skills, and Global and
+ * Agent-managed MCP Servers, grouped by owning folder with `.agents` first.
+ * Ignored findings are listed too.
+ */
+export const Inventory = z.object({ groups: z.array(InventoryGroup) });
+export type Inventory = z.infer<typeof Inventory>;
 
 /**
  * One filesystem change in a plan. Every mutation that writes files returns its
@@ -1538,6 +1661,8 @@ export const RepoMcpServer = z.object({
   file: z.string(),
   /** Inline secrets masked as `${secret:…}`. */
   definition: McpDefinition,
+  /** Whether Adopt may move it, from the current settings (ADR-0007). Vendored entries are left alone whatever it says. */
+  ...Adoptability.shape,
 });
 export type RepoMcpServer = z.infer<typeof RepoMcpServer>;
 

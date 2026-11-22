@@ -29,8 +29,20 @@ The single canonical store of Skills and MCP Server definitions that Dark Matter
 _Avoid_: Vault, cache, registry
 
 **Adopt**:
-To move a Skill or MCP Server found by a Scan (in a global Agent folder or config, or untracked in a Project) into the Library, recording where it came from so the move can be undone.
+To move a Skill or MCP Server found by a Scan (in a global Agent folder or config, or untracked in a Project) into the Library, recording where it came from so the move can be undone. It happens only for items you tick, and only where the owning Agent's Adopt Permission allows it.
 _Avoid_: Import (reserved for pulling from a remote source), migrate
+
+**Adopt Permission**:
+A per-Agent switch in Settings, one for Skills and one for MCP Servers, that allows Adopt from the folders and config that Agent owns. Off by default, except for `.agents`. Undo Adopt ignores it.
+_Avoid_: Move setting, allowlist, Grant
+
+**Owning Agent**:
+The one Agent a skill folder or MCP config belongs to, decided by its path (`~/.claude/skills` belongs to Claude Code even though Cursor reads it too). Its Adopt Permission decides whether anything there can be adopted.
+_Avoid_: Reader, source Agent
+
+**Agent Config Guard**:
+A setting, on by default, that stops Dark Matter editing any Agent's global config: no turning Agent-managed Skills or MCP Servers off, and no Adopting any MCP Server, Global or untracked in a Project. Delivering Project Skills and Project MCP Servers isn't affected. In Settings its switch reads "Never edit Agent config files".
+_Avoid_: Read-only mode, safe mode
 
 **Import**:
 To fetch chosen Skills from a GitHub repo (directly or through a skills.sh listing) into the Library, pinned to an exact commit and following a ref for updates.
@@ -69,24 +81,32 @@ The two states of a Project Skill or Project MCP Server. On means it's delivered
 _Avoid_: Enabled/disabled, active/inactive
 
 **Agent-managed Skill**:
-A Skill an Agent installs and controls itself (a plugin Skill, a built-in or a bundled Skill), which Dark Matter can't move and can only turn off through the Agent's own settings.
+A Skill an Agent installs and controls itself (a plugin Skill, a built-in or a bundled Skill), which Dark Matter can't move and can only turn off through the Agent's own settings, while the Agent Config Guard is off.
 _Avoid_: System skill, plugin skill, built-in
 
 **Agent-managed MCP Server**:
-An MCP Server an Agent provides and controls itself (a plugin server, a connector, a built-in, or one set by the Agent's team or cloud admin), which Dark Matter can't move and can only turn off through the Agent's own settings.
+An MCP Server an Agent provides and controls itself (a plugin server, a connector, a built-in, or one set by the Agent's team or cloud admin), which Dark Matter can't move and can only turn off through the Agent's own settings, while the Agent Config Guard is off.
 _Avoid_: System server, connector, plugin server
 
 **Global Skill**:
-A Skill sitting in an Agent's global folder, so every Project sees it. Dark Matter never creates one, and offers to Adopt any it finds.
+A Skill sitting in an Agent's global folder, so every Project sees it. Dark Matter never creates one, and offers to Adopt it when its Owning Agent's Adopt Permission allows.
 _Avoid_: User skill, personal skill
 
 **Global MCP Server**:
-An MCP Server declared in an Agent's global config, so every Project sees it. Dark Matter never creates one, and offers to Adopt any it finds.
+An MCP Server declared in an Agent's global config, so every Project sees it. Dark Matter never creates one, and offers to Adopt it when its Owning Agent's Adopt Permission allows and the Agent Config Guard is off.
 _Avoid_: User server, personal server
 
 **Vendored Skill**:
 A Skill that is committed in a Project but that Dark Matter didn't create as a Copy. Dark Matter shows it but leaves it alone.
 _Avoid_: Tracked skill, checked-in skill
+
+**Untracked Project Skill**:
+A Skill in one of a Project's Agent folders (`.agents/skills`, `.claude/skills`, …) that isn't committed and that Dark Matter didn't put there. It waits in the Inbox to Adopt; one in the Project's `.agents/skills` can always be adopted, one in an Agent's own folder only when that Agent's Adopt Permission allows. Shown as "Untracked Project Skill".
+_Avoid_: Untracked skill (alone), local skill, loose skill
+
+**Untracked Project MCP Server**:
+An MCP Server entry in a Project's config (or Claude Code's local scope for it) that isn't committed and that Dark Matter didn't write. Adopt moves it into the Library and puts it back as Personal, when its Owning Agent's MCP Adopt Permission allows and the Agent Config Guard is off.
+_Avoid_: Local server, loose server
 
 **Vendored MCP Server**:
 An MCP Server committed in a Project's config files that Dark Matter didn't write as Shared. Dark Matter shows it but leaves it alone.
@@ -104,8 +124,12 @@ _Avoid_: Cron, background sync
 A folder that some Agent's history shows was worked in, which Dark Matter offers to manage. It becomes a Project only once you confirm it.
 _Avoid_: Detected project, recent workspace
 
+**Inventory**:
+Everything the latest Scan found, grouped by the folder or config that owns it with `.agents` first: Global, untracked Project, Vendored and Agent-managed Skills, and Global and Agent-managed MCP Servers, each with the Agents that see it and, when it can't be adopted, why. Shown in First run and Computer › Agents. Read-only: you act on findings from the Inbox.
+_Avoid_: Catalogue, findings list, scan results
+
 **Inbox**:
-The screen that collects everything still waiting on your decision: Scan findings (Global Skills and untracked Project Skills to Adopt, Agent-managed Skills you might turn off, and Suggested Projects) and pending Requests.
+The screen that collects everything still waiting on your decision: Scan findings (Global Skills and untracked Project Skills to Adopt, or shown read-only where Adopt isn't allowed, Agent-managed Skills you might turn off, and Suggested Projects) and pending Requests.
 _Avoid_: Notifications, queue, review list
 
 **Request**:
@@ -125,7 +149,7 @@ A named, flat list of Library Skills and MCP Servers that you add to a Project i
 _Avoid_: Kit, bundle, preset, Namespace
 
 **First run**:
-The one-time guided flow on first launch: ask to Scan, show what was found, ask once to Adopt every Global Skill, then guide you through setting up Skills for each Project.
+The one-time guided flow on first launch: ask to Scan, list everything found (Skills and MCP Servers), let you tick what to Adopt, then guide you through setting up Skills for each Project.
 _Avoid_: Onboarding wizard, setup
 
 **Namespace**:

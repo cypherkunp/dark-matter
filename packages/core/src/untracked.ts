@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import type { InboxProjectGroup, ScanResult, UntrackedSkill } from "@dark-matter/contracts";
+import { type AdoptGate, adoptability, defaultAdoptGate, projectFolderOwner } from "./adopt-permissions";
 import type { AgentPathEnv } from "./agents";
 import { within } from "./fs-util";
 import { homeRelative } from "./home-path";
@@ -16,6 +17,8 @@ export const untrackedSkills = (
   env: AgentPathEnv,
   libraryHome: string,
   localSources: readonly string[] = [],
+  /** Decides each finding's `adoptable` by its Owning Agent (ADR-0007). */
+  gate: AdoptGate = defaultAdoptGate(),
 ): InboxProjectGroup[] => {
   const rel = (path: string) => homeRelative(env.home, path);
   const groups: InboxProjectGroup[] = [];
@@ -41,6 +44,8 @@ export const untrackedSkills = (
         realPath: rel(realPath),
         locations: ordered.map((entry) => ({ folder: entry.folder, path: rel(entry.path), symlink: entry.symlink })),
         localSource: !within(realPath, project.path),
+        // Owned by the folder holding its real folder (the first location), else the first that links to it.
+        ...adoptability(gate, "untrackedSkill", projectFolderOwner(ordered[0]?.folder ?? first.folder)),
       });
     }
     findings.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));

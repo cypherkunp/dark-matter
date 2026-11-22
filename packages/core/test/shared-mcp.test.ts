@@ -6,7 +6,7 @@ import type { AgentId } from "@dark-matter/contracts";
 import { describe, expect, test } from "vitest";
 import { memorySecrets } from "../src/index";
 import { agentHome, gitRepo } from "./agent-home";
-import { bootCore, connect, tempHome } from "./harness";
+import { allowAdoptEverywhere, bootCore, connect, tempHome } from "./harness";
 
 const seedMcp = async (libraryHome: string, servers: Record<string, unknown>) => {
   await mkdir(join(libraryHome, "mcp"), { recursive: true });
@@ -40,6 +40,7 @@ const setup = async (servers: Record<string, unknown> = { github, linear }) => {
   );
   const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome }, { secrets });
   const { trpc } = connect(core);
+  await allowAdoptEverywhere(trpc);
   const project = async (dir: string, agents: AgentId[]) => {
     const path = await gitRepo(home, dir);
     await trpc.project.add.mutate({ path, agents });
@@ -435,6 +436,9 @@ describe("MCP entries already in a Project", () => {
         name: "team",
         file: "~/code/app/.mcp.json",
         definition: { transport: "stdio", command: "team-server" },
+        owningAgent: "claude-code",
+        adoptable: true,
+        notAdoptableReason: null,
       },
     ]);
     expect(found.untracked.map((entry) => entry.id)).toEqual([
@@ -507,6 +511,9 @@ describe("Project MCP entries in the Scan and Inbox (#39 carry-over)", () => {
             file: "~/code/app/.cursor/mcp.json",
             tracked: false,
             definition: { transport: "stdio", command: "notes", env: { NOTES_TOKEN: "${secret:notes.NOTES_TOKEN}" } },
+            owningAgent: "cursor",
+            adoptable: true,
+            notAdoptableReason: null,
           },
         ],
       },

@@ -11,6 +11,7 @@ import {
   type GlobalSkill,
   InvalidOwnedFile,
   type LibraryLockEntry,
+  NotAdoptable,
   NotAdopted,
   PlanStale,
   type PlanStep,
@@ -22,6 +23,7 @@ import {
   type UntrackedSkill,
 } from "@dark-matter/contracts";
 import type { ActivityLog, Wrote } from "./activity";
+import { type AdoptGate, adoptability, defaultAdoptGate } from "./adopt-permissions";
 import { fromHomeRelative, homeRelative } from "./home-path";
 import type { Library } from "./library";
 import { applySteps, planId } from "./plan";
@@ -77,7 +79,9 @@ export interface KeepLinks {
 }
 
 /** A Global Skill or an untracked Project Skill (with its Project), as Adopt plans it. */
-type Finding = Pick<GlobalSkill, "id" | "realPath" | "locations" | "localSource"> & { project: string | null };
+type Finding = Pick<GlobalSkill, "id" | "realPath" | "locations" | "localSource" | "owningAgent"> & {
+  project: string | null;
+};
 
 /** Everything a plan needs besides what goes back to the client. */
 interface Planned {
@@ -99,6 +103,12 @@ export interface AdoptOptions {
   library: Library;
   activity: ActivityLog;
   latestScan: () => ScanResult | null;
+  /**
+   * The current Adopt Permissions and Agent Config Guard (ADR-0007); the
+   * defaults when left out. Adopt is refused when they don't allow it; Undo
+   * Adopt ignores them.
+   */
+  adoptGate?: () => AdoptGate;
   /** A fresh Scan after applying, so the Inbox drops what moved. */
   rescan: () => Promise<unknown>;
   onChange: () => void;
@@ -278,6 +288,13 @@ export class Adopt {
       if (found) return found;
       throw new FindingNotFound(id);
     });
+    // Refused in the core, not only hidden in the app (ADR-0007). Undo Adopt never asks.
+    const gate = this.#options.adoptGate?.() ?? defaultAdoptGate();
+    for (const finding of findings) {
+      const subject = finding.project ? "untrackedSkill" : "globalSkill";
+      const { notAdoptableReason } = adoptability(gate, subject, finding.owningAgent);
+      if (notAdoptableReason) throw new NotAdoptable(finding.id, notAdoptableReason, finding.owningAgent);
+    }
     const globalLock = await readGlobalLock(home);
     const agentsFolder = rel(join(home, ".agents/skills"));
 

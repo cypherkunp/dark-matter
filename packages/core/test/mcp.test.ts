@@ -5,7 +5,7 @@ import { parse as toml } from "@decimalturn/toml-patch";
 import { describe, expect, test } from "vitest";
 import { memorySecrets } from "../src/index";
 import { agentHome, snapshotTree } from "./agent-home";
-import { bootCore, connect, tempHome } from "./harness";
+import { allowAdoptEverywhere, bootCore, connect, tempHome } from "./harness";
 
 /** Global MCP configs as each Agent writes them (research/mcp-config-per-agent.md). */
 const claudeJson = `{
@@ -87,6 +87,7 @@ const setup = async () => {
   const secrets = memorySecrets();
   const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome }, { secrets });
   const { trpc } = connect(core);
+  await allowAdoptEverywhere(trpc);
   const fixture = agentHome(home);
   const configs = {
     claude: join(home, ".claude.json"),
@@ -142,6 +143,9 @@ describe("Scan: Global MCP Servers", () => {
         env: { GITHUB_PERSONAL_ACCESS_TOKEN: "${secret:github.GITHUB_PERSONAL_ACCESS_TOKEN}" },
       },
       inlineSecrets: ["GITHUB_PERSONAL_ACCESS_TOKEN"],
+      owningAgent: "claude-code",
+      adoptable: true,
+      notAdoptableReason: null,
     });
     expect(byId["global-mcp:claude-code:docs"]?.definition).toEqual({ transport: "http", url: "${env:DOCS_URL}/mcp" });
     expect(byId["global-mcp:cursor:linear"]?.definition).toEqual({

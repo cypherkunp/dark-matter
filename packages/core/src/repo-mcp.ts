@@ -1,4 +1,5 @@
 import type { AgentId, ProjectMcpEntry, ProjectRecord, RepoMcpServer, RepoMcpServers } from "@dark-matter/contracts";
+import { type AdoptGate, adoptability } from "./adopt-permissions";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { readConfigText } from "./config-edit";
 import { homeRelative } from "./home-path";
@@ -82,11 +83,16 @@ export const projectMcpFindings = async (
   return findings;
 };
 
-/** The Project page's view: Vendored (committed) and untracked MCP entries, inline secrets masked. */
+/**
+ * The Project page's view: Vendored (committed) and untracked MCP entries,
+ * inline secrets masked, each with whether Adopt may move it under `gate`
+ * (ADR-0007).
+ */
 export const repoMcpServers = async (
   env: AgentPathEnv,
   project: string,
   record: ProjectRecord,
+  gate: AdoptGate,
 ): Promise<RepoMcpServers> => {
   const view = (finding: ProjectMcpFinding): RepoMcpServer => ({
     id: finding.id,
@@ -94,6 +100,7 @@ export const repoMcpServers = async (
     name: finding.entry.name,
     file: homeRelative(env.home, finding.file),
     definition: maskSecrets(finding.entry.name, finding.entry.definition).definition,
+    ...adoptability(gate, "untrackedMcpServer", finding.agent),
   });
   const findings = await projectMcpFindings(env, project, record);
   return {
@@ -102,11 +109,16 @@ export const repoMcpServers = async (
   };
 };
 
-/** What a Scan records for a Project (#39 carry-over): every entry Dark Matter didn't deliver, inline secrets masked. */
+/**
+ * What a Scan records for a Project (#39 carry-over): every entry Dark Matter
+ * didn't deliver, inline secrets masked, with whether Adopt may move it under
+ * `gate` (ADR-0007; the Scan's readers work it out again from the current settings).
+ */
 export const projectMcpEntries = async (
   env: AgentPathEnv,
   project: string,
   record: ProjectRecord,
+  gate: AdoptGate,
 ): Promise<ProjectMcpEntry[]> =>
   (await projectMcpFindings(env, project, record)).map((finding) => ({
     id: finding.id,
@@ -116,4 +128,5 @@ export const projectMcpEntries = async (
     file: homeRelative(env.home, finding.file),
     tracked: finding.tracked,
     definition: maskSecrets(finding.entry.name, finding.entry.definition).definition,
+    ...adoptability(gate, "untrackedMcpServer", finding.agent),
   }));

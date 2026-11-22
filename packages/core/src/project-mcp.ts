@@ -22,6 +22,7 @@ import {
 } from "@dark-matter/contracts";
 import type { CoreServices } from "@dark-matter/contracts/router";
 import type { ActivityLog, Wrote } from "./activity";
+import { type AdoptGate, defaultAdoptGate } from "./adopt-permissions";
 import { type AgentPathEnv, agentAdapters } from "./agents";
 import { editConfigFile, readConfigText, toml } from "./config-edit";
 import type { EventBus } from "./events";
@@ -55,6 +56,8 @@ export interface ProjectMcpOptions {
   projects: OwnedFile<typeof ProjectsFile>;
   activity: ActivityLog;
   bus: EventBus;
+  /** The current Adopt Permissions and Agent Config Guard, for the Project page's untracked entries; the defaults when left out. */
+  adoptGate?: () => AdoptGate;
 }
 
 /** The `project` procedures for Project MCP Servers. */
@@ -455,7 +458,11 @@ export class ProjectMcpService {
           },
         ),
 
-      repoMcpServers: async (path) => repoMcpServers(this.#env, path, this.#record(path)),
+      repoMcpServers: async (path) =>
+        repoMcpServers(this.#env, path, this.#record(path), this.options.adoptGate?.() ?? defaultAdoptGate()),
+
+      // Writes the Project's trust_level into `~/.codex/config.toml` even while the Agent Config
+      // Guard is on: it's part of delivering Project MCP Servers to Codex (ADR-0007).
 
       trustInCodex: (path, client) =>
         this.#change(client, "project.trustInCodex", [{ kind: "project", id: path }], async (wrote) => {

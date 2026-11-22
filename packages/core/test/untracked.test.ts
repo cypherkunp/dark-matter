@@ -4,12 +4,13 @@ import { join } from "node:path";
 import type { AgentId } from "@dark-matter/contracts";
 import { describe, expect, test } from "vitest";
 import { agentHome, gitRepo } from "./agent-home";
-import { bootCore, connect, tempHome } from "./harness";
+import { allowAdoptEverywhere, bootCore, connect, tempHome } from "./harness";
 
 const setup = async () => {
   const { home, libraryHome } = await tempHome();
   const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome });
   const { trpc } = connect(core);
+  await allowAdoptEverywhere(trpc);
   const fixture = agentHome(home);
   /** A git repo confirmed as a Project with these Agents. */
   const project = async (dir: string, agents: AgentId[]) => {
@@ -56,6 +57,9 @@ describe("untracked Project Skills", () => {
             realPath: "~/code/app/.agents/skills/pdf",
             locations: [{ folder: ".agents/skills", path: "~/code/app/.agents/skills/pdf", symlink: false }],
             localSource: false,
+            owningAgent: "agents",
+            adoptable: true,
+            notAdoptableReason: null,
           },
         ],
       },

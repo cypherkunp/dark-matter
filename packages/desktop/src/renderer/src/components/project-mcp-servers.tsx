@@ -3,6 +3,7 @@ import type { McpChangeInput, McpDeliveryMode, ProjectMcpServer } from "@dark-ma
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { KeyRound, Plus, TriangleAlert, Users } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { adoptTickedLabel, ReadOnlyReason, TickBox, useTicked } from "@/components/adopt-consent";
 import { ConfirmDialog } from "@/components/copy-actions";
 import { definitionSummary } from "@/components/inbox-mcp";
 import { McpAdoptDialog } from "@/components/mcp-adopt-dialog";
@@ -442,13 +443,18 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
   );
 }
 
-/** MCP entries in the Project Dark Matter didn't write: Vendored (read-only) and untracked (Adopt as Personal). */
+/**
+ * MCP entries in the Project Dark Matter didn't write: Vendored (read-only) and
+ * untracked, which the user ticks to Adopt as Personal (nothing pre-selected,
+ * ADR-0007). Ones that can't be adopted are read-only, with the reason.
+ */
 function RepoMcpServers({ path }: { path: string }) {
   const trpc = useTRPC();
   const found = useQuery(trpc.project.repoMcpServers.queryOptions({ path }));
   const [adopting, setAdopting] = useState<string[] | null>(null);
   const vendored = found.data?.vendored ?? [];
   const untracked = found.data?.untracked ?? [];
+  const ticked = useTicked(untracked.filter((entry) => entry.adoptable).map((entry) => entry.id));
   if (vendored.length === 0 && untracked.length === 0) return null;
   return (
     <div className="flex flex-col gap-2">
@@ -458,17 +464,33 @@ function RepoMcpServers({ path }: { path: string }) {
             <span className="text-sm">
               {plural(untracked.length, "MCP Server")} in this Project's own config, not from the Library
             </span>
-            <Button size="sm" variant="outline" onClick={() => setAdopting(untracked.map((entry) => entry.id))}>
-              Adopt as Personal
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={ticked.ids.length === 0}
+              onClick={() => setAdopting(ticked.ids)}
+            >
+              {adoptTickedLabel(ticked.ids.length)} as Personal
             </Button>
           </div>
           {untracked.map((entry) => (
-            <div
-              key={entry.id}
-              data-testid="repo-mcp-untracked"
-              className="truncate font-mono text-muted-foreground text-xs"
-            >
-              {entry.name} · {agentName(entry.agent)} {entry.file} · {definitionSummary(entry.definition)}
+            <div key={entry.id} data-testid="repo-mcp-untracked" className="flex items-start gap-2">
+              <span className="pt-px">
+                <TickBox
+                  name={entry.name}
+                  adoptable={entry.adoptable}
+                  checked={ticked.has(entry.id)}
+                  onChange={(on) => ticked.toggle(entry.id, on)}
+                />
+              </span>
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="truncate font-mono text-muted-foreground text-xs">
+                  {entry.name} · {agentName(entry.agent)} {entry.file} · {definitionSummary(entry.definition)}
+                </span>
+                {entry.notAdoptableReason && (
+                  <ReadOnlyReason reason={entry.notAdoptableReason} owner={entry.owningAgent} />
+                )}
+              </span>
             </div>
           ))}
         </div>
@@ -490,7 +512,7 @@ function RepoMcpServers({ path }: { path: string }) {
           ))}
         </div>
       )}
-      <McpAdoptDialog findings={adopting} onClose={() => setAdopting(null)} />
+      <McpAdoptDialog findings={adopting} onClose={() => setAdopting(null)} onAdopted={ticked.clear} />
     </div>
   );
 }

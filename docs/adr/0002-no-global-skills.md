@@ -21,3 +21,7 @@ An MCP Server costs context through its tool definitions, just as a Skill does, 
 - On/Off removes or restores the delivered entry. Dark Matter doesn't use the Agents' native disable flags or lists, so the behaviour is the same everywhere, and Cursor's private state database is never written.
 - Personal isn't available for an Agent whose Project config file is already tracked by git. In that case only Shared is offered for that Agent.
 - **Considered and rejected:** managing a global MCP scope alongside Project scope, for servers used everywhere. This was rejected for the same reason as global Skills; bulk-adding is the remedy for repetition.
+
+## Amendment (2026-11-22): Adopt and Agent-config edits are opt-in
+
+Offering to Adopt, removing entries from global MCP configs, and switching Agent-managed items off through an Agent's own settings are now opt-in. See [ADR-0007](0007-adopt-and-agent-config-edits-are-opt-in.md).

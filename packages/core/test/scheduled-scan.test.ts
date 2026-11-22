@@ -2,7 +2,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { agentHome, gitRepo, snapshotTree } from "./agent-home";
-import { bootCore, connect, fakeClock, fakeNotifier, localTime, tempHome } from "./harness";
+import { allowAdoptEverywhere, bootCore, connect, fakeClock, fakeNotifier, localTime, tempHome } from "./harness";
 
 const setup = async (start: Date) => {
   const { home, libraryHome } = await tempHome();
@@ -140,7 +140,7 @@ describe("the Scheduled Scan", () => {
     await expect.poll(() => scheduledScans(trpc)).toHaveLength(1);
     expect(notifier.sent).toEqual([]);
 
-    await fixture.skill(".claude/skills/pdf", { name: "pdf" });
+    await fixture.skill(".agents/skills/pdf", { name: "pdf" });
     await fixture.skill(".agents/skills/docx", { name: "docx" });
     clock.set(localTime(21, 9));
     await expect
@@ -188,6 +188,30 @@ describe("the Scheduled Scan", () => {
     expect(notifier.sent).toHaveLength(1);
   }, 15_000);
 
+  test("doesn't notify about findings that can't be adopted (ADR-0007)", async () => {
+    const { home, env, clock, trpc, fixture, notifier } = await setup(localTime(20, 8));
+    await mkdir(join(home, ".agents/skills"), { recursive: true });
+    await trpc.scan.run.mutate();
+    clock.set(localTime(20, 9));
+    await expect.poll(() => notified(env.DARK_MATTER_HOME), { timeout: 5000 }).not.toBeNull();
+
+    // Claude Code's Skills permission is off by default; `.agents` is on.
+    await fixture.skill(".claude/skills/pdf", { name: "pdf" });
+    await fixture.skill(".agents/skills/csv", { name: "csv" });
+    await fixture.file(".claude.json", `{ "mcpServers": { "github": { "command": "gh-mcp" } } }\n`);
+    const tick = ticking(clock, 21);
+
+    await expect
+      .poll(
+        () => {
+          tick();
+          return notifier.sent;
+        },
+        { timeout: 5000 },
+      )
+      .toEqual([{ title: "New Global Skill found", body: "csv. Review it in the Inbox.", path: "/inbox" }]);
+  }, 15_000);
+
   test("notifies about a Global Skill the startup Scan found after a restart", async () => {
     const { home, libraryHome } = await tempHome();
     const env = { HOME: home, DARK_MATTER_HOME: libraryHome };
@@ -197,7 +221,7 @@ describe("the Scheduled Scan", () => {
     firstClock.set(localTime(20, 9));
     await expect.poll(() => scheduledScans(connect(first).trpc), { timeout: 5000 }).toHaveLength(1);
     await first.stop();
-    await agentHome(home).skill(".claude/skills/pdf", { name: "pdf" });
+    await agentHome(home).skill(".agents/skills/pdf", { name: "pdf" });
 
     const clock = fakeClock(localTime(21, 8));
     const notifier = fakeNotifier();
@@ -230,6 +254,8 @@ describe("the Scheduled Scan", () => {
     const notifier = fakeNotifier();
     const core = await bootCore({ HOME: home, DARK_MATTER_HOME: libraryHome }, { clock, notifier });
     const { trpc } = connect(core);
+    // Global MCP Servers can be adopted (so are news) only with the Guard off and a permission on (ADR-0007).
+    await allowAdoptEverywhere(trpc);
     const app = await gitRepo(home, "code/app");
     await trpc.project.add.mutate({ path: app, agents: ["claude-code"] });
     await trpc.project.addSkills.mutate({ skills: [{ path: app, key: "local/pdf" }] });
@@ -299,7 +325,7 @@ describe("notifications", () => {
       onData: (notification) => received.push(notification),
     });
     await expect.poll(() => started).toBe(true);
-    await agentHome(home).skill(".claude/skills/pdf", { name: "pdf" });
+    await agentHome(home).skill(".agents/skills/pdf", { name: "pdf" });
 
     clock.set(localTime(20, 9));
 

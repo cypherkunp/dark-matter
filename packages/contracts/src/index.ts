@@ -1,3 +1,4 @@
+export * from "./adopt-text";
 export * from "./errors";
 export * from "./favourites";
 export * from "./importer";
