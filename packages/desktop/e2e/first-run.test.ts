@@ -169,7 +169,7 @@ test("the Found step lists everything by owning folder, .agents first, with who 
   ]);
   const item = (name: string) => window.getByTestId("inventory-item").filter({ hasText: name });
   // The Project's .agents/skills can always be adopted, and every Agent but Claude Code reads it.
-  await expect(item("notes")).toContainText("Untracked Skill");
+  await expect(item("notes")).toContainText("Untracked Project Skill");
   await expect(item("notes").getByTestId("inventory-agents")).toHaveText("Seen by Cursor, OpenCode, Codex, .agents");
   await expect(item("notes").getByTestId("inventory-read-only")).toBeHidden();
   // Everything else is read-only here, with the reason.
@@ -235,6 +235,25 @@ test("the Adopt step is skipped when the Scan found no Global Skills to tick", a
   await window.getByRole("button", { name: "Scan my computer" }).click();
   await expect(window.getByTestId("inventory")).toContainText("review");
   await window.getByRole("button", { name: "Continue" }).click();
+
+  await expect(window.getByRole("heading", { name: "Confirm your Projects" })).toBeVisible();
+  await expect(window.getByTestId("first-run-adopt")).toHaveCount(0);
+});
+
+test("the Adopt step reached directly is skipped when the Scan found no Global Skills", async ({
+  launchApp,
+  fixtureHome,
+}) => {
+  const { home } = fixtureHome;
+  await write(
+    join(home, ".claude.json"),
+    JSON.stringify({ mcpServers: { "github-tools": { type: "stdio", command: "npx", args: ["github-tools"] } } }),
+  );
+  const window = await (await launchApp()).firstWindow();
+  await window.getByRole("button", { name: "Scan my computer" }).click();
+  await expect(window.getByTestId("inventory")).toContainText("github-tools");
+
+  await window.evaluate(`location.hash = "#/first-run?step=adopt"`);
 
   await expect(window.getByRole("heading", { name: "Confirm your Projects" })).toBeVisible();
   await expect(window.getByTestId("first-run-adopt")).toHaveCount(0);

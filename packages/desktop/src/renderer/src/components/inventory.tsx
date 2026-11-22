@@ -1,4 +1,4 @@
-import type { AgentId, InventoryGroup, InventoryItem, InventoryReadOnlyReason } from "@dark-matter/contracts";
+import { type AgentId, type InventoryGroup, type InventoryItem, readOnlyReasonText } from "@dark-matter/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
 import { agentName } from "@/lib/agents";
@@ -6,25 +6,11 @@ import { useTRPC } from "@/lib/trpc";
 
 const kindLabel: Record<InventoryItem["kind"], string> = {
   globalSkill: "Global Skill",
-  untrackedSkill: "Untracked Skill",
+  untrackedSkill: "Untracked Project Skill",
   vendoredSkill: "Vendored Skill",
   managedSkill: "Agent-managed Skill",
   globalMcpServer: "Global MCP Server",
   managedMcpServer: "Agent-managed MCP Server",
-};
-
-/** Why an item can't be adopted, in words; `owner` is the Agent whose folder or config it's in. */
-export const readOnlyText = (reason: InventoryReadOnlyReason, owner: AgentId) => {
-  switch (reason) {
-    case "adoptPermissionOff":
-      return `${agentName(owner)}'s Adopt Permission is off. Turn it on in Settings to move it.`;
-    case "agentConfigGuard":
-      return "The Agent Config Guard is on: adopting it would edit the Agent's own config.";
-    case "agentManaged":
-      return `${agentName(owner)} installs and controls it. Turn it off from the Inbox.`;
-    case "vendored":
-      return "Committed in the repo, so it stays as it is.";
-  }
 };
 
 const agentList = (agents: readonly AgentId[]) => agents.map((agent) => agentName(agent)).join(", ");
@@ -54,7 +40,7 @@ function Row({ item, owner }: { item: InventoryItem; owner: AgentId }) {
       </p>
       {item.readOnlyReason && (
         <p data-testid="inventory-reason" className="text-muted-foreground text-xs">
-          {readOnlyText(item.readOnlyReason, owner)}
+          {readOnlyReasonText(item.readOnlyReason, owner)}
         </p>
       )}
     </div>

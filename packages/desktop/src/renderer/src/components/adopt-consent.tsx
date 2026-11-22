@@ -1,9 +1,8 @@
-import type { AgentId, NotAdoptableReason } from "@dark-matter/contracts";
+import { type AgentId, type NotAdoptableReason, readOnlyReasonText } from "@dark-matter/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import { useState } from "react";
-import { readOnlyText } from "@/components/inventory";
 import { useTRPC } from "@/lib/trpc";
 
 /**
@@ -60,7 +59,7 @@ export function ReadOnlyReason({ reason, owner }: { reason: NotAdoptableReason; 
   return (
     <p data-testid="read-only-reason" className="flex items-center gap-1 text-muted-foreground text-xs">
       <Lock className="size-3 shrink-0" />
-      {readOnlyText(reason, owner)}
+      {readOnlyReasonText(reason, owner)}
     </p>
   );
 }

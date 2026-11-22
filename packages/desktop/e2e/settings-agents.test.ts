@@ -31,7 +31,9 @@ test("Settings › Agents shows the safe defaults and saves Adopt Permissions an
   }
   const guard = section.getByRole("switch", { name: "Never edit Agent config files" });
   await expect(guard).toBeChecked();
-  await expect(section.getByTestId("agent-config-guard-reason")).toContainText("Never edit Agent config files");
+  await expect(section.getByRole("heading", { name: "Agent Config Guard" })).toBeVisible();
+  await expect(section.getByRole("heading", { name: "Adopt Permissions" })).toBeVisible();
+  await expect(section.getByTestId("agent-config-guard-reason")).toContainText("Agent Config Guard is on");
 
   // An Adopt Permission saves straight away.
   await section.getByRole("switch", { name: "Allow moving Skills from Claude Code" }).click();

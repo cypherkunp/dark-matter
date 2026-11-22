@@ -1,6 +1,6 @@
 import type { AdoptOutcome, AdoptPlan, AgentId, GlobalSkill } from "@dark-matter/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
@@ -187,34 +187,30 @@ function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
   );
   const error = findings.length > 0 ? (plan.error ?? execute.error) : null;
   const shown = findings.length > 0 ? plan.data : undefined;
+  // Skipped when there's nothing it could offer (ADR-0007), however it was reached: Found's Continue, Back, or a link.
+  if (inbox.data && offered.length === 0 && execute.isIdle)
+    return <Navigate to="/first-run" search={{ step: "projects" }} replace />;
   return (
     <Frame
       title="Move Global Skills into the Library"
       lead="Tick the Skills to move, check the plan, then confirm. Each moves into the Library: nothing is deleted, and Undo Adopt puts it back."
       actions={
-        offered.length === 0 ? (
-          <Button onClick={() => go("projects")}>Continue</Button>
-        ) : (
-          <>
-            <Button variant="outline" disabled={execute.isPending} onClick={() => go("projects")}>
-              Keep them in the Inbox
+        <>
+          <Button variant="outline" disabled={execute.isPending} onClick={() => go("projects")}>
+            Keep them in the Inbox
+          </Button>
+          {findings.length > 0 && (
+            <Button
+              disabled={!shown || execute.isPending}
+              onClick={() => shown && execute.mutate({ findings: shown.findings, planId: shown.planId })}
+            >
+              {execute.isPending ? "Adopting…" : `Adopt ${plural(findings.length, "Global Skill")}`}
             </Button>
-            {findings.length > 0 && (
-              <Button
-                disabled={!shown || execute.isPending}
-                onClick={() => shown && execute.mutate({ findings: shown.findings, planId: shown.planId })}
-              >
-                {execute.isPending ? "Adopting…" : `Adopt ${plural(findings.length, "Global Skill")}`}
-              </Button>
-            )}
-          </>
-        )
+          )}
+        </>
       }
     >
       <div data-testid="first-run-adopt" className="flex flex-col gap-4">
-        {inbox.data && offered.length === 0 && (
-          <p className="text-muted-foreground text-sm">No Global Skills to move.</p>
-        )}
         {owners.length > 0 && <AdoptPermissionsPanel owners={owners} />}
         {offered.length > 0 && (
           <div className="divide-y rounded-xl border">
