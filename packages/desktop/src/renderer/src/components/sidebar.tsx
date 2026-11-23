@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Boxes, ChevronRight, FolderGit2, Orbit, Search, Settings, TriangleAlert } from "lucide-react";
+import { Boxes, ChevronRight, FolderGit2, Search, Settings, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { tildify } from "@/lib/paths";
@@ -8,6 +8,7 @@ import { useTRPC } from "@/lib/trpc";
 import { relativeTime, useNow } from "@/lib/use-now";
 import { cn } from "@/lib/utils";
 import { type NavItem, navSections } from "@/nav";
+import appIcon from "../../../../build/icon.svg";
 import { StatusDot } from "./status-dot";
 import { useScan } from "./use-scan";
 
@@ -99,9 +100,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
   return (
     <aside className="flex w-64 shrink-0 flex-col border-sidebar-border border-r bg-sidebar" data-testid="sidebar">
       <div className="drag-region flex h-[52px] shrink-0 items-center gap-2.5 pr-4 pl-[84px]">
-        <div className="flex size-7 items-center justify-center rounded-lg bg-foreground text-background">
-          <Orbit className="size-4" />
-        </div>
+        <img src={appIcon} alt="" className="-ml-1 size-[34px] shrink-0" draggable={false} />
         <div className="min-w-0 leading-tight">
           <div className="font-semibold text-[13px]">Dark Matter</div>
           <div className="truncate font-mono text-[11px] text-muted-foreground">

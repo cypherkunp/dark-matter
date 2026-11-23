@@ -11,6 +11,8 @@ directories:
 files:
   - out/**/*
   - package.json
+  # The Linux window icon (the macOS app takes build/icon.icns from the bundle).
+  - build/icon.png
   - "!node_modules/**/*"
 npmRebuild: false
 # The headless core runs outside the asar, launched by the app's own binary
@@ -25,6 +27,7 @@ extraResources:
 publish: null
 artifactName: dark-matter-${version}-${arch}.${ext}
 mac:
+  icon: build/icon.icns
   category: public.app-category.developer-tools
   target:
     - dmg
@@ -37,6 +40,7 @@ mac:
   # set and the app is signed; skipped otherwise.
   notarize: true
 linux:
+  icon: build/icon.png
   category: Development
   maintainer: Dark Matter contributors
   synopsis: One Library of Skills and MCP Servers for your coding Agents
