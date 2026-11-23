@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="packages/desktop/build/icon.png" alt="Dark Matter" width="128" height="128">
+
 # Dark Matter
 
 **One place to manage every Agent Skill and MCP Server on your computer, and to decide which ones each project's coding agents actually load.**

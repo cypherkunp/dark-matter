@@ -20,6 +20,9 @@ const supervisor = new CoreSupervisor({
   log,
 });
 
+/** The product icon, `build/icon.png`. A packaged Mac app gets its icon from the bundle (`icon.icns`). */
+const iconPath = join(app.getAppPath(), "build", "icon.png");
+
 let mainWindow: BrowserWindow | null = null;
 
 const createWindow = () => {
@@ -30,6 +33,7 @@ const createWindow = () => {
     minHeight: 600,
     show: false,
     title: "Dark Matter",
+    ...(process.platform === "linux" ? { icon: iconPath } : {}),
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     trafficLightPosition: { x: 16, y: 18 },
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#1c1c1e" : "#ffffff",
@@ -91,6 +95,8 @@ ipcMain.handle("shell:openFolder", async (_event, path: unknown) => {
 });
 
 app.whenReady().then(() => {
+  // Development runs under the stock Electron bundle, so the Dock needs the icon set by hand.
+  if (process.platform === "darwin" && !app.isPackaged) app.dock?.setIcon(iconPath);
   supervisor.start();
   residency = startResidency({ connection: () => supervisor.connection(), showWindow, log });
   // Started at login: stay in the menu bar until asked.
