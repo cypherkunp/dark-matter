@@ -1,0 +1,38 @@
+// Visual check helper for the UI polish plans. NOT a real test: never commit it under e2e/.
+//
+// Usage (from packages/desktop, after `pnpm build` at the repo root):
+//   cp ../../docs/ui-docs/ui-plans/tools/capture.test.ts.txt e2e/zz-capture.test.ts
+//   SHOT_DIR=/tmp/dm-shots npx playwright test e2e/zz-capture.test.ts
+//   rm e2e/zz-capture.test.ts
+//
+// It seeds four Global Skills, runs a Scan, and saves light + dark PNGs of the
+// main screens to $SHOT_DIR as <scheme>_<route>.png. Open them and compare.
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { test } from "./fixtures";
+
+const OUT = process.env.SHOT_DIR ?? "/tmp/dm-shots";
+const ROUTES = ["/library", "/inbox", "/settings", "/computer/agents", "/get/github", "/library/collections"];
+
+test("capture", async ({ launchApp, fixtureHome }) => {
+  for (const name of ["pdf", "docx", "frontend-design", "web-research"]) {
+    const skill = join(fixtureHome.home, ".claude", "skills", name);
+    await mkdir(skill, { recursive: true });
+    await writeFile(join(skill, "SKILL.md"), `---\nname: ${name}\ndescription: "Work with ${name} things"\n---\n\nUse it.\n`);
+  }
+  const app = await launchApp();
+  const window = await app.firstWindow();
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1360, 860));
+  await window.getByRole("button", { name: "Scan now" }).click();
+  await window.waitForTimeout(1500);
+  for (const scheme of ["light", "dark"] as const) {
+    await window.emulateMedia({ colorScheme: scheme });
+    for (const route of ROUTES) {
+      await window.evaluate((r) => {
+        window.location.hash = r;
+      }, route);
+      await window.waitForTimeout(700);
+      await window.screenshot({ path: join(OUT, `${scheme}${route.replaceAll("/", "_")}.png`) });
+    }
+  }
+});
