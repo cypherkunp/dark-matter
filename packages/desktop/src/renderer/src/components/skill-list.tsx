@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { StarSkillButton } from "./favourites";
 import { ModifiedBadge } from "./modified-badge";
+import { RowText } from "./row-text";
 import { OrphanedBadge } from "./updates";
 
 export const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
@@ -23,25 +24,25 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
         to="/skill"
         search={{ key: skill.key }}
         data-testid="library-skill"
-        className="flex min-h-16 min-w-0 flex-1 items-center gap-3 py-3 pr-5 pl-2"
+        className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2.5 pr-5 pl-2"
       >
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-body">{skill.name}</span>
-            {skill.localSource && <Chip mono>Local Source</Chip>}
-            {skill.modified && <ModifiedBadge />}
-            {skill.orphaned && <OrphanedBadge />}
-            {skill.nameConflict && (
-              <Chip tone="warning" data-testid="name-conflict">
-                Name Conflict
-              </Chip>
-            )}
-          </div>
-          {skill.description && <p className="truncate text-muted-foreground text-meta">{skill.description}</p>}
-          <div className="truncate font-mono text-muted-foreground text-meta">
-            {[skill.key, skill.localSource].filter(Boolean).join(" · ")}
-          </div>
-        </div>
+        <RowText
+          title={skill.name}
+          chips={
+            <>
+              {skill.localSource && <Chip mono>Local Source</Chip>}
+              {skill.modified && <ModifiedBadge />}
+              {skill.orphaned && <OrphanedBadge />}
+              {skill.nameConflict && (
+                <Chip tone="warning" data-testid="name-conflict">
+                  Name Conflict
+                </Chip>
+              )}
+            </>
+          }
+          description={skill.description}
+          detail={[skill.key, skill.localSource].filter(Boolean).join(" · ")}
+        />
         <span data-testid="project-count" className="shrink-0 text-muted-foreground text-meta tabular-nums">
           {plural(skill.projects, "Project")}
         </span>

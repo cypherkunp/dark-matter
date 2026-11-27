@@ -9,6 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { adoptTickedLabel, ReadOnlyReason, TickBox, useTicked } from "@/components/adopt-consent";
 import { McpAdoptDialog } from "@/components/mcp-adopt-dialog";
+import { RowText } from "@/components/row-text";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -81,23 +82,22 @@ function Finding({
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   const consent = useConsent(finding, ticked, onAdopt);
   return (
-    <div data-testid="inbox-mcp-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="inbox-mcp-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
       {consent.tick}
       <StatusDot tone={consent.tone} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-body">{finding.name}</span>
-          {finding.inlineSecrets.length > 0 && (
+      <RowText
+        title={finding.name}
+        chips={
+          finding.inlineSecrets.length > 0 && (
             <Chip tone="warning">
               {finding.inlineSecrets.length} inline secret{finding.inlineSecrets.length === 1 ? "" : "s"}
             </Chip>
-          )}
-        </div>
-        <div className="truncate font-mono text-muted-foreground text-meta">
-          {definitionSummary(finding.definition)}
-        </div>
+          )
+        }
+        detail={definitionSummary(finding.definition)}
+      >
         {consent.reason}
-      </div>
+      </RowText>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={ignore.isPending} onClick={() => ignore.mutate({ id: finding.id })}>
           Ignore
@@ -157,19 +157,16 @@ function UntrackedFinding({
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   const consent = useConsent(finding, ticked, onAdopt);
   return (
-    <div data-testid="inbox-untracked-mcp-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="inbox-untracked-mcp-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
       {consent.tick}
       <StatusDot tone={consent.tone} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-body">{finding.name}</span>
-          <Chip>{agentName(finding.agent)}</Chip>
-        </div>
-        <div className="truncate font-mono text-muted-foreground text-meta">
-          {finding.file} · {definitionSummary(finding.definition)}
-        </div>
+      <RowText
+        title={finding.name}
+        chips={<Chip>{agentName(finding.agent)}</Chip>}
+        detail={`${finding.file} · ${definitionSummary(finding.definition)}`}
+      >
         {consent.reason}
-      </div>
+      </RowText>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={ignore.isPending} onClick={() => ignore.mutate({ id: finding.id })}>
           Ignore

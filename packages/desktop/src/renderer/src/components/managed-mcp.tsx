@@ -2,6 +2,7 @@ import type { InboxManagedMcpGroup, ManagedMcpServer, McpOffSwitch } from "@dark
 import { useMutation } from "@tanstack/react-query";
 import { ConsentError, guardedOffSwitchText, useAgentConfigGuard } from "@/components/adopt-consent";
 import { definitionSummary } from "@/components/inbox-mcp";
+import { RowText } from "@/components/row-text";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -32,19 +33,18 @@ export function ManagedMcpRow({ server, inInbox = false }: { server: ManagedMcpS
   const guarded = useAgentConfigGuard();
   const busy = ignore.isPending || turnOff.isPending;
   return (
-    <div data-testid="managed-mcp-server" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="managed-mcp-server" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
       <StatusDot tone={server.off ? "off" : "on"} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-body">{server.name}</span>
-          <Chip mono>{server.plugin ?? kindLabel[server.kind]}</Chip>
-          {server.off && <span className="text-muted-foreground text-meta">Off</span>}
-        </div>
-        {(server.definition || server.source) && (
-          <div className="truncate font-mono text-muted-foreground text-meta">
-            {server.definition ? definitionSummary(server.definition) : server.source}
-          </div>
-        )}
+      <RowText
+        title={server.name}
+        chips={
+          <>
+            <Chip mono>{server.plugin ?? kindLabel[server.kind]}</Chip>
+            {server.off && <span className="text-muted-foreground text-meta">Off</span>}
+          </>
+        }
+        detail={server.definition ? definitionSummary(server.definition) : server.source}
+      >
         {server.readOnly && <p className="text-muted-foreground text-meta">{server.readOnly}</p>}
         {guarded && !server.off && server.offSwitches.length > 0 && (
           <p data-testid="guarded-reason" className="text-muted-foreground text-meta">
@@ -52,7 +52,7 @@ export function ManagedMcpRow({ server, inInbox = false }: { server: ManagedMcpS
           </p>
         )}
         <ConsentError error={turnOff.error} className="text-status-warning text-meta" />
-      </div>
+      </RowText>
       {!server.off &&
         server.offSwitches.map((offSwitch) => (
           <Button

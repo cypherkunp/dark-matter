@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { CopyActions, CopyStateBadge, useProjectSkillChanges, useResolveConflict } from "@/components/copy-actions";
 import { modeLabels, OnOffSwitch } from "@/components/project-skills";
+import { RowText } from "@/components/row-text";
 import { StatusDot } from "@/components/status-dot";
 import { Chip } from "@/components/ui/chip";
 import { useTRPC } from "@/lib/trpc";
@@ -12,24 +13,31 @@ function ProjectUseRow({ use }: { use: SkillProjectUse }) {
   const resolve = useResolveConflict(use.path, use);
   const conflict = use.status === "nameConflict";
   return (
-    <div data-testid="skill-project-row" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="skill-project-row" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
       <StatusDot tone={conflict ? "warning" : use.on ? "on" : "off"} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <Link to="/project" search={{ path: use.path }} className="font-medium text-body hover:underline">
+      <RowText
+        title={
+          <Link to="/project" search={{ path: use.path }} className="hover:underline">
             {use.projectName}
           </Link>
-          <Chip mono data-testid="delivery-mode">
-            {modeLabels[use.mode]}
-          </Chip>
-          <span className="text-muted-foreground text-meta">{conflict ? "Name Conflict" : use.on ? "On" : "Off"}</span>
-          <CopyStateBadge skill={use} />
-        </div>
-        <div className="truncate font-mono text-muted-foreground text-meta">{use.path}</div>
+        }
+        chips={
+          <>
+            <Chip mono data-testid="delivery-mode">
+              {modeLabels[use.mode]}
+            </Chip>
+            <span className="text-muted-foreground text-meta">
+              {conflict ? "Name Conflict" : use.on ? "On" : "Off"}
+            </span>
+            <CopyStateBadge skill={use} />
+          </>
+        }
+        detail={use.path}
+      >
         {(changes.error ?? resolve.error) && (
           <p className="text-status-warning text-meta">{(changes.error ?? resolve.error)?.message}</p>
         )}
-      </div>
+      </RowText>
       <CopyActions path={use.path} skill={use} />
       <OnOffSwitch
         on={use.on}

@@ -11,6 +11,7 @@ import { definitionSummary } from "@/components/inbox-mcp";
 import { byAgent, ManagedMcpGroups } from "@/components/managed-mcp";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
+import { RowText } from "@/components/row-text";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
@@ -162,21 +163,18 @@ function ServerRow({ server }: { server: LibraryMcpServer }) {
   const [editing, setEditing] = useState(false);
   const origins = server.adoptedFrom.map((origin) => `${agentName(origin.agent)} ${origin.file}`).join(", ");
   return (
-    <div data-testid="library-mcp-server" className="flex min-h-16 items-center gap-3 px-5 py-3">
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-body">{server.name}</span>
-          {server.definition && <Chip mono>{server.definition.transport}</Chip>}
-        </div>
-        <div className="truncate font-mono text-muted-foreground text-meta">
-          {server.definition ? definitionSummary(server.definition) : server.file}
-        </div>
+    <div data-testid="library-mcp-server" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+      <RowText
+        title={server.name}
+        chips={server.definition && <Chip mono>{server.definition.transport}</Chip>}
+        detail={server.definition ? definitionSummary(server.definition) : server.file}
+      >
         {server.secrets.map((secret) => (
           <SecretField key={secret} name={secret} missing={server.missingSecrets.includes(secret)} />
         ))}
         {server.problem && <p className="text-status-warning text-meta">{server.problem}</p>}
         {undo.error && <p className="text-status-warning text-meta">{undo.error.message}</p>}
-      </div>
+      </RowText>
       {server.definition && (
         <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
           Edit
