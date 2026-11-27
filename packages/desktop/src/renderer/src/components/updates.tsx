@@ -183,7 +183,7 @@ export function UpdatesList() {
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-3">
-        <h2 className="flex items-center gap-2 font-semibold text-body">
+        <h2 className="flex items-center gap-2 font-semibold text-section">
           Updates
           <span className="font-normal text-muted-foreground text-meta tabular-nums">{updates.length}</span>
           {plain.length > 0 && (
@@ -212,7 +212,7 @@ export function UpdatesList() {
       </section>
       {orphaned.length > 0 && (
         <section className="flex flex-col gap-3">
-          <h2 className="flex items-center gap-2 font-semibold text-body">
+          <h2 className="flex items-center gap-2 font-semibold text-section">
             Orphaned
             <span className="font-normal text-muted-foreground text-meta tabular-nums">{orphaned.length}</span>
           </h2>

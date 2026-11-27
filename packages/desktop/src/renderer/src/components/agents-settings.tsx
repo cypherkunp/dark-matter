@@ -50,7 +50,7 @@ export function AgentsSettings() {
 
   return (
     <section data-testid="agents-settings" className="flex flex-col gap-3">
-      <h2 className="font-semibold text-body">Agents</h2>
+      <h2 className="font-semibold text-section">Agents</h2>
       <h3 className="font-medium text-muted-foreground text-meta">Agent Config Guard</h3>
       <div className="flex min-h-16 items-center gap-6 rounded-xl border px-5 py-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">

@@ -90,7 +90,7 @@ export function ManagedMcpGroups({ groups, inInbox = false }: { groups: InboxMan
       </div>
       {groups.map((group) => (
         <section key={group.agent} data-testid="managed-mcp-group" className="flex flex-col gap-3">
-          <h3 className="flex items-center gap-2 font-semibold text-body">
+          <h3 className="flex items-center gap-2 font-semibold text-section">
             <span>{agentName(group.agent)}</span>
             <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
           </h3>

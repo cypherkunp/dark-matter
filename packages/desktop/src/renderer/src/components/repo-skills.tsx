@@ -22,7 +22,7 @@ export function RepoSkills({ path }: { path: string }) {
       {locked.length > 0 && (
         <section data-testid="locked-skills" className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 font-semibold text-body">
+            <h2 className="flex items-center gap-2 font-semibold text-section">
               In skills-lock.json
               <span className="font-normal text-muted-foreground text-meta tabular-nums">{locked.length}</span>
             </h2>
@@ -69,7 +69,7 @@ export function RepoSkills({ path }: { path: string }) {
       )}
       {vendored.length > 0 && (
         <section data-testid="vendored-skills" className="flex flex-col gap-3">
-          <h2 className="flex items-center gap-2 font-semibold text-body">
+          <h2 className="flex items-center gap-2 font-semibold text-section">
             Vendored Skills
             <span className="font-normal text-muted-foreground text-meta tabular-nums">{vendored.length}</span>
           </h2>

@@ -26,7 +26,7 @@ export function GitHubSettings() {
   };
   return (
     <section data-testid="github-settings" className="flex flex-col gap-3">
-      <h2 className="font-semibold text-body">GitHub</h2>
+      <h2 className="font-semibold text-section">GitHub</h2>
       <div className="flex flex-col gap-3 rounded-xl border px-5 py-4">
         <p data-testid="github-auth" className="text-body">
           {auth.data ? methodText[auth.data.method] : "…"}

@@ -82,7 +82,7 @@ export function InboxDrift({ groups }: { groups: InboxDriftGroup[] }) {
       </div>
       {groups.map((group) => (
         <section key={group.project} data-testid="inbox-drift-group" className="flex flex-col gap-3">
-          <h2 className="flex items-center gap-2 font-semibold text-body">
+          <h2 className="flex items-center gap-2 font-semibold text-section">
             <Link to="/project" search={{ path: group.project }} className="hover:underline">
               {group.name}
             </Link>

@@ -100,7 +100,7 @@ function Picker({ input, preview, project }: { input: string; preview: ImportPre
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="font-semibold text-body">
+        <h2 className="font-semibold text-section">
           {plural(preview.skills.length, "Skill")} in{" "}
           <span className="font-mono">
             {preview.source}

@@ -250,7 +250,7 @@ export function FilteredActivity({ search, exportName }: { search: ActivitySearc
   return (
     <section data-testid="filtered-activity" className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <h2 className="font-semibold text-body">Activity</h2>
+        <h2 className="font-semibold text-section">Activity</h2>
         <span className="text-muted-foreground text-meta tabular-nums">{entries.length}</span>
         <div className="ml-auto flex items-center gap-2">
           <Link

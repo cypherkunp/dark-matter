@@ -201,7 +201,7 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
           {/* skills.sh (#31): Get Imports the Skill, then adds it to this Project as chosen above. */}
           {!importable && query.trim().length >= 2 && (
             <section aria-label="From skills.sh" className="flex min-h-0 flex-col gap-2">
-              <h3 className="font-medium text-muted-foreground text-meta uppercase tracking-wide">From skills.sh</h3>
+              <h3 className="font-medium text-muted-foreground text-meta">From skills.sh</h3>
               <SkillsShResults
                 text={query}
                 onGot={(keys) => add.mutate({ skills: keys.map((key) => ({ path, key, mode })) })}
@@ -233,7 +233,7 @@ export function ProjectSkills({ path }: { path: string }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 font-semibold text-body">
+        <h2 className="flex items-center gap-2 font-semibold text-section">
           Project Skills
           <span className="font-normal text-muted-foreground text-meta tabular-nums">{list.length}</span>
         </h2>

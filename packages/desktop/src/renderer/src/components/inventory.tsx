@@ -51,7 +51,7 @@ function Group({ group }: { group: InventoryGroup }) {
   return (
     <section data-testid="inventory-group" data-folder={group.label} className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h3 className="font-mono font-semibold text-body">{group.label}</h3>
+        <h3 className="font-mono font-semibold text-section">{group.label}</h3>
         <span className="text-muted-foreground text-meta">
           {group.scope === "managed"
             ? `Managed by ${agentName(group.owningAgent)}`

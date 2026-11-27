@@ -124,7 +124,7 @@ export function InboxMcpServers({ groups }: { groups: InboxMcpGroup[] }) {
       </div>
       {groups.map((group) => (
         <section key={group.file} data-testid="inbox-mcp-group" className="flex flex-col gap-3">
-          <h2 className="flex flex-wrap items-center gap-2 font-semibold text-body">
+          <h2 className="flex flex-wrap items-center gap-2 font-semibold text-section">
             <span className="font-mono">{group.file}</span>
             <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
             <span className="ml-auto flex items-center gap-1">
@@ -205,7 +205,7 @@ export function InboxUntrackedMcpServers({ groups }: { groups: InboxProjectMcpGr
       </div>
       {groups.map((group) => (
         <section key={group.project} data-testid="inbox-untracked-mcp-group" className="flex flex-col gap-3">
-          <h2 className="flex items-center gap-2 font-semibold text-body">
+          <h2 className="flex items-center gap-2 font-semibold text-section">
             {group.name}
             <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
           </h2>
