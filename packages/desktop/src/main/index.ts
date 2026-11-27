@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { corePaths, resolveLibraryHome } from "@dark-matter/contracts/paths";
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { CoreSupervisor } from "./core-supervisor";
 import { startResidency } from "./residency";
 
@@ -36,7 +36,8 @@ const createWindow = () => {
     ...(process.platform === "linux" ? { icon: iconPath } : {}),
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     trafficLightPosition: { x: 16, y: 18 },
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#1c1c1e" : "#ffffff",
+    // The window chrome is near-black in both themes (renderer `--chrome`).
+    backgroundColor: "#0f0e0e",
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
       sandbox: true,

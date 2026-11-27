@@ -23,3 +23,13 @@
 - **Type:** the system UI font (SF Pro) for text, and a monospace font for paths, Namespaces, commits and folder names. Numbers in stat cards are large and use tabular figures.
 - **Density:** compact sidebar rows (about 32 px) and roomier content rows (about 64–80 px, two lines).
 - Must work in dark mode as well. The reference is light only, so derive dark from the same tokens.
+
+## Refresh: chrome, panel and coral
+
+A later reference (a dark-chrome planner app) refined the language without changing the layout or density above:
+
+- **Dark chrome, floating panel.** The sidebar and the breadcrumb toolbar sit on a near-black chrome (`--chrome`) in both themes. The content is one rounded panel (18 px) inset from the chrome: warm off-white in light mode, a lifted dark grey in dark mode.
+- **Coral is the brand accent.** Primary actions, the active sidebar row's icon, count badges and empty-state icons use coral. Status colours keep their meanings (blue On, green healthy, grey Off, amber warning).
+- **Pills and soft fills.** Buttons and the sidebar filter are pills; the active sidebar row is a soft rounded fill; summary strips use a muted fill with a hairline border. Neutrals are warm, not blue-grey.
+- **Sidebar section headers** are sentence case and muted, not uppercase.
+- **The sidebar header is just the name** "Dark Matter", with no mark and no subtitle.

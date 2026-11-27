@@ -5,10 +5,11 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Theme tokens from docs/design/visual-reference.md: neutral surfaces, a
- * slightly tinted sidebar, hairline borders, a 12px radius, almost no shadows,
- * and the status colours (blue On, green healthy, grey Off, amber warning; red
- * only for destructive confirmations). Dark mode is derived from the same set.
+ * Theme tokens from docs/design/visual-reference.md: a near-black window chrome
+ * (sidebar and toolbar, always dark) holding one floating, rounded content panel
+ * in warm neutrals; coral as the single brand accent; pill controls and soft
+ * tinted chips; hairline borders and no shadows. Status colours: blue On, green
+ * healthy, grey Off, amber warning; red only for destructive confirmations.
  */
 @theme inline {
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
@@ -34,6 +35,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  --color-chrome: var(--chrome);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -58,80 +60,83 @@
 
 :root {
   color-scheme: light;
-  --radius: 0.75rem;
+  --radius: 0.875rem;
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.2 0.005 265);
+  /* The window chrome (sidebar and toolbar) stays near-black in both themes; content floats on it. */
+  --chrome: oklch(0.155 0.003 60);
+
+  --background: oklch(0.988 0.002 80);
+  --foreground: oklch(0.19 0.004 60);
   --card: oklch(1 0 0);
   --card-foreground: var(--foreground);
   --popover: oklch(1 0 0);
   --popover-foreground: var(--foreground);
-  --primary: oklch(0.585 0.19 268);
+  --primary: oklch(0.575 0.19 32);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.965 0.003 265);
+  --secondary: oklch(0.955 0.003 70);
   --secondary-foreground: var(--foreground);
-  --muted: oklch(0.965 0.003 265);
-  --muted-foreground: oklch(0.53 0.01 265);
-  --accent: oklch(0.945 0.006 265);
+  --muted: oklch(0.962 0.003 70);
+  --muted-foreground: oklch(0.5 0.006 60);
+  --accent: oklch(0.94 0.004 70);
   --accent-foreground: var(--foreground);
-  --destructive: oklch(0.577 0.215 27);
-  --border: oklch(0.915 0.004 265);
-  --input: oklch(0.895 0.005 265);
-  --ring: oklch(0.585 0.19 268 / 60%);
+  --destructive: oklch(0.55 0.21 25);
+  --border: oklch(0.915 0.004 70);
+  --input: oklch(0.89 0.005 70);
+  --ring: oklch(0.575 0.19 32 / 55%);
 
-  --sidebar: oklch(0.972 0.004 265);
+  --sidebar: var(--chrome);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: oklch(0.925 0.006 265);
+  --sidebar-accent: oklch(0.925 0.004 70);
   --sidebar-accent-foreground: var(--foreground);
-  --sidebar-border: oklch(0.905 0.005 265);
+  --sidebar-border: oklch(0.905 0.004 70);
   --sidebar-ring: var(--ring);
 
-  --status-on: oklch(0.56 0.2 266);
-  --status-healthy: oklch(0.66 0.15 150);
-  --status-off: oklch(0.7 0.005 265);
-  --status-warning: oklch(0.72 0.15 70);
-  --warning-surface: oklch(0.975 0.014 75);
-  --warning-border: oklch(0.86 0.06 70);
+  --status-on: oklch(0.55 0.17 262);
+  --status-healthy: oklch(0.6 0.14 150);
+  --status-off: oklch(0.7 0.005 60);
+  --status-warning: oklch(0.68 0.15 65);
+  --warning-surface: oklch(0.97 0.025 80);
+  --warning-border: oklch(0.88 0.07 75);
 }
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.2 0.004 265);
-  --foreground: oklch(0.95 0.003 265);
-  --card: oklch(0.225 0.004 265);
+  --background: oklch(0.205 0.003 60);
+  --foreground: oklch(0.95 0.002 70);
+  --card: oklch(0.225 0.003 60);
   --card-foreground: var(--foreground);
-  --popover: oklch(0.24 0.004 265);
+  --popover: oklch(0.235 0.003 60);
   --popover-foreground: var(--foreground);
-  --primary: oklch(0.65 0.17 268);
+  --primary: oklch(0.6 0.185 32);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.27 0.005 265);
+  --secondary: oklch(0.265 0.003 60);
   --secondary-foreground: var(--foreground);
-  --muted: oklch(0.27 0.005 265);
-  --muted-foreground: oklch(0.7 0.008 265);
-  --accent: oklch(0.29 0.006 265);
+  --muted: oklch(0.25 0.003 60);
+  --muted-foreground: oklch(0.7 0.005 60);
+  --accent: oklch(0.28 0.004 60);
   --accent-foreground: var(--foreground);
-  --destructive: oklch(0.68 0.19 24);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.65 0.17 268 / 60%);
+  --destructive: oklch(0.66 0.19 24);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.65 0.17 32 / 60%);
 
-  --sidebar: oklch(0.235 0.006 265);
+  --sidebar: var(--chrome);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: oklch(1 0 0 / 8%);
+  --sidebar-accent: oklch(1 0 0 / 9%);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: var(--ring);
 
-  --status-on: oklch(0.68 0.16 266);
+  --status-on: oklch(0.7 0.14 262);
   --status-healthy: oklch(0.72 0.14 150);
-  --status-off: oklch(0.55 0.006 265);
-  --status-warning: oklch(0.78 0.14 75);
-  --warning-surface: oklch(0.27 0.03 70);
-  --warning-border: oklch(0.45 0.07 70);
+  --status-off: oklch(0.56 0.005 60);
+  --status-warning: oklch(0.79 0.14 75);
+  --warning-surface: oklch(0.79 0.14 75 / 11%);
+  --warning-border: oklch(0.79 0.14 75 / 28%);
 }
 
 @layer base {
@@ -147,7 +152,18 @@
     @apply font-sans antialiased;
   }
   body {
-    @apply overflow-hidden bg-background text-foreground text-[13px] select-none;
+    @apply overflow-hidden bg-chrome text-foreground text-[13px] select-none;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--primary);
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 24%, transparent);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 18%, transparent) transparent;
   }
 }
 
