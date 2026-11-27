@@ -22,7 +22,7 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
       <StarSkillButton skillKey={skill.key} className="ml-3.5" />
       <Link
         to="/skill"
-        search={{ key: skill.key }}
+        search={{ key: skill.key, tab: "explorer" }}
         data-testid="library-skill"
         className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2.5 pr-5 pl-2"
       >
@@ -52,7 +52,7 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
   );
 }
 
-/** A bordered card of Skill rows; each opens its Skill page. */
+/** A bordered card of Skill rows; each opens its Skill page in the Explorer. */
 export function SkillRows({ skills }: { skills: LibrarySkill[] }) {
   return (
     <div className="divide-y overflow-hidden rounded-xl border">
