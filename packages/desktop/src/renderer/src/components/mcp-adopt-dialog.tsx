@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ConsentError } from "@/components/adopt-consent";
 import { stepText } from "@/components/adopt-dialog";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
@@ -32,15 +33,7 @@ function PlannedServer({
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-body">{server.name}</span>
         <span className="text-muted-foreground text-meta">from {agentName(server.agent)}</span>
-        <span
-          className={
-            server.outcome === "variant"
-              ? "rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro text-status-warning"
-              : "rounded-md bg-muted px-1.5 py-0.5 text-micro text-muted-foreground"
-          }
-        >
-          {outcomeLabels[server.outcome]}
-        </span>
+        <Chip tone={server.outcome === "variant" ? "warning" : "neutral"}>{outcomeLabels[server.outcome]}</Chip>
       </div>
       {server.outcome === "variant" && (
         <div className="flex items-center gap-2 text-meta">

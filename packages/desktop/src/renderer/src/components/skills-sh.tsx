@@ -8,8 +8,10 @@ import remarkGfm from "remark-gfm";
 import { useFavourites } from "@/components/favourites";
 import { markdownComponents } from "@/components/skill-preview";
 import { Button } from "@/components/ui/button";
+import { chipClass } from "@/components/ui/chip";
 import { useTRPC } from "@/lib/trpc";
 import { useNow } from "@/lib/use-now";
+import { cn } from "@/lib/utils";
 
 /** Wait this long after the last keystroke before searching; the core also keeps within 30 searches a minute. */
 const DEBOUNCE_MS = 350;
@@ -107,11 +109,7 @@ function ListingRow({ listing, onGot }: { listing: SkillsShListing; onGot: (keys
           Preview
         </Button>
         {listing.key ? (
-          <Link
-            to="/skill"
-            search={{ key: listing.key }}
-            className="rounded-full border px-2 py-px text-micro text-muted-foreground hover:bg-muted"
-          >
+          <Link to="/skill" search={{ key: listing.key }} className={cn(chipClass(), "hover:bg-foreground/10")}>
             in Library
           </Link>
         ) : (

@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import { ConsentError } from "@/components/adopt-consent";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { useTRPC } from "@/lib/trpc";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
@@ -43,16 +44,8 @@ function PlannedSkill({ skill }: { skill: AdoptPlanSkill }) {
     <div className="flex flex-col gap-1.5 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-body">{skill.name}</span>
-        <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">{skill.key}</span>
-        <span
-          className={
-            skill.outcome === "variant"
-              ? "rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro text-status-warning"
-              : "rounded-md bg-muted px-1.5 py-0.5 text-micro text-muted-foreground"
-          }
-        >
-          {outcomeLabels[skill.outcome]}
-        </span>
+        <Chip mono>{skill.key}</Chip>
+        <Chip tone={skill.outcome === "variant" ? "warning" : "neutral"}>{outcomeLabels[skill.outcome]}</Chip>
       </div>
       {skill.diff && (
         <details className="text-meta">

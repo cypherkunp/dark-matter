@@ -4,9 +4,8 @@ import { Link } from "@tanstack/react-router";
 import { CopyActions, CopyStateBadge, useProjectSkillChanges, useResolveConflict } from "@/components/copy-actions";
 import { modeLabels, OnOffSwitch } from "@/components/project-skills";
 import { StatusDot } from "@/components/status-dot";
+import { Chip } from "@/components/ui/chip";
 import { useTRPC } from "@/lib/trpc";
-
-const pill = "rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground";
 
 function ProjectUseRow({ use }: { use: SkillProjectUse }) {
   const changes = useProjectSkillChanges(use.path, use);
@@ -20,9 +19,9 @@ function ProjectUseRow({ use }: { use: SkillProjectUse }) {
           <Link to="/project" search={{ path: use.path }} className="font-medium text-body hover:underline">
             {use.projectName}
           </Link>
-          <span data-testid="delivery-mode" className={pill}>
+          <Chip mono data-testid="delivery-mode">
             {modeLabels[use.mode]}
-          </span>
+          </Chip>
           <span className="text-muted-foreground text-meta">{conflict ? "Name Conflict" : use.on ? "On" : "Off"}</span>
           <CopyStateBadge skill={use} />
         </div>

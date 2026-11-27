@@ -4,6 +4,7 @@ import { ConsentError, guardedOffSwitchText, useAgentConfigGuard } from "@/compo
 import { definitionSummary } from "@/components/inbox-mcp";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
 
@@ -36,9 +37,7 @@ export function ManagedMcpRow({ server, inInbox = false }: { server: ManagedMcpS
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <span className="font-medium text-body">{server.name}</span>
-          <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
-            {server.plugin ?? kindLabel[server.kind]}
-          </span>
+          <Chip mono>{server.plugin ?? kindLabel[server.kind]}</Chip>
           {server.off && <span className="text-muted-foreground text-meta">Off</span>}
         </div>
         {(server.definition || server.source) && (

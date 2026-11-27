@@ -12,6 +12,7 @@ import { byAgent, ManagedMcpGroups } from "@/components/managed-mcp";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
 
@@ -165,11 +166,7 @@ function ServerRow({ server }: { server: LibraryMcpServer }) {
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <span className="font-medium text-body">{server.name}</span>
-          {server.definition && (
-            <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
-              {server.definition.transport}
-            </span>
-          )}
+          {server.definition && <Chip mono>{server.definition.transport}</Chip>}
         </div>
         <div className="truncate font-mono text-muted-foreground text-meta">
           {server.definition ? definitionSummary(server.definition) : server.file}

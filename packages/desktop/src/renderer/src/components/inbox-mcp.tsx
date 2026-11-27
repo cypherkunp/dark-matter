@@ -11,6 +11,7 @@ import { adoptTickedLabel, ReadOnlyReason, TickBox, useTicked } from "@/componen
 import { McpAdoptDialog } from "@/components/mcp-adopt-dialog";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
 
@@ -87,9 +88,9 @@ function Finding({
         <div className="flex items-center gap-2">
           <span className="font-medium text-body">{finding.name}</span>
           {finding.inlineSecrets.length > 0 && (
-            <span className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro text-status-warning">
+            <Chip tone="warning">
               {finding.inlineSecrets.length} inline secret{finding.inlineSecrets.length === 1 ? "" : "s"}
-            </span>
+            </Chip>
           )}
         </div>
         <div className="truncate font-mono text-muted-foreground text-meta">
@@ -128,9 +129,7 @@ export function InboxMcpServers({ groups }: { groups: InboxMcpGroup[] }) {
             <span className="font-mono">{group.file}</span>
             <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
             <span className="ml-auto flex items-center gap-1">
-              <span className="rounded-md border px-1.5 py-0.5 font-normal text-micro text-muted-foreground">
-                {agentName(group.agent)}
-              </span>
+              <Chip>{agentName(group.agent)}</Chip>
             </span>
           </h2>
           <div className="divide-y rounded-xl border">
@@ -164,9 +163,7 @@ function UntrackedFinding({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <span className="font-medium text-body">{finding.name}</span>
-          <span className="rounded-md border px-1.5 py-0.5 text-micro text-muted-foreground">
-            {agentName(finding.agent)}
-          </span>
+          <Chip>{agentName(finding.agent)}</Chip>
         </div>
         <div className="truncate font-mono text-muted-foreground text-meta">
           {finding.file} · {definitionSummary(finding.definition)}

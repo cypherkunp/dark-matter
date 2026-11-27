@@ -33,6 +33,7 @@ import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { useScan } from "@/components/use-scan";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
@@ -64,11 +65,7 @@ function Finding({ finding, onAdopt, ticked }: { finding: GlobalSkill; onAdopt: 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <span className="font-medium text-body">{finding.name}</span>
-          {finding.localSource && (
-            <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
-              Local Source
-            </span>
-          )}
+          {finding.localSource && <Chip mono>Local Source</Chip>}
         </div>
         {finding.description && <p className="truncate text-muted-foreground text-meta">{finding.description}</p>}
         <div className="truncate font-mono text-muted-foreground text-meta">
@@ -102,9 +99,7 @@ function FolderGroup({ group, onAdopt, ticked }: { group: InboxFolderGroup; onAd
         <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
         <span className="ml-auto flex flex-wrap items-center gap-1">
           {group.agents.map((agent) => (
-            <span key={agent} className="rounded-md border px-1.5 py-0.5 font-normal text-micro text-muted-foreground">
-              {agentName(agent)}
-            </span>
+            <Chip key={agent}>{agentName(agent)}</Chip>
           ))}
         </span>
       </h2>
@@ -132,11 +127,7 @@ function UntrackedFinding({ finding, onAdopt, ticked }: { finding: UntrackedSkil
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <span className="font-medium text-body">{finding.name}</span>
-          {finding.localSource && (
-            <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
-              Local Source
-            </span>
-          )}
+          {finding.localSource && <Chip mono>Local Source</Chip>}
         </div>
         {finding.description && <p className="truncate text-muted-foreground text-meta">{finding.description}</p>}
         <div className="truncate font-mono text-muted-foreground text-meta">
@@ -238,9 +229,7 @@ function ManagedFinding({ finding }: { finding: ManagedSkill }) {
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <span className="font-medium text-body">{finding.name}</span>
-          <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
-            {finding.plugin ?? finding.kind}
-          </span>
+          <Chip mono>{finding.plugin ?? finding.kind}</Chip>
         </div>
         {finding.description && <p className="truncate text-muted-foreground text-meta">{finding.description}</p>}
         <div className="truncate font-mono text-muted-foreground text-meta">{finding.path}</div>

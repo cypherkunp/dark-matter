@@ -6,6 +6,7 @@ import { ChevronRight, Download } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import {
   type ActivitySearch,
   actionLabel,
@@ -111,9 +112,7 @@ function Entry({ entry, expanded, onToggle }: { entry: ActivityEntry; expanded: 
           <button type="button" onClick={onToggle} className="text-left font-medium text-body">
             {actionLabel(entry.action)}
           </button>
-          {failed && (
-            <span className="rounded-md bg-warning-surface px-1.5 py-0.5 text-micro text-status-warning">failed</span>
-          )}
+          {failed && <Chip tone="warning">failed</Chip>}
         </div>
         <div className="truncate font-mono text-muted-foreground text-meta">
           {entry.subjects.length > 0 ? <SubjectLinks subjects={entry.subjects} /> : entry.action}
@@ -124,7 +123,7 @@ function Entry({ entry, expanded, onToggle }: { entry: ActivityEntry; expanded: 
         {expanded && <Detail entry={entry} />}
       </div>
       <div className="flex shrink-0 items-center gap-3 text-muted-foreground text-meta">
-        <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro">{requesterLabel(entry)}</span>
+        <Chip mono>{requesterLabel(entry)}</Chip>
         <time dateTime={entry.time} className="w-12 text-right tabular-nums">
           {new Date(entry.time).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
         </time>

@@ -12,8 +12,10 @@ import { RemoveProjectButton } from "@/components/remove-project";
 import { RepoSkills } from "@/components/repo-skills";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
+import { Chip, chipClass } from "@/components/ui/chip";
 import { tildify } from "@/lib/paths";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/project")({
   validateSearch: (search: Record<string, unknown>): { path: string } => ({
@@ -94,9 +96,7 @@ function AgentPicker({ project }: { project: ProjectDetail }) {
                 onChange={() => toggle(option.id)}
               />
               <span className="text-body">{option.name}</span>
-              {option.detected && (
-                <span className="rounded-md border px-1.5 py-0.5 text-micro text-muted-foreground">detected</span>
-              )}
+              {option.detected && <Chip>detected</Chip>}
               <span className="ml-auto font-mono text-muted-foreground text-meta">{option.folder}</span>
             </label>
           );
@@ -107,7 +107,7 @@ function AgentPicker({ project }: { project: ProjectDetail }) {
         {project.folders.map((folder, index) => (
           <span key={folder}>
             {index > 0 && " and "}
-            <code className="rounded-md border px-1 py-0.5 font-mono text-micro text-foreground">{folder}</code>
+            <code className={cn(chipClass({ mono: true }), "text-foreground")}>{folder}</code>
           </span>
         ))}{" "}
         in this Project.
@@ -139,9 +139,7 @@ function FoundSkills({ project }: { project: ProjectDetail }) {
                 <span className="font-medium text-body">{skill.name}</span>
                 {skill.description && <p className="truncate text-muted-foreground text-meta">{skill.description}</p>}
               </div>
-              <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
-                {skill.folder}
-              </span>
+              <Chip mono>{skill.folder}</Chip>
             </div>
           ))}
         </div>

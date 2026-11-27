@@ -8,6 +8,7 @@ import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { StarSourceButton } from "@/components/favourites";
 import { markdownComponents } from "@/components/skill-preview";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { useTRPC } from "@/lib/trpc";
 
@@ -56,9 +57,7 @@ function CandidateRow({
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <span className="font-medium text-body">{skill.name}</span>
-            {skill.inLibrary && (
-              <span className="rounded-full border px-2 py-px text-micro text-muted-foreground">in Library</span>
-            )}
+            {skill.inLibrary && <Chip>in Library</Chip>}
           </div>
           <span className="truncate text-muted-foreground text-meta">{skill.description}</span>
           <span className="truncate font-mono text-micro text-muted-foreground">{skill.path}</span>

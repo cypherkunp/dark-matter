@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { useTRPC } from "@/lib/trpc";
 import { ModifiedBadge } from "./modified-badge";
@@ -11,13 +12,13 @@ import { ModifiedBadge } from "./modified-badge";
 /** Orphaned (#33): its Source is gone; the Library copy is kept as is. */
 export function OrphanedBadge({ reason }: { reason?: string }) {
   return (
-    <span
+    <Chip
+      tone="warning"
       data-testid="orphaned-badge"
       title={reason ?? "Its Source can't be found any more: kept as is until you Detach or re-point it"}
-      className="rounded-full bg-warning-surface px-2 py-0.5 font-medium text-micro text-status-warning"
     >
       Orphaned
-    </span>
+    </Chip>
   );
 }
 
