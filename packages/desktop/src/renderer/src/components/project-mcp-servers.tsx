@@ -10,13 +10,11 @@ import { McpAdoptDialog } from "@/components/mcp-adopt-dialog";
 import { OnOffSwitch } from "@/components/project-skills";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
-import { cn } from "@/lib/utils";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
-
-const pill = "rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground";
 
 const modeLabels: Record<McpDeliveryMode, string> = { personal: "Personal", shared: "Shared" };
 
@@ -124,9 +122,9 @@ function ProjectMcpServerRow({ path, server }: { path: string; server: ProjectMc
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-body">{name}</span>
-          <span data-testid="project-mcp-mode" className={pill}>
+          <Chip mono data-testid="project-mcp-mode">
             {modeLabels[server.mode]}
-          </span>
+          </Chip>
           {server.secrets.length > 0 && (
             <span className="flex items-center gap-1 text-muted-foreground text-meta">
               <KeyRound className="size-3" />
@@ -420,7 +418,9 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
                       {plural(server.missingSecrets.length, "Secret")} to enter first
                     </span>
                   )}
-                  <span className={cn(pill, "ml-auto")}>{server.definition?.transport}</span>
+                  <Chip mono className="ml-auto">
+                    {server.definition?.transport}
+                  </Chip>
                 </label>
               ))}
             </div>

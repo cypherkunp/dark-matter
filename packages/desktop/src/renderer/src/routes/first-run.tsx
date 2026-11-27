@@ -10,6 +10,7 @@ import { AdoptPermissionSwitch } from "@/components/agents-settings";
 import { Inventory } from "@/components/inventory";
 import { plural } from "@/components/skill-list";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
 import { tildify } from "@/lib/paths";
 import { useTRPC } from "@/lib/trpc";
@@ -250,9 +251,7 @@ function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
               {shown.skills.map((skill) => (
                 <div key={skill.finding} className="flex items-center gap-2 px-4 py-2.5">
                   <span className="font-medium text-body">{skill.name}</span>
-                  <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
-                    {skill.key}
-                  </span>
+                  <Chip mono>{skill.key}</Chip>
                   <span className="ml-auto text-muted-foreground text-meta">{outcomeLabels[skill.outcome]}</span>
                 </div>
               ))}

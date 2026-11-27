@@ -1,6 +1,7 @@
 import type { LibrarySkill } from "@dark-matter/contracts";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
+import { Chip } from "@/components/ui/chip";
 import { StarSkillButton } from "./favourites";
 import { ModifiedBadge } from "./modified-badge";
 import { OrphanedBadge } from "./updates";
@@ -27,20 +28,13 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <span className="font-medium text-body">{skill.name}</span>
-            {skill.localSource && (
-              <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
-                Local Source
-              </span>
-            )}
+            {skill.localSource && <Chip mono>Local Source</Chip>}
             {skill.modified && <ModifiedBadge />}
             {skill.orphaned && <OrphanedBadge />}
             {skill.nameConflict && (
-              <span
-                data-testid="name-conflict"
-                className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro"
-              >
+              <Chip tone="warning" data-testid="name-conflict">
                 Name Conflict
-              </span>
+              </Chip>
             )}
           </div>
           {skill.description && <p className="truncate text-muted-foreground text-meta">{skill.description}</p>}

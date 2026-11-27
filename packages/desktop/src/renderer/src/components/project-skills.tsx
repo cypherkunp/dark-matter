@@ -9,13 +9,12 @@ import { looksLikeGitHubSource } from "@/components/github-import";
 import { SkillsShResults } from "@/components/skills-sh";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { useTRPC } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
-
-const pill = "rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground";
 
 export const modeLabels: Record<DeliveryMode, string> = { link: "Link", copy: "Copy" };
 
@@ -71,16 +70,12 @@ function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill })
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-body">{skill.name}</span>
-          <span className={pill}>{skill.namespace}</span>
-          <span data-testid="delivery-mode" className={pill}>
+          <Chip mono>{skill.namespace}</Chip>
+          <Chip mono data-testid="delivery-mode">
             {modeLabels[skill.mode]}
-          </span>
+          </Chip>
           <CopyStateBadge skill={skill} />
-          {conflict && (
-            <span className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro">
-              Name Conflict
-            </span>
-          )}
+          {conflict && <Chip tone="warning">Name Conflict</Chip>}
         </div>
         <div className="truncate font-mono text-muted-foreground text-meta">
           {conflict ? `also wanted: ${skill.conflictsWith.join(", ")}` : skill.paths.join(" · ")}
@@ -193,7 +188,9 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
                     }
                   />
                   <span className="text-body">{skill.name}</span>
-                  <span className={cn(pill, "ml-auto")}>{skill.key}</span>
+                  <Chip mono className="ml-auto">
+                    {skill.key}
+                  </Chip>
                 </label>
               ))}
             </div>

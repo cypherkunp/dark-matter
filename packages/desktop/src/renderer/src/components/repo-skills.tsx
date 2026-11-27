@@ -1,8 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { useTRPC } from "@/lib/trpc";
-
-const pill = "rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground";
 
 /**
  * What the repo already has (#28): `skills-lock.json` entries waiting to be
@@ -45,8 +44,8 @@ export function RepoSkills({ path }: { path: string }) {
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-body">{entry.name}</span>
-                    <span className={pill}>{entry.source}</span>
-                    {!entry.present && <span className={pill}>not in repo</span>}
+                    <Chip mono>{entry.source}</Chip>
+                    {!entry.present && <Chip mono>not in repo</Chip>}
                   </div>
                   <p className="truncate text-muted-foreground text-meta">
                     {entry.message ?? (entry.key ? `from Library ${entry.key}` : "Imported first, then copied")}

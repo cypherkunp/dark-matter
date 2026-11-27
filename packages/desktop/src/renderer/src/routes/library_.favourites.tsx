@@ -5,6 +5,7 @@ import { StarSourceButton } from "@/components/favourites";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { plural, SkillRows } from "@/components/skill-list";
+import { chipClass } from "@/components/ui/chip";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/library_/favourites")({ component: FavouritesView });
@@ -66,10 +67,7 @@ function FavouritesView() {
                       </span>
                     </div>
                     {source.newSkills > 0 && (
-                      <Link
-                        to="/inbox"
-                        className="flex items-center gap-1 rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-micro text-status-warning"
-                      >
+                      <Link to="/inbox" className={chipClass({ tone: "warning" })}>
                         {plural(source.newSkills, "new Skill")}
                         <ChevronRight className="size-3" />
                       </Link>

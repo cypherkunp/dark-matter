@@ -3,23 +3,22 @@ import type { ProjectSkill } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { useTRPC } from "@/lib/trpc";
-
-const warningPill = "rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro";
 
 /** "outdated" or "modified in repo" for a Copy. ("Modified" is kept for a Library Skill.) */
 export function CopyStateBadge({ skill }: { skill: ProjectSkill }) {
   if (skill.copyState === "outdated")
     return (
-      <span data-testid="copy-state" className={warningPill}>
+      <Chip tone="warning" data-testid="copy-state">
         outdated
-      </span>
+      </Chip>
     );
   if (skill.copyState === "modifiedInRepo")
     return (
-      <span data-testid="copy-state" className={warningPill}>
+      <Chip tone="warning" data-testid="copy-state">
         modified in repo
-      </span>
+      </Chip>
     );
   return null;
 }

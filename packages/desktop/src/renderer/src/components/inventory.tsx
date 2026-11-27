@@ -1,6 +1,7 @@
 import { type AgentId, type InventoryGroup, type InventoryItem, readOnlyReasonText } from "@dark-matter/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
+import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
 
@@ -20,18 +21,13 @@ function Row({ item, owner }: { item: InventoryItem; owner: AgentId }) {
     <div data-testid="inventory-item" data-kind={item.kind} className="flex flex-col gap-1 px-4 py-2.5">
       <div className="flex items-center gap-2">
         <span className="font-medium text-body">{item.name}</span>
-        <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
-          {kindLabel[item.kind]}
-        </span>
+        <Chip mono>{kindLabel[item.kind]}</Chip>
         {item.off && <span className="text-muted-foreground text-meta">Off</span>}
         {item.readOnlyReason && (
-          <span
-            data-testid="inventory-read-only"
-            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-micro text-muted-foreground"
-          >
+          <Chip className="ml-auto" data-testid="inventory-read-only">
             <Lock className="size-3" />
             Read-only
-          </span>
+          </Chip>
         )}
       </div>
       {item.detail && <p className="truncate text-muted-foreground text-meta">{item.detail}</p>}

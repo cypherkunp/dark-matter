@@ -11,8 +11,10 @@ import { ModifiedBadge } from "@/components/modified-badge";
 import { Page } from "@/components/page";
 import { skillTabs } from "@/components/skill-tabs";
 import { Button } from "@/components/ui/button";
+import { chipClass } from "@/components/ui/chip";
 import { CheckUpstreamButton, OrphanedBadge } from "@/components/updates";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/skill")({
   validateSearch: (search: Record<string, unknown>): { key: string; tab?: string } => ({
@@ -46,7 +48,7 @@ function SkillHeader({ skill }: { skill: SkillDetail }) {
           <Link
             to="/namespace"
             search={{ name: skill.namespace }}
-            className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground hover:text-foreground"
+            className={cn(chipClass({ mono: true }), "hover:text-foreground")}
           >
             {skill.namespace}
           </Link>
