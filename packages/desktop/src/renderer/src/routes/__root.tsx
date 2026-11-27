@@ -9,7 +9,7 @@ import { useTRPC } from "@/lib/trpc";
 
 export const Route = createRootRoute({ component: AppShell });
 
-/** The native macOS shell: tinted sidebar tree, breadcrumb header, content pane. */
+/** The native macOS shell: a dark chrome (sidebar tree, breadcrumb toolbar) holding one floating content panel. */
 function AppShell() {
   const { connected } = useCoreEvents();
   useNativeNavigation();
@@ -26,11 +26,14 @@ function AppShell() {
       </main>
     );
   return (
-    <div className="flex h-full">
+    <div className="flex h-full bg-chrome">
       <Sidebar connected={connected} />
-      <main className="flex min-w-0 flex-1 flex-col bg-background">
+      <main className="flex min-w-0 flex-1 flex-col">
         <Header />
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          data-testid="content-panel"
+          className="mr-2 mb-2 min-h-0 flex-1 overflow-y-auto rounded-[18px] bg-background text-foreground"
+        >
           <Outlet />
         </div>
       </main>

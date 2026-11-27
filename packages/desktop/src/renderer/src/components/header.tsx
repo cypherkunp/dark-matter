@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, RefreshCw } from "lucide-react";
 import { Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { useScan } from "@/components/use-scan";
@@ -17,11 +17,11 @@ export function Header() {
   const crumbs = breadcrumbFor(location.pathname, location.search);
 
   return (
-    <header className="drag-region flex h-[52px] shrink-0 items-center gap-3 border-b px-6">
+    <header className="dark drag-region flex h-[52px] shrink-0 items-center gap-3 px-4 text-foreground">
       <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px]">
         {crumbs.map((crumb, index) => (
           <Fragment key={`${index}:${crumb}`}>
-            {index > 0 && <ChevronRight className="size-3.5 text-muted-foreground" />}
+            {index > 0 && <ChevronRight className="size-3.5 text-muted-foreground/70" />}
             <span className={index === crumbs.length - 1 ? "font-medium" : "text-muted-foreground"}>{crumb}</span>
           </Fragment>
         ))}
@@ -30,7 +30,8 @@ export function Header() {
         {library.dataUpdatedAt > 0 && (
           <span className="text-muted-foreground text-xs">Updated {relativeTime(library.dataUpdatedAt, now)}</span>
         )}
-        <Button size="sm" className="no-drag" disabled={scanning} onClick={scan}>
+        <Button size="sm" className="no-drag px-3.5" disabled={scanning} onClick={scan}>
+          <RefreshCw className={scanning ? "animate-spin motion-reduce:animate-none" : undefined} />
           {scanning ? "Scanning…" : "Scan now"}
         </Button>
       </div>

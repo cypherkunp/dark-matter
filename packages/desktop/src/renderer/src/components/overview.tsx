@@ -40,10 +40,10 @@ function Card({ label, caption, card, tone }: { label: string; caption: string; 
     <a
       href={href(card.path)}
       data-testid="stat-card"
-      className="flex flex-col gap-2 px-5 py-4 hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+      className="flex flex-col gap-2 px-5 py-4 transition-colors hover:bg-foreground/[0.03] focus-visible:bg-foreground/[0.03] focus-visible:outline-none"
     >
       <span className="text-muted-foreground text-sm">{label}</span>
-      <span className="flex items-center gap-2 font-medium text-2xl tabular-nums">
+      <span className="flex items-center gap-2 font-semibold text-[26px] leading-none tracking-[-0.02em] tabular-nums">
         {card.count !== null && <StatusDot tone={tone} />}
         <span data-testid="stat-count">{card.count ?? "–"}</span>
       </span>
@@ -67,7 +67,7 @@ export function Overview() {
     <div className="flex flex-col gap-8">
       <section
         aria-label="Overview"
-        className="grid grid-cols-2 divide-x divide-y overflow-hidden rounded-xl border md:grid-cols-4 md:divide-y-0"
+        className="grid grid-cols-2 divide-x divide-y overflow-hidden rounded-2xl border bg-muted md:grid-cols-4 md:divide-y-0"
       >
         {cards.map((card) => (
           <Card
@@ -85,7 +85,7 @@ export function Overview() {
             Active alerts{" "}
             <span className="font-normal text-muted-foreground text-xs tabular-nums">{alerts.length}</span>
           </h2>
-          <div className="flex flex-col divide-y divide-warning-border overflow-hidden rounded-xl border border-warning-border bg-warning-surface">
+          <div className="flex flex-col divide-y divide-warning-border overflow-hidden rounded-2xl border border-warning-border bg-warning-surface">
             {alerts.map((alert) => (
               <a
                 key={alert.id}

@@ -29,21 +29,23 @@ test("renders the shell in light and dark mode", async ({ launchApp }) => {
   const colours = () =>
     window.evaluate(() => ({
       dark: document.documentElement.classList.contains("dark"),
-      content: getComputedStyle(document.body).backgroundColor,
+      content: getComputedStyle(document.querySelector('[data-testid="content-panel"]') as Element).backgroundColor,
       sidebar: getComputedStyle(document.querySelector('[data-testid="sidebar"]') as Element).backgroundColor,
     }));
 
   await window.emulateMedia({ colorScheme: "light" });
   await expect.poll(async () => (await colours()).dark).toBe(false);
   const light = await colours();
-  // The sidebar is tinted against the white content pane.
+  // The content panel floats on the dark chrome the sidebar sits on.
   expect(light.sidebar).not.toBe(light.content);
 
   await window.emulateMedia({ colorScheme: "dark" });
   await expect.poll(async () => (await colours()).dark).toBe(true);
   const dark = await colours();
   expect(dark.content).not.toBe(light.content);
-  expect(dark.sidebar).not.toBe(light.sidebar);
+  // The chrome is near-black in both themes.
+  expect(dark.sidebar).toBe(light.sidebar);
+  expect(dark.content).not.toBe(dark.sidebar);
 });
 
 test("attaches to a core that is already running instead of starting another", async ({

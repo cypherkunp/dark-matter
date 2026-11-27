@@ -30,8 +30,8 @@ function TrashView() {
           data-testid="trash-empty"
           className="flex flex-col items-center gap-3 rounded-xl border px-6 py-16 text-center"
         >
-          <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-            <Trash2 className="size-5 text-muted-foreground" />
+          <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Trash2 className="size-5" />
           </div>
           <h2 className="font-semibold text-base">The trash is empty</h2>
         </section>

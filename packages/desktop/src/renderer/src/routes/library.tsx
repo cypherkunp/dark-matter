@@ -29,8 +29,8 @@ function AllSkills() {
           data-testid="library-empty"
           className="flex flex-col items-center gap-3 rounded-xl border px-6 py-16 text-center"
         >
-          <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-            <Library className="size-5 text-muted-foreground" />
+          <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Library className="size-5" />
           </div>
           <h2 className="font-semibold text-base">Your Library is empty</h2>
           <p className="max-w-sm text-muted-foreground text-sm">

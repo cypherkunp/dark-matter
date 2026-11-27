@@ -3,18 +3,18 @@ import { Link } from "@tanstack/react-router";
 import { Boxes, ChevronRight, FolderGit2, Search, Settings, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { tildify } from "@/lib/paths";
 import { useTRPC } from "@/lib/trpc";
 import { relativeTime, useNow } from "@/lib/use-now";
 import { cn } from "@/lib/utils";
 import { type NavItem, navSections } from "@/nav";
-import appIcon from "../../../../build/icon.svg";
 import { StatusDot } from "./status-dot";
 import { useScan } from "./use-scan";
 
 const rowClass =
-  "no-drag flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-sidebar-foreground hover:bg-sidebar-accent/60";
-const activeRowClass = "bg-sidebar-accent font-medium hover:bg-sidebar-accent";
+  "no-drag flex h-9 items-center gap-3 rounded-[10px] px-2.5 font-medium text-[13px] text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
+/** The active row is a soft pill and its icon takes the coral accent. */
+const activeRowClass =
+  "bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent [&>svg:first-child]:text-primary";
 
 /** Sidebar paths with a screen of their own; the rest open the placeholder screen. */
 const builtPaths = new Set([
@@ -66,7 +66,6 @@ const namespaceCounts = (skills: { namespace: string }[]) => {
 
 export function Sidebar({ connected }: { connected: boolean }) {
   const trpc = useTRPC();
-  const info = useQuery(trpc.core.info.queryOptions());
   const library = useQuery(trpc.library.list.queryOptions());
   const problems = useQuery(trpc.ownedFiles.problems.queryOptions());
   const inbox = useQuery(trpc.inbox.list.queryOptions());
@@ -98,23 +97,17 @@ export function Sidebar({ connected }: { connected: boolean }) {
   const matches = (item: { label: string }) => item.label.toLowerCase().includes(filter.trim().toLowerCase());
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-sidebar-border border-r bg-sidebar" data-testid="sidebar">
-      <div className="drag-region flex h-[52px] shrink-0 items-center gap-2.5 pr-4 pl-[84px]">
-        <img src={appIcon} alt="" className="-ml-1 size-[34px] shrink-0" draggable={false} />
-        <div className="min-w-0 leading-tight">
-          <div className="font-semibold text-[13px]">Dark Matter</div>
-          <div className="truncate font-mono text-[11px] text-muted-foreground">
-            {info.data ? `${tildify(info.data.libraryHome)} · ${skillCount ?? 0} Skills` : "Starting core…"}
-          </div>
-        </div>
+    <aside className="dark flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground" data-testid="sidebar">
+      <div className="drag-region flex h-[52px] shrink-0 items-center pr-4 pl-[84px]">
+        <span className="font-semibold text-[14px] tracking-[-0.01em]">Dark Matter</span>
       </div>
 
-      <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2.5 pt-2 pb-4">
+      <nav className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-2.5 pt-2 pb-4">
         <div className="relative px-0.5">
           <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-3.5 text-muted-foreground" />
           <Input
             aria-label="Filter"
-            className="no-drag h-8 bg-background pl-8 text-[13px]"
+            className="no-drag h-8 rounded-full border-transparent bg-sidebar-accent pl-8 text-[13px] dark:bg-sidebar-accent"
             placeholder="Filter"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
@@ -148,7 +141,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
           return (
             <div key={section.title ?? "top"} className="flex flex-col gap-px">
               {section.title && (
-                <div className="flex h-7 items-center px-2.5 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+                <div className="flex h-7 items-center px-2.5 font-medium text-[12px] text-muted-foreground">
                   {section.title}
                   {section.title in sectionCounts && <Count value={sectionCounts[section.title]} />}
                 </div>
@@ -160,7 +153,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
                   {(badges[item.path] ?? 0) > 0 ? (
                     <span
                       data-testid={badgeIds[item.path]}
-                      className="ml-auto rounded-full border border-warning-border bg-warning-surface px-1.5 text-[11px] text-status-warning tabular-nums"
+                      className="ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center font-semibold text-[11px] text-primary-foreground leading-[18px] tabular-nums"
                     >
                       {badges[item.path]}
                     </span>
@@ -218,16 +211,13 @@ export function Sidebar({ connected }: { connected: boolean }) {
                 </Link>
               ))}
               {group && (
-                <NavLink
-                  path={group.path}
-                  className={cn(rowClass, "text-[11px] text-muted-foreground uppercase tracking-wide")}
-                >
+                <NavLink path={group.path} className={cn(rowClass, "text-[12px] text-muted-foreground")}>
                   {group.label}
                   <span className="ml-auto flex items-center gap-1 tabular-nums">
                     {(groupCounts[group.path] ?? 0) > 0 ? (
                       <span
                         data-testid="suggested-badge"
-                        className="rounded-full border border-warning-border bg-warning-surface px-1.5 text-[11px] text-status-warning normal-case tracking-normal"
+                        className="min-w-5 rounded-full bg-primary px-1.5 text-center font-semibold text-[11px] text-primary-foreground leading-[18px]"
                       >
                         {groupCounts[group.path]}
                       </span>
@@ -243,7 +233,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
         })}
       </nav>
 
-      <footer className="flex h-10 shrink-0 items-center gap-2 border-sidebar-border border-t px-4 text-muted-foreground text-xs">
+      <footer className="flex h-11 shrink-0 items-center gap-2 px-4 text-muted-foreground text-xs">
         {/* Grey until the first Scan: green means up to date (visual reference). */}
         <StatusDot tone={connected && lastScanAt ? "healthy" : "off"} />
         <span data-testid="core-status">
@@ -259,7 +249,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
         <Link
           to="/settings"
           aria-label="Settings"
-          className="no-drag relative ml-auto rounded-md p-1 hover:bg-sidebar-accent/60 hover:text-foreground"
+          className="no-drag relative ml-auto rounded-full p-1.5 transition-colors hover:bg-sidebar-accent hover:text-foreground"
           activeProps={{ className: "bg-sidebar-accent text-foreground" }}
         >
           <Settings className="size-4" />
