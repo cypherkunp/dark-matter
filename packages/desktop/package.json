@@ -26,6 +26,8 @@
     "@codemirror/state": "catalog:",
     "@codemirror/view": "catalog:",
     "@dark-matter/contracts": "catalog:",
+    "@pierre/diffs": "catalog:",
+    "@pierre/trees": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-virtual": "catalog:",
