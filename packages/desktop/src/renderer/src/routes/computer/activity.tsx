@@ -184,7 +184,7 @@ function Activity() {
       {activity.isPending ? null : entries.length === 0 ? (
         <section
           data-testid="activity-empty"
-          className="flex flex-col items-center gap-3 rounded-xl border px-6 py-16 text-center"
+          className="flex flex-col items-center gap-3 rounded-2xl bg-foreground/[0.025] px-6 py-16 text-center"
         >
           <div className="flex size-10 items-center justify-center rounded-full bg-muted">
             <History className="size-5 text-muted-foreground" />

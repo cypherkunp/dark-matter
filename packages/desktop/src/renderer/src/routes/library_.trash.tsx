@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Trash2 } from "lucide-react";
+import { openList, openRow } from "@/components/list";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { RowText } from "@/components/row-text";
@@ -8,6 +9,7 @@ import { plural } from "@/components/skill-list";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/library_/trash")({ component: TrashView });
 
@@ -30,7 +32,7 @@ function TrashView() {
       {trash.isPending ? null : list.length === 0 ? (
         <section
           data-testid="trash-empty"
-          className="flex flex-col items-center gap-3 rounded-xl border px-6 py-16 text-center"
+          className="flex flex-col items-center gap-3 rounded-2xl bg-foreground/[0.025] px-6 py-16 text-center"
         >
           <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Trash2 className="size-5" />
@@ -38,9 +40,13 @@ function TrashView() {
           <h2 className="font-semibold text-heading">The trash is empty</h2>
         </section>
       ) : (
-        <div className="divide-y rounded-xl border">
+        <div className={openList}>
           {list.map((skill) => (
-            <div key={skill.id} data-testid="trashed-skill" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+            <div
+              key={skill.id}
+              data-testid="trashed-skill"
+              className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}
+            >
               <StatusDot tone="off" />
               <RowText
                 title={skill.name}

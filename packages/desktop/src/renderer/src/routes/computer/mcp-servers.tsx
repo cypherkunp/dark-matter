@@ -8,6 +8,7 @@ import { useState } from "react";
 import { CodeEditor } from "@/components/code-editor";
 import { ConfirmDialog } from "@/components/copy-actions";
 import { definitionSummary } from "@/components/inbox-mcp";
+import { openList, openRow } from "@/components/list";
 import { byAgent, ManagedMcpGroups } from "@/components/managed-mcp";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/computer/mcp-servers")({ component: McpServers });
 
@@ -163,7 +165,7 @@ function ServerRow({ server }: { server: LibraryMcpServer }) {
   const [editing, setEditing] = useState(false);
   const origins = server.adoptedFrom.map((origin) => `${agentName(origin.agent)} ${origin.file}`).join(", ");
   return (
-    <div data-testid="library-mcp-server" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="library-mcp-server" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       <RowText
         title={server.name}
         chips={server.definition && <Chip mono>{server.definition.transport}</Chip>}
@@ -214,7 +216,7 @@ function McpServers() {
       {list.isPending ? null : servers.length === 0 ? (
         <section
           data-testid="mcp-empty"
-          className="flex flex-col items-center gap-3 rounded-xl border px-6 py-16 text-center"
+          className="flex flex-col items-center gap-3 rounded-2xl bg-foreground/[0.025] px-6 py-16 text-center"
         >
           <div className="flex size-10 items-center justify-center rounded-full bg-muted">
             <Server className="size-5 text-muted-foreground" />
@@ -226,7 +228,7 @@ function McpServers() {
           </p>
         </section>
       ) : (
-        <div className="divide-y rounded-xl border">
+        <div className={openList}>
           {servers.map((server) => (
             <ServerRow key={server.name} server={server} />
           ))}

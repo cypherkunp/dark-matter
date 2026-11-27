@@ -2,6 +2,7 @@ import type { SuggestedProject } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { FolderPlus, FolderSearch } from "lucide-react";
+import { openList, openRow } from "@/components/list";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { RowText } from "@/components/row-text";
@@ -11,6 +12,7 @@ import { useScan } from "@/components/use-scan";
 import { agentName } from "@/lib/agents";
 import { tildify } from "@/lib/paths";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/projects/suggested")({ component: Suggested });
 
@@ -27,7 +29,7 @@ function Row({ suggestion }: { suggestion: SuggestedProject }) {
   const dismiss = useMutation(trpc.project.dismiss.mutationOptions());
   const busy = manage.isPending || dismiss.isPending;
   return (
-    <div data-testid="suggested-project" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="suggested-project" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       <StatusDot tone="warning" />
       <RowText
         title={suggestion.name}
@@ -92,7 +94,7 @@ function Suggested() {
       {suggested.isPending ? null : list.length === 0 ? (
         <section
           data-testid="suggested-empty"
-          className="flex flex-col items-center gap-3 rounded-xl border px-6 py-16 text-center"
+          className="flex flex-col items-center gap-3 rounded-2xl bg-foreground/[0.025] px-6 py-16 text-center"
         >
           <div className="flex size-10 items-center justify-center rounded-full bg-muted">
             <FolderSearch className="size-5 text-muted-foreground" />
@@ -107,7 +109,7 @@ function Suggested() {
           </Button>
         </section>
       ) : (
-        <div className="divide-y rounded-xl border">
+        <div className={openList}>
           {list.map((suggestion) => (
             <Row key={suggestion.path} suggestion={suggestion} />
           ))}

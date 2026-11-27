@@ -6,11 +6,13 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { StarSourceButton } from "@/components/favourites";
+import { openList, openRow } from "@/components/list";
 import { markdownComponents } from "@/components/skill-preview";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
@@ -46,7 +48,7 @@ function CandidateRow({
   const [open, setOpen] = useState(false);
   return (
     <div data-testid="import-candidate" className="flex flex-col">
-      <div className="flex items-center gap-3 px-4 py-2.5">
+      <div className={cn("flex items-center gap-3 py-2.5", openRow)}>
         <input
           type="checkbox"
           aria-label={`Import ${skill.name}`}
@@ -113,7 +115,7 @@ function Picker({ input, preview, project }: { input: string; preview: ImportPre
       {preview.skills.length === 0 ? (
         <p className="text-muted-foreground text-body">No Skills found here.</p>
       ) : (
-        <div className="divide-y rounded-xl border">
+        <div className={openList}>
           {preview.skills.map((skill) => (
             <CandidateRow
               key={skill.path}

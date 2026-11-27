@@ -1,10 +1,12 @@
 import type { AgentId, PendingRequest, RequestReason } from "@dark-matter/contracts";
 import { useMutation } from "@tanstack/react-query";
+import { openList, openRow } from "@/components/list";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
 import { relativeTime, useNow } from "@/lib/use-now";
+import { cn } from "@/lib/utils";
 
 /** Why a Request asks instead of going through on a Grant, in words. */
 const reasonLabels: Record<RequestReason, string> = {
@@ -33,7 +35,7 @@ function RequestRow({ request }: { request: PendingRequest }) {
   const failed = approve.data?.status === "failed" ? approve.data.error?.message : null;
   const error = failed ?? approve.error?.message ?? deny.error?.message;
   return (
-    <div data-testid="inbox-request" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="inbox-request" className={cn("flex min-h-16 items-center gap-3 py-3", openRow)}>
       <StatusDot tone="warning" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="font-medium text-body">{request.summary}</span>
@@ -67,7 +69,7 @@ export function InboxRequests({ requests }: { requests: PendingRequest[] }) {
           after 24 hours.
         </p>
       </div>
-      <div className="divide-y rounded-xl border">
+      <div className={openList}>
         {requests.map((request) => (
           <RequestRow key={request.id} request={request} />
         ))}

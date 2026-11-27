@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { FolderOpen, TriangleAlert } from "lucide-react";
 import { FilteredActivity } from "@/components/activity-view";
+import { openList, openRow } from "@/components/list";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { ProjectGrant } from "@/components/project-grant";
@@ -79,14 +80,14 @@ function AgentPicker({ project }: { project: ProjectDetail }) {
   return (
     <section className="flex flex-col gap-3">
       <h2 className="font-semibold text-section">Agents</h2>
-      <div className="divide-y rounded-xl border">
+      <div className={openList}>
         {project.agentOptions.map((option) => {
           const chosen = project.agents.includes(option.id);
           return (
             <label
               key={option.id}
               data-testid="agent-option"
-              className="flex min-h-12 cursor-pointer items-center gap-3 px-5 py-2.5"
+              className={cn("flex min-h-12 cursor-pointer items-center gap-3 py-2.5", openRow)}
             >
               <input
                 type="checkbox"
@@ -131,9 +132,13 @@ function FoundSkills({ project }: { project: ProjectDetail }) {
           The last Scan found no Skills in this Project's skill folders.
         </p>
       ) : (
-        <div className="divide-y rounded-xl border">
+        <div className={openList}>
           {project.skills.map((skill) => (
-            <div key={skill.path} data-testid="project-skill" className="flex min-h-16 items-center gap-3 px-5 py-3">
+            <div
+              key={skill.path}
+              data-testid="project-skill"
+              className={cn("flex min-h-16 items-center gap-3 py-3", openRow)}
+            >
               <StatusDot tone="off" />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="font-medium text-body">{skill.name}</span>

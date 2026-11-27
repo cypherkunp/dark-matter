@@ -28,6 +28,7 @@ import { IgnoredFindings } from "@/components/ignored-findings";
 import { InboxDrift } from "@/components/inbox-drift";
 import { InboxMcpServers, InboxUntrackedMcpServers } from "@/components/inbox-mcp";
 import { InboxRequests } from "@/components/inbox-requests";
+import { openList, openRow } from "@/components/list";
 import { ManagedMcpGroups } from "@/components/managed-mcp";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
@@ -55,7 +56,7 @@ function Finding({ finding, onAdopt, ticked }: { finding: GlobalSkill; onAdopt: 
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   const reachedFrom = finding.locations.filter((location) => location.path !== finding.realPath);
   return (
-    <div data-testid="inbox-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="inbox-finding" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       <TickBox
         name={finding.name}
         adoptable={finding.adoptable}
@@ -101,7 +102,7 @@ function FolderGroup({ group, onAdopt, ticked }: { group: InboxFolderGroup; onAd
           ))}
         </span>
       </h2>
-      <div className="divide-y rounded-xl border">
+      <div className={openList}>
         {group.findings.map((finding) => (
           <Finding key={finding.id} finding={finding} onAdopt={onAdopt} ticked={ticked} />
         ))}
@@ -114,7 +115,7 @@ function UntrackedFinding({ finding, onAdopt, ticked }: { finding: UntrackedSkil
   const trpc = useTRPC();
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   return (
-    <div data-testid="inbox-untracked-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="inbox-untracked-finding" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       <TickBox
         name={finding.name}
         adoptable={finding.adoptable}
@@ -163,9 +164,13 @@ function NewSkillsGroup({ group }: { group: InboxNewSkillsGroup }) {
           Import…
         </Link>
       </h2>
-      <div className="divide-y rounded-xl border">
+      <div className={openList}>
         {group.findings.map((finding) => (
-          <div key={finding.id} data-testid="inbox-new-skill" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+          <div
+            key={finding.id}
+            data-testid="inbox-new-skill"
+            className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}
+          >
             <StatusDot tone="warning" />
             <RowText title={finding.name} detail={`${group.source}/${finding.path}`} />
             <Button
@@ -192,7 +197,7 @@ function ProjectGroup({ group, onAdopt, ticked }: { group: InboxProjectGroup; on
         </Link>
         <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
       </h2>
-      <div className="divide-y rounded-xl border">
+      <div className={openList}>
         {group.findings.map((finding) => (
           <UntrackedFinding key={finding.id} finding={finding} onAdopt={onAdopt} ticked={ticked} />
         ))}
@@ -214,7 +219,7 @@ function ManagedFinding({ finding }: { finding: ManagedSkill }) {
   const guarded = useAgentConfigGuard();
   const busy = ignore.isPending || turnOff.isPending;
   return (
-    <div data-testid="inbox-managed-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="inbox-managed-finding" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       <StatusDot tone="on" />
       <RowText
         title={finding.name}
@@ -260,7 +265,7 @@ function ManagedGroup({ group }: { group: InboxManagedGroup }) {
         <span>{agentName(group.agent)}</span>
         <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
       </h2>
-      <div className="divide-y rounded-xl border">
+      <div className={openList}>
         {group.findings.map((finding) => (
           <ManagedFinding key={finding.id} finding={finding} />
         ))}
@@ -301,7 +306,7 @@ function Inbox() {
       {inbox.isPending ? null : count === 0 ? (
         <section
           data-testid="inbox-empty"
-          className="flex flex-col items-center gap-3 rounded-xl border px-6 py-16 text-center"
+          className="flex flex-col items-center gap-3 rounded-2xl bg-foreground/[0.025] px-6 py-16 text-center"
         >
           <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <InboxIcon className="size-5" />

@@ -2,18 +2,20 @@ import type { SkillDetail, SkillProjectUse } from "@dark-matter/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { CopyActions, CopyStateBadge, useProjectSkillChanges, useResolveConflict } from "@/components/copy-actions";
+import { openList, openRow } from "@/components/list";
 import { modeLabels, OnOffSwitch } from "@/components/project-skills";
 import { RowText } from "@/components/row-text";
 import { StatusDot } from "@/components/status-dot";
 import { Chip } from "@/components/ui/chip";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 function ProjectUseRow({ use }: { use: SkillProjectUse }) {
   const changes = useProjectSkillChanges(use.path, use);
   const resolve = useResolveConflict(use.path, use);
   const conflict = use.status === "nameConflict";
   return (
-    <div data-testid="skill-project-row" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="skill-project-row" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       <StatusDot tone={conflict ? "warning" : use.on ? "on" : "off"} />
       <RowText
         title={
@@ -62,7 +64,7 @@ export function SkillProjects({ skill }: { skill: SkillDetail }) {
       <p className="text-muted-foreground text-body">No Project uses this Skill yet. Add it from a Project page.</p>
     );
   return (
-    <div className="divide-y rounded-xl border">
+    <div className={openList}>
       {list.map((use) => (
         <ProjectUseRow key={use.path} use={use} />
       ))}

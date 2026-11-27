@@ -2,12 +2,14 @@ import type { InboxManagedMcpGroup, ManagedMcpServer, McpOffSwitch } from "@dark
 import { useMutation } from "@tanstack/react-query";
 import { ConsentError, guardedOffSwitchText, useAgentConfigGuard } from "@/components/adopt-consent";
 import { definitionSummary } from "@/components/inbox-mcp";
+import { openList, openRow } from "@/components/list";
 import { RowText } from "@/components/row-text";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 const offLabel: Record<McpOffSwitch["scope"], string> = {
   server: "Turn off everywhere",
@@ -33,7 +35,7 @@ export function ManagedMcpRow({ server, inInbox = false }: { server: ManagedMcpS
   const guarded = useAgentConfigGuard();
   const busy = ignore.isPending || turnOff.isPending;
   return (
-    <div data-testid="managed-mcp-server" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="managed-mcp-server" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       <StatusDot tone={server.off ? "off" : "on"} />
       <RowText
         title={server.name}
@@ -93,7 +95,7 @@ export function ManagedMcpGroups({ groups, inInbox = false }: { groups: InboxMan
             <span>{agentName(group.agent)}</span>
             <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
           </h3>
-          <div className="divide-y rounded-xl border">
+          <div className={openList}>
             {group.findings.map((server) => (
               <ManagedMcpRow key={server.id} server={server} inInbox={inInbox} />
             ))}

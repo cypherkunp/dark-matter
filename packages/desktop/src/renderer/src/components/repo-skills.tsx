@@ -1,7 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { openList, openRow } from "@/components/list";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 /**
  * What the repo already has (#28): `skills-lock.json` entries waiting to be
@@ -38,9 +40,9 @@ export function RepoSkills({ path }: { path: string }) {
             files already committed are kept as they are.
           </p>
           {fulfil.error && <p className="text-body text-status-warning">{fulfil.error.message}</p>}
-          <div className="divide-y rounded-xl border">
+          <div className={openList}>
             {locked.map((entry) => (
-              <div key={entry.name} data-testid="locked-skill" className="flex items-center gap-3 px-5 py-3">
+              <div key={entry.name} data-testid="locked-skill" className={cn("flex items-center gap-3 py-3", openRow)}>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-body">{entry.name}</span>
@@ -75,9 +77,13 @@ export function RepoSkills({ path }: { path: string }) {
           <p className="text-muted-foreground text-meta">
             Committed in this repo, not by Dark Matter. Shown here, never changed.
           </p>
-          <div className="divide-y rounded-xl border">
+          <div className={openList}>
             {vendored.map((skill) => (
-              <div key={skill.paths.join()} data-testid="vendored-skill" className="flex flex-col gap-0.5 px-5 py-3">
+              <div
+                key={skill.paths.join()}
+                data-testid="vendored-skill"
+                className={cn("flex flex-col gap-0.5 py-3", openRow)}
+              >
                 <span className="font-medium text-body">{skill.name}</span>
                 {skill.description && <p className="truncate text-muted-foreground text-meta">{skill.description}</p>}
                 <div className="truncate font-mono text-muted-foreground text-meta">{skill.paths.join(" · ")}</div>

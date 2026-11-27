@@ -6,12 +6,14 @@ import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { ConfirmDialog } from "@/components/copy-actions";
+import { openList, openRow } from "@/components/list";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { plural } from "@/components/skill-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/collection")({
   validateSearch: (search: Record<string, unknown>): { name: string; add?: boolean } => ({
@@ -101,9 +103,13 @@ function CollectionView() {
             No Skills yet. Add some from the Library.
           </p>
         ) : (
-          <div className="divide-y rounded-xl border">
+          <div className={openList}>
             {skillItems.map((item) => (
-              <div key={item.key} data-testid="collection-item" className="flex min-h-16 items-center gap-3 px-4 py-3">
+              <div
+                key={item.key}
+                data-testid="collection-item"
+                className={cn("flex min-h-16 items-center gap-3 py-3", openRow)}
+              >
                 <div className="min-w-0 flex-1">
                   {item.missing ? (
                     <div className="text-body">{item.name}</div>
@@ -144,12 +150,12 @@ function CollectionView() {
         {serverItems.length === 0 ? (
           <p className="text-muted-foreground text-body">No MCP Servers yet. Add some from the Library.</p>
         ) : (
-          <div className="divide-y rounded-xl border">
+          <div className={openList}>
             {serverItems.map((item) => (
               <div
                 key={item.name}
                 data-testid="collection-server"
-                className="flex min-h-14 items-center gap-3 px-4 py-3"
+                className={cn("flex min-h-14 items-center gap-3 py-3", openRow)}
               >
                 <div className="min-w-0 flex-1">
                   <div className="font-mono text-body">{item.name}</div>
