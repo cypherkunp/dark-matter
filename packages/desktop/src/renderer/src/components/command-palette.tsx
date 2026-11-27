@@ -5,6 +5,10 @@ import { cn } from "@/lib/utils";
 import { filterCommands, useCommands } from "./use-commands";
 
 const LIMIT = 50;
+const OPEN_EVENT = "dark-matter:open-command-palette";
+
+/** Open the ⌘K command palette from anywhere (e.g. the toolbar search field). */
+export const openCommandPalette = () => window.dispatchEvent(new Event(OPEN_EVENT));
 
 /** ⌘K (Ctrl+K off macOS): jump to any Skill, Namespace or Project, or run an action. */
 export function CommandPalette() {
@@ -22,8 +26,13 @@ export function CommandPalette() {
         setOpen((current) => !current);
       }
     };
+    const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener(OPEN_EVENT, onOpen);
+    };
   }, []);
 
   useEffect(() => {
