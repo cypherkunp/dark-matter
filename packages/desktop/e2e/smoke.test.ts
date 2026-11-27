@@ -26,6 +26,13 @@ test("renders the shell in light and dark mode", async ({ launchApp }) => {
   const window = await app.firstWindow();
   await expect(window.getByTestId("library-empty")).toBeVisible();
 
+  // The toolbar search opens the command palette; no breadcrumb on a top-level screen.
+  await expect(window.getByRole("navigation", { name: "Breadcrumb" })).toHaveCount(0);
+  await window.getByRole("button", { name: /Search Skills, Projects and actions/ }).click();
+  await expect(window.getByTestId("command-palette")).toBeVisible();
+  await window.keyboard.press("Escape");
+  await expect(window.getByTestId("command-palette")).toBeHidden();
+
   const colours = () =>
     window.evaluate(() => ({
       dark: document.documentElement.classList.contains("dark"),
