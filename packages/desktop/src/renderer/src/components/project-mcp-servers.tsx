@@ -527,7 +527,7 @@ export function ProjectMcpServers({ path }: { path: string }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 font-semibold text-body">
+        <h2 className="flex items-center gap-2 font-semibold text-section">
           MCP Servers
           <span className="font-normal text-muted-foreground text-meta tabular-nums">{list.length}</span>
         </h2>

@@ -96,8 +96,8 @@ function Finding({ finding, onAdopt, ticked }: { finding: GlobalSkill; onAdopt: 
 function FolderGroup({ group, onAdopt, ticked }: { group: InboxFolderGroup; onAdopt: Adopt; ticked: Ticked }) {
   return (
     <section data-testid="inbox-group" className="flex flex-col gap-3">
-      <h2 className="flex flex-wrap items-center gap-2 font-semibold text-body">
-        <span className="font-mono">{group.folder}</span>
+      <h2 className="flex flex-wrap items-center gap-2 font-semibold text-section">
+        <span className="font-mono font-medium">{group.folder}</span>
         <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
         <span className="ml-auto flex flex-wrap items-center gap-1">
           {group.agents.map((agent) => (
@@ -165,8 +165,8 @@ function NewSkillsGroup({ group }: { group: InboxNewSkillsGroup }) {
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   return (
     <section data-testid="inbox-new-skills" className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 font-semibold text-body">
-        New Skills in ⭐ <span className="font-mono">{group.source}</span>
+      <h2 className="flex items-center gap-2 font-semibold text-section">
+        New Skills in ⭐ <span className="font-mono font-medium">{group.source}</span>
         <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
         <Link
           to="/get/github"
@@ -204,7 +204,7 @@ function NewSkillsGroup({ group }: { group: InboxNewSkillsGroup }) {
 function ProjectGroup({ group, onAdopt, ticked }: { group: InboxProjectGroup; onAdopt: Adopt; ticked: Ticked }) {
   return (
     <section data-testid="inbox-untracked-group" className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 font-semibold text-body">
+      <h2 className="flex items-center gap-2 font-semibold text-section">
         <Link to="/project" search={{ path: group.project }} className="hover:underline">
           {group.name}
         </Link>
@@ -277,7 +277,7 @@ function ManagedFinding({ finding }: { finding: ManagedSkill }) {
 function ManagedGroup({ group }: { group: InboxManagedGroup }) {
   return (
     <section data-testid="inbox-managed-group" className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 font-semibold text-body">
+      <h2 className="flex items-center gap-2 font-semibold text-section">
         <span>{agentName(group.agent)}</span>
         <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
       </h2>

@@ -92,7 +92,7 @@ export function IgnoredFindings({ count }: { count: number }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <h2 className="font-semibold text-body">Ignored</h2>
+        <h2 className="font-semibold text-section">Ignored</h2>
         <span className="text-muted-foreground text-meta tabular-nums">{count}</span>
         <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setOpen(!open)}>
           {open ? "Hide" : "Show ignored"}

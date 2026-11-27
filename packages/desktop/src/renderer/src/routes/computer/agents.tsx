@@ -15,7 +15,7 @@ function Card({ agent }: { agent: AgentCard }) {
     <div data-testid="agent-card" className="flex flex-col gap-3 rounded-xl border px-5 py-4">
       <div className="flex items-center gap-2">
         <StatusDot tone={agent.detected ? "healthy" : "off"} />
-        <h2 className="font-semibold text-body">{agent.name}</h2>
+        <h2 className="font-semibold text-section">{agent.name}</h2>
         <span className="ml-auto text-muted-foreground text-meta">
           {scanned ? (agent.detected ? "Detected" : "Not detected") : "Not scanned yet"}
         </span>

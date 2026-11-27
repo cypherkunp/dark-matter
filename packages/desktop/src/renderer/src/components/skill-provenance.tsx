@@ -42,7 +42,7 @@ export function SkillProvenance({ skill }: { skill: SkillDetail }) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold text-body">
+        <h2 className="font-semibold text-section">
           Library Lock entry <span className="font-mono font-normal text-muted-foreground">"{skill.key}"</span>
         </h2>
         <dl
@@ -59,7 +59,7 @@ export function SkillProvenance({ skill }: { skill: SkillDetail }) {
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold text-body">Adopted from</h2>
+        <h2 className="font-semibold text-section">Adopted from</h2>
         {entry.adoptedFrom ? (
           <div className="flex items-center gap-3 rounded-xl border px-4 py-3">
             <div className="flex min-w-0 flex-1 flex-col gap-1 font-mono text-meta">

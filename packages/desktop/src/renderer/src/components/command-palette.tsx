@@ -83,9 +83,7 @@ export function CommandPalette() {
             {results.map((command, index) => (
               <div key={command.id}>
                 {command.group !== results[index - 1]?.group && (
-                  <div className="px-2.5 pt-2 pb-1 font-medium text-micro text-muted-foreground uppercase tracking-wide">
-                    {command.group}
-                  </div>
+                  <div className="px-2.5 pt-2 pb-1 font-medium text-micro text-muted-foreground">{command.group}</div>
                 )}
                 <div
                   id={`command-${command.id}`}

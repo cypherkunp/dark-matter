@@ -38,7 +38,7 @@ function FavouritesView() {
         <>
           {sources.length > 0 && (
             <section className="flex flex-col gap-3">
-              <h2 className="flex items-center gap-2 font-semibold text-body">
+              <h2 className="flex items-center gap-2 font-semibold text-section">
                 Starred Sources
                 <span className="font-normal text-muted-foreground text-meta tabular-nums">{sources.length}</span>
               </h2>

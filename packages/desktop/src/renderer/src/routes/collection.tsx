@@ -90,7 +90,7 @@ function CollectionView() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center">
-          <h2 className="font-semibold text-body">Skills</h2>
+          <h2 className="font-semibold text-section">Skills</h2>
           <Button size="sm" variant="outline" className="ml-auto" onClick={() => setDialog("add")}>
             Add Skills
           </Button>
@@ -135,7 +135,7 @@ function CollectionView() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center">
-          <h2 className="font-semibold text-body">MCP Servers</h2>
+          <h2 className="font-semibold text-section">MCP Servers</h2>
           <Button size="sm" variant="outline" className="ml-auto" onClick={() => setDialog("addServers")}>
             Add MCP Servers
           </Button>

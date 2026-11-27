@@ -41,7 +41,7 @@ function AllSkills() {
       ) : (
         byNamespace(skills).map(([namespace, members]) => (
           <section key={namespace} data-testid="library-namespace" className="flex flex-col gap-3">
-            <h2 className="flex items-center gap-2 font-semibold text-body">
+            <h2 className="flex items-center gap-2 font-semibold text-section">
               <Link to="/namespace" search={{ name: namespace }} className="font-mono hover:underline">
                 {namespace}
               </Link>

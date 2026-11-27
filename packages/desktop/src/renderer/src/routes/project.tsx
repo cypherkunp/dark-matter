@@ -75,7 +75,7 @@ function AgentPicker({ project }: { project: ProjectDetail }) {
   };
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="font-semibold text-body">Agents</h2>
+      <h2 className="font-semibold text-section">Agents</h2>
       <div className="divide-y rounded-xl border">
         {project.agentOptions.map((option) => {
           const chosen = project.agents.includes(option.id);
@@ -121,7 +121,7 @@ function FoundSkills({ project }: { project: ProjectDetail }) {
   }
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 font-semibold text-body">
+      <h2 className="flex items-center gap-2 font-semibold text-section">
         Skills in its folders
         <span className="font-normal text-muted-foreground text-meta tabular-nums">{project.skills.length}</span>
       </h2>
