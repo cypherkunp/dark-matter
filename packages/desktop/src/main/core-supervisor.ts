@@ -8,7 +8,7 @@ export interface CoreSupervisorOptions {
   coreFilePath: string;
   /** The bundled core entry (`core/dist/main.mjs`). */
   coreEntry: string;
-  /** Environment for a spawned core; ELECTRON_RUN_AS_NODE is added. */
+  /** Environment for a spawned core; ELECTRON_RUN_AS_NODE is added, NODE_USE_SYSTEM_CA defaulted. */
   env: NodeJS.ProcessEnv;
   log: (message: string) => void;
 }
@@ -133,7 +133,11 @@ export class CoreSupervisor {
   async #spawn(): Promise<void> {
     const startedAt = Date.now();
     const child = spawn(process.execPath, [this.#options.coreEntry], {
-      env: { ...this.#options.env, ELECTRON_RUN_AS_NODE: "1" },
+      // NODE_USE_SYSTEM_CA: Node ships its own CA list, so behind a TLS-inspecting
+      // proxy (Netskope, Zscaler) every fetch to GitHub or skills.sh fails with
+      // "self signed certificate in certificate chain". The system store has the
+      // proxy's CA. An explicit value in the environment still wins.
+      env: { NODE_USE_SYSTEM_CA: "1", ...this.#options.env, ELECTRON_RUN_AS_NODE: "1" },
       stdio: ["ignore", "inherit", "inherit"],
     });
     this.#child = child;

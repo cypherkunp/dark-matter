@@ -11,6 +11,7 @@ import {
 } from "@dark-matter/contracts";
 import { z } from "zod";
 import type { Clock } from "./clock";
+import { describeFetchError } from "./fetch-error";
 import { type Importer, installedName } from "./importer";
 import type { Library } from "./library";
 
@@ -108,7 +109,7 @@ export class SkillsSh {
         signal: AbortSignal.timeout(20_000),
       });
     } catch (error) {
-      throw new SourceUnreachable("skills.sh", error instanceof Error ? error.message : String(error));
+      throw new SourceUnreachable("skills.sh", describeFetchError(error));
     }
     if (response.status === 429) {
       const seconds = Number(response.headers.get("retry-after"));

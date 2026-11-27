@@ -6,6 +6,7 @@ import { pipeline } from "node:stream/promises";
 import type { ReadableStream } from "node:stream/web";
 import { type GitHubAuthMethod, RateLimited, SourceUnreachable } from "@dark-matter/contracts";
 import { x as extractTar } from "tar";
+import { describeFetchError } from "./fetch-error";
 import type { SecretStore } from "./secrets";
 
 /** How the core reaches GitHub. Tests and e2e pass the fake's `api` and a `ghToken` that never runs `gh`. */
@@ -110,7 +111,7 @@ export class GitHubSession {
         signal: AbortSignal.timeout(60_000),
       });
     } catch (error) {
-      throw new SourceUnreachable(what, error instanceof Error ? error.message : String(error));
+      throw new SourceUnreachable(what, describeFetchError(error));
     }
     this.#noteRateLimit(response);
     if (response.ok) return response;
