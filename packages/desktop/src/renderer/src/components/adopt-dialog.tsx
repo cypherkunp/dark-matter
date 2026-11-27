@@ -42,22 +42,22 @@ function PlannedSkill({ skill }: { skill: AdoptPlanSkill }) {
   return (
     <div className="flex flex-col gap-1.5 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-sm">{skill.name}</span>
-        <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{skill.key}</span>
+        <span className="font-medium text-body">{skill.name}</span>
+        <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">{skill.key}</span>
         <span
           className={
             skill.outcome === "variant"
-              ? "rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px] text-status-warning"
-              : "rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+              ? "rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro text-status-warning"
+              : "rounded-md bg-muted px-1.5 py-0.5 text-micro text-muted-foreground"
           }
         >
           {outcomeLabels[skill.outcome]}
         </span>
       </div>
       {skill.diff && (
-        <details className="text-xs">
+        <details className="text-meta">
           <summary className="cursor-default text-muted-foreground">Differs from {skill.diff.against}</summary>
-          <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-muted p-3 font-mono text-[11px] leading-relaxed">
+          <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-muted p-3 font-mono text-micro leading-relaxed">
             {skill.diff.patch}
           </pre>
         </details>
@@ -116,10 +116,10 @@ export function AdoptDialog({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(42rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">
+          <Dialog.Title className="font-semibold text-heading">
             {keepLink ? "Adopt & keep Link" : "Adopt"} {plural(count, "Skill")}
           </Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">
+          <Dialog.Description className="text-muted-foreground text-body">
             Each Skill moves into the Library{keepLink ? " and a Link to it goes back where it was, On" : ""}. Nothing
             is deleted, and you can Undo Adopt from the Skill's Provenance tab.
           </Dialog.Description>
@@ -128,7 +128,7 @@ export function AdoptDialog({
               {plan.data.warnings.map((warning) => (
                 <div
                   key={warning}
-                  className="flex gap-2.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-sm"
+                  className="flex gap-2.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-body"
                 >
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
                   <span>{warning}</span>
@@ -139,7 +139,7 @@ export function AdoptDialog({
                   <PlannedSkill key={skill.finding} skill={skill} />
                 ))}
               </div>
-              <ol className="flex flex-col gap-1 font-mono text-[11px] text-muted-foreground">
+              <ol className="flex flex-col gap-1 font-mono text-micro text-muted-foreground">
                 {plan.data.steps.map((step) => (
                   <li key={stepText(step)}>{stepText(step)}</li>
                 ))}

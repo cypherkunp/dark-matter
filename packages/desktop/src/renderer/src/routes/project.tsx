@@ -40,14 +40,14 @@ function GoneBanner({ project }: { project: ProjectDetail }) {
     >
       <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="text-sm">
+        <p className="text-body">
           <span className="font-mono font-semibold">{tildify(project.path)}</span> is gone
         </p>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-muted-foreground text-meta">
           If the folder moved, point the Project at its new location. Remove forgets the Project and removes its
           Personal MCP entries.
         </p>
-        {locate.error && <p className="text-status-warning text-xs">{locate.error.message}</p>}
+        {locate.error && <p className="text-status-warning text-meta">{locate.error.message}</p>}
       </div>
       <Button
         size="sm"
@@ -75,7 +75,7 @@ function AgentPicker({ project }: { project: ProjectDetail }) {
   };
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="font-semibold text-sm">Agents</h2>
+      <h2 className="font-semibold text-body">Agents</h2>
       <div className="divide-y rounded-xl border">
         {project.agentOptions.map((option) => {
           const chosen = project.agents.includes(option.id);
@@ -92,21 +92,21 @@ function AgentPicker({ project }: { project: ProjectDetail }) {
                 disabled={setAgents.isPending || (chosen && project.agents.length === 1)}
                 onChange={() => toggle(option.id)}
               />
-              <span className="text-sm">{option.name}</span>
+              <span className="text-body">{option.name}</span>
               {option.detected && (
-                <span className="rounded-md border px-1.5 py-0.5 text-[11px] text-muted-foreground">detected</span>
+                <span className="rounded-md border px-1.5 py-0.5 text-micro text-muted-foreground">detected</span>
               )}
-              <span className="ml-auto font-mono text-muted-foreground text-xs">{option.folder}</span>
+              <span className="ml-auto font-mono text-muted-foreground text-meta">{option.folder}</span>
             </label>
           );
         })}
       </div>
-      <p data-testid="project-folders" className="text-muted-foreground text-xs">
+      <p data-testid="project-folders" className="text-muted-foreground text-meta">
         Dark Matter writes Project Skills to{" "}
         {project.folders.map((folder, index) => (
           <span key={folder}>
             {index > 0 && " and "}
-            <code className="rounded-md border px-1 py-0.5 font-mono text-[11px] text-foreground">{folder}</code>
+            <code className="rounded-md border px-1 py-0.5 font-mono text-micro text-foreground">{folder}</code>
           </span>
         ))}{" "}
         in this Project.
@@ -117,26 +117,28 @@ function AgentPicker({ project }: { project: ProjectDetail }) {
 
 function FoundSkills({ project }: { project: ProjectDetail }) {
   if (project.skills === null) {
-    return <p className="text-muted-foreground text-sm">Its skill folders are read on the next Scan.</p>;
+    return <p className="text-muted-foreground text-body">Its skill folders are read on the next Scan.</p>;
   }
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 font-semibold text-sm">
+      <h2 className="flex items-center gap-2 font-semibold text-body">
         Skills in its folders
-        <span className="font-normal text-muted-foreground text-xs tabular-nums">{project.skills.length}</span>
+        <span className="font-normal text-muted-foreground text-meta tabular-nums">{project.skills.length}</span>
       </h2>
       {project.skills.length === 0 ? (
-        <p className="text-muted-foreground text-sm">The last Scan found no Skills in this Project's skill folders.</p>
+        <p className="text-muted-foreground text-body">
+          The last Scan found no Skills in this Project's skill folders.
+        </p>
       ) : (
         <div className="divide-y rounded-xl border">
           {project.skills.map((skill) => (
             <div key={skill.path} data-testid="project-skill" className="flex min-h-16 items-center gap-3 px-5 py-3">
               <StatusDot tone="off" />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="font-medium text-sm">{skill.name}</span>
-                {skill.description && <p className="truncate text-muted-foreground text-xs">{skill.description}</p>}
+                <span className="font-medium text-body">{skill.name}</span>
+                {skill.description && <p className="truncate text-muted-foreground text-meta">{skill.description}</p>}
               </div>
-              <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+              <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
                 {skill.folder}
               </span>
             </div>
@@ -161,8 +163,8 @@ function UntrackedBanner({ path }: { path: string }) {
     >
       <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="text-sm">{plural(count, "untracked Skill")} in this Project</p>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-body">{plural(count, "untracked Skill")} in this Project</p>
+        <p className="text-muted-foreground text-meta">
           Adopt them from the Inbox: each moves into the Library and a Link goes back, so this Project sees no change.
         </p>
       </div>

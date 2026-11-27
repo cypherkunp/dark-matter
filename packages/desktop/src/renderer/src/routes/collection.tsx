@@ -60,7 +60,7 @@ function CollectionView() {
     return (
       <div className="mx-auto flex max-w-5xl flex-col gap-4 px-10 py-9">
         <PageHead title={name} summary="No Collection has this name." />
-        <Link to="/library/collections" className="text-sm hover:underline">
+        <Link to="/library/collections" className="text-body hover:underline">
           All Collections
         </Link>
       </div>
@@ -90,13 +90,13 @@ function CollectionView() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center">
-          <h2 className="font-semibold text-sm">Skills</h2>
+          <h2 className="font-semibold text-body">Skills</h2>
           <Button size="sm" variant="outline" className="ml-auto" onClick={() => setDialog("add")}>
             Add Skills
           </Button>
         </div>
         {skillItems.length === 0 ? (
-          <p data-testid="collection-empty" className="text-muted-foreground text-sm">
+          <p data-testid="collection-empty" className="text-muted-foreground text-body">
             No Skills yet. Add some from the Library.
           </p>
         ) : (
@@ -105,16 +105,16 @@ function CollectionView() {
               <div key={item.key} data-testid="collection-item" className="flex min-h-16 items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   {item.missing ? (
-                    <div className="text-sm">{item.name}</div>
+                    <div className="text-body">{item.name}</div>
                   ) : (
-                    <Link to="/skill" search={{ key: item.key }} className="text-sm hover:underline">
+                    <Link to="/skill" search={{ key: item.key }} className="text-body hover:underline">
                       {item.name}
                     </Link>
                   )}
-                  <div className="font-mono text-[11px] text-muted-foreground">{item.key}</div>
+                  <div className="font-mono text-micro text-muted-foreground">{item.key}</div>
                 </div>
                 {item.missing && (
-                  <span className="rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-status-warning text-xs">
+                  <span className="rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-status-warning text-meta">
                     Not in the Library
                   </span>
                 )}
@@ -130,18 +130,18 @@ function CollectionView() {
             ))}
           </div>
         )}
-        {setItems.error && <p className="text-sm text-status-warning">{setItems.error.message}</p>}
+        {setItems.error && <p className="text-body text-status-warning">{setItems.error.message}</p>}
       </section>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center">
-          <h2 className="font-semibold text-sm">MCP Servers</h2>
+          <h2 className="font-semibold text-body">MCP Servers</h2>
           <Button size="sm" variant="outline" className="ml-auto" onClick={() => setDialog("addServers")}>
             Add MCP Servers
           </Button>
         </div>
         {serverItems.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No MCP Servers yet. Add some from the Library.</p>
+          <p className="text-muted-foreground text-body">No MCP Servers yet. Add some from the Library.</p>
         ) : (
           <div className="divide-y rounded-xl border">
             {serverItems.map((item) => (
@@ -151,11 +151,11 @@ function CollectionView() {
                 className="flex min-h-14 items-center gap-3 px-4 py-3"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="font-mono text-sm">{item.name}</div>
-                  <div className="text-[11px] text-muted-foreground">MCP Server · Personal by default</div>
+                  <div className="font-mono text-body">{item.name}</div>
+                  <div className="text-micro text-muted-foreground">MCP Server · Personal by default</div>
                 </div>
                 {item.missing && (
-                  <span className="rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-status-warning text-xs">
+                  <span className="rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-status-warning text-meta">
                     Not in the Library
                   </span>
                 )}
@@ -250,10 +250,10 @@ function AddSkillsToCollection({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(36rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">Add Skills to the Collection</Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">Pick Library Skills.</Dialog.Description>
+          <Dialog.Title className="font-semibold text-heading">Add Skills to the Collection</Dialog.Title>
+          <Dialog.Description className="text-muted-foreground text-body">Pick Library Skills.</Dialog.Description>
           {candidates.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Every Library Skill is already in this Collection.</p>
+            <p className="text-muted-foreground text-body">Every Library Skill is already in this Collection.</p>
           ) : (
             <div className="min-h-0 divide-y overflow-y-auto rounded-xl border">
               {candidates.map((skill) => (
@@ -272,8 +272,8 @@ function AddSkillsToCollection({
                       )
                     }
                   />
-                  <span className="text-sm">{skill.name}</span>
-                  <span className="font-mono text-[11px] text-muted-foreground">{skill.key}</span>
+                  <span className="text-body">{skill.name}</span>
+                  <span className="font-mono text-micro text-muted-foreground">{skill.key}</span>
                 </label>
               ))}
             </div>
@@ -310,10 +310,10 @@ function AddServersToCollection({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(36rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">Add MCP Servers to the Collection</Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">Pick Library MCP Servers.</Dialog.Description>
+          <Dialog.Title className="font-semibold text-heading">Add MCP Servers to the Collection</Dialog.Title>
+          <Dialog.Description className="text-muted-foreground text-body">Pick Library MCP Servers.</Dialog.Description>
           {candidates.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No other Library MCP Servers to add.</p>
+            <p className="text-muted-foreground text-body">No other Library MCP Servers to add.</p>
           ) : (
             <div className="min-h-0 divide-y overflow-y-auto rounded-xl border">
               {candidates.map((server) => (
@@ -334,8 +334,8 @@ function AddServersToCollection({
                       )
                     }
                   />
-                  <span className="font-mono text-sm">{server.name}</span>
-                  <span className="text-[11px] text-muted-foreground">{server.definition?.transport}</span>
+                  <span className="font-mono text-body">{server.name}</span>
+                  <span className="text-micro text-muted-foreground">{server.definition?.transport}</span>
                 </label>
               ))}
             </div>
@@ -369,12 +369,12 @@ function RenameCollectionDialog({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex w-[min(30rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">Rename Collection</Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">
+          <Dialog.Title className="font-semibold text-heading">Rename Collection</Dialog.Title>
+          <Dialog.Description className="text-muted-foreground text-body">
             Projects that used it aren't affected.
           </Dialog.Description>
           <Input aria-label="Collection name" value={to} onChange={(event) => setTo(event.target.value)} />
-          {rename.error && <p className="text-sm text-status-warning">{rename.error.message}</p>}
+          {rename.error && <p className="text-body text-status-warning">{rename.error.message}</p>}
           <div className="flex justify-end gap-2">
             <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>
             <Button

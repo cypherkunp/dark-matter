@@ -31,7 +31,7 @@ export function AdoptPermissionSwitch({ agent, kind }: { agent: AgentId; kind: A
         label={`Allow moving ${kind === "skills" ? "Skills" : "MCP Servers"} from ${agentName(agent)}`}
         onChange={(allowed) => setPermission.mutate({ agent, kind, allowed })}
       />
-      {setPermission.error && <span className="text-status-warning text-xs">{setPermission.error.message}</span>}
+      {setPermission.error && <span className="text-status-warning text-meta">{setPermission.error.message}</span>}
     </span>
   );
 }
@@ -50,12 +50,12 @@ export function AgentsSettings() {
 
   return (
     <section data-testid="agents-settings" className="flex flex-col gap-3">
-      <h2 className="font-semibold text-sm">Agents</h2>
-      <h3 className="font-medium text-muted-foreground text-xs">Agent Config Guard</h3>
+      <h2 className="font-semibold text-body">Agents</h2>
+      <h3 className="font-medium text-muted-foreground text-meta">Agent Config Guard</h3>
       <div className="flex min-h-16 items-center gap-6 rounded-xl border px-5 py-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="font-medium text-sm">{guardLabel}</span>
-          <p className="text-muted-foreground text-xs">
+          <span className="font-medium text-body">{guardLabel}</span>
+          <p className="text-muted-foreground text-meta">
             Dark Matter won't change an Agent's global config: no turning off Agent-managed Skills or MCP Servers, and
             no moving MCP Servers into the Library. What it delivers into Projects isn't affected.
           </p>
@@ -67,17 +67,17 @@ export function AgentsSettings() {
           onChange={(on) => setGuard.mutate({ on })}
         />
       </div>
-      {setGuard.error && <p className="text-sm text-status-warning">{setGuard.error.message}</p>}
-      <h3 className="font-medium text-muted-foreground text-xs">Adopt Permissions</h3>
+      {setGuard.error && <p className="text-body text-status-warning">{setGuard.error.message}</p>}
+      <h3 className="font-medium text-muted-foreground text-meta">Adopt Permissions</h3>
       <div className="divide-y rounded-xl border">
-        <div className="flex items-center gap-6 px-5 py-2 text-muted-foreground text-xs">
+        <div className="flex items-center gap-6 px-5 py-2 text-muted-foreground text-meta">
           <span className="flex-1">Adopt may move what it finds in each Agent's own folders and config.</span>
           <span className="w-24 text-center">Skills</span>
           <span className="w-24 text-center">MCP Servers</span>
         </div>
         {agents.map((agent) => (
           <div key={agent} data-testid="agent-permission-row" className="flex min-h-12 items-center gap-6 px-5 py-2">
-            <span className="flex-1 font-medium text-sm">{agentName(agent)}</span>
+            <span className="flex-1 font-medium text-body">{agentName(agent)}</span>
             <span className="flex w-24 justify-center">
               <AdoptPermissionSwitch agent={agent} kind="skills" />
             </span>
@@ -85,13 +85,13 @@ export function AgentsSettings() {
               {hasMcpConfig(agent) ? (
                 <AdoptPermissionSwitch agent={agent} kind="mcp" />
               ) : (
-                <span className="text-muted-foreground text-xs">No MCP config</span>
+                <span className="text-muted-foreground text-meta">No MCP config</span>
               )}
             </span>
           </div>
         ))}
         {guarded && (
-          <p data-testid="agent-config-guard-reason" className="px-5 py-2 text-muted-foreground text-xs">
+          <p data-testid="agent-config-guard-reason" className="px-5 py-2 text-muted-foreground text-meta">
             MCP switches are greyed out while the Agent Config Guard is on: no MCP Server can be adopted until it's off.
           </p>
         )}

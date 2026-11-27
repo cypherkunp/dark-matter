@@ -45,10 +45,10 @@ function Row({
   return (
     <div className="flex min-h-16 items-center gap-6 px-5 py-3">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <label htmlFor={htmlFor} className="font-medium text-sm">
+        <label htmlFor={htmlFor} className="font-medium text-body">
           {label}
         </label>
-        <p className="text-muted-foreground text-xs">{hint}</p>
+        <p className="text-muted-foreground text-meta">{hint}</p>
       </div>
       {children}
     </div>
@@ -124,7 +124,7 @@ function Settings() {
             <Row label="Keep Activity for" htmlFor="activity-retention" hint="Older Activity Log days are deleted.">
               <select
                 id="activity-retention"
-                className="h-8 w-32 rounded-lg border border-input bg-transparent px-2 text-sm dark:bg-input/30"
+                className="h-8 w-32 rounded-lg border border-input bg-transparent px-2 text-body dark:bg-input/30"
                 value={String(draft.activityRetention)}
                 onChange={(event) =>
                   update({
@@ -143,7 +143,7 @@ function Settings() {
             </Row>
           </section>
           <div className="flex items-center justify-end gap-3">
-            {save.error && <p className="text-muted-foreground text-xs">{save.error.message}</p>}
+            {save.error && <p className="text-muted-foreground text-meta">{save.error.message}</p>}
             <Button type="submit" disabled={!dirty || held || save.isPending}>
               Save
             </Button>

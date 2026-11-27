@@ -36,12 +36,12 @@ function RequestRow({ request }: { request: PendingRequest }) {
     <div data-testid="inbox-request" className="flex min-h-16 items-center gap-3 px-5 py-3">
       <StatusDot tone="warning" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-medium text-sm">{request.summary}</span>
-        <p className="text-muted-foreground text-xs">
+        <span className="font-medium text-body">{request.summary}</span>
+        <p className="text-muted-foreground text-meta">
           {requester(request)} asked {relativeTime(Date.parse(request.createdAt), now)} ·{" "}
           {request.reasons.map((reason) => reasonLabels[reason]).join(" · ")}
         </p>
-        {error && <p className="text-status-warning text-xs">{error}</p>}
+        {error && <p className="text-status-warning text-meta">{error}</p>}
       </div>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => deny.mutate({ id: request.id })}>
@@ -61,8 +61,8 @@ export function InboxRequests({ requests }: { requests: PendingRequest[] }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h2 className="font-semibold text-base">Requests</h2>
-        <p className="text-muted-foreground text-sm">
+        <h2 className="font-semibold text-heading">Requests</h2>
+        <p className="text-muted-foreground text-body">
           Changes Agents asked to make. Approving re-checks each against the Project as it is now; a Request expires
           after 24 hours.
         </p>

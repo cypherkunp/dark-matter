@@ -30,24 +30,24 @@ function PlannedServer({
   return (
     <div data-testid="mcp-plan-server" className="flex flex-col gap-1.5 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-sm">{server.name}</span>
-        <span className="text-muted-foreground text-xs">from {agentName(server.agent)}</span>
+        <span className="font-medium text-body">{server.name}</span>
+        <span className="text-muted-foreground text-meta">from {agentName(server.agent)}</span>
         <span
           className={
             server.outcome === "variant"
-              ? "rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px] text-status-warning"
-              : "rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+              ? "rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro text-status-warning"
+              : "rounded-md bg-muted px-1.5 py-0.5 text-micro text-muted-foreground"
           }
         >
           {outcomeLabels[server.outcome]}
         </span>
       </div>
       {server.outcome === "variant" && (
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 text-meta">
           <span className="text-muted-foreground">Name it</span>
           <Input
             aria-label={`Library name for ${server.name} from ${agentName(server.agent)}`}
-            className="h-7 w-56 font-mono text-xs"
+            className="h-7 w-56 font-mono text-meta"
             defaultValue={name ?? server.libraryName}
             onBlur={(event) => {
               const next = event.currentTarget.value.trim();
@@ -57,17 +57,17 @@ function PlannedServer({
         </div>
       )}
       {server.outcome !== "variant" && (
-        <span className="font-mono text-[11px] text-muted-foreground">→ {server.libraryName}</span>
+        <span className="font-mono text-micro text-muted-foreground">→ {server.libraryName}</span>
       )}
       {server.secrets.length > 0 && (
-        <span className="text-muted-foreground text-xs">
+        <span className="text-muted-foreground text-meta">
           Moves {plural(server.secrets.length, "Secret")} into the keychain: {server.secrets.join(", ")}
         </span>
       )}
       {server.diff && (
-        <details className="text-xs">
+        <details className="text-meta">
           <summary className="cursor-default text-muted-foreground">Differs from {server.diff.against}</summary>
-          <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-muted p-3 font-mono text-[11px] leading-relaxed">
+          <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-muted p-3 font-mono text-micro leading-relaxed">
             {server.diff.patch}
           </pre>
         </details>
@@ -130,10 +130,10 @@ export function McpAdoptDialog({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(42rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">
+          <Dialog.Title className="font-semibold text-heading">
             Adopt {plural(findings?.length ?? 0, "MCP Server")}
           </Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">
+          <Dialog.Description className="text-muted-foreground text-body">
             Each definition moves into the Library and inline secrets move into the keychain. The global entry is
             removed with a targeted edit; Undo Adopt puts it back.
           </Dialog.Description>
@@ -142,7 +142,7 @@ export function McpAdoptDialog({
               {plan.data.warnings.map((warning) => (
                 <div
                   key={warning}
-                  className="flex gap-2.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-sm"
+                  className="flex gap-2.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-body"
                 >
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
                   <span>{warning}</span>
@@ -158,7 +158,7 @@ export function McpAdoptDialog({
                   />
                 ))}
               </div>
-              <ol className="flex flex-col gap-1 font-mono text-[11px] text-muted-foreground">
+              <ol className="flex flex-col gap-1 font-mono text-micro text-muted-foreground">
                 {plan.data.steps.map((step) => (
                   <li key={stepText(step)}>{stepText(step)}</li>
                 ))}

@@ -15,12 +15,12 @@ function Card({ agent }: { agent: AgentCard }) {
     <div data-testid="agent-card" className="flex flex-col gap-3 rounded-xl border px-5 py-4">
       <div className="flex items-center gap-2">
         <StatusDot tone={agent.detected ? "healthy" : "off"} />
-        <h2 className="font-semibold text-sm">{agent.name}</h2>
-        <span className="ml-auto text-muted-foreground text-xs">
+        <h2 className="font-semibold text-body">{agent.name}</h2>
+        <span className="ml-auto text-muted-foreground text-meta">
           {scanned ? (agent.detected ? "Detected" : "Not detected") : "Not scanned yet"}
         </span>
       </div>
-      <dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1.5 text-xs">
+      <dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1.5 text-meta">
         <dt className="text-muted-foreground">Global skill folder</dt>
         <dd className="truncate font-mono">{agent.globalSkillFolder}</dd>
         <dt className="text-muted-foreground">Global Skills</dt>
@@ -94,8 +94,8 @@ function Agents() {
       </section>
       <section className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <h2 className="font-semibold text-base">Everything found</h2>
-          <p className="text-muted-foreground text-sm">
+          <h2 className="font-semibold text-heading">Everything found</h2>
+          <p className="text-muted-foreground text-body">
             Every Skill and MCP Server the last Scan found, by the folder or config that holds it, and the Agents that
             see each one.
           </p>

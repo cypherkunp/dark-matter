@@ -28,7 +28,7 @@ type SearchPatch = { [K in keyof ActivitySearch]?: ActivitySearch[K] | undefined
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-const selectClass = "h-8 rounded-lg border border-input bg-transparent px-2 text-sm dark:bg-input/30";
+const selectClass = "h-8 rounded-lg border border-input bg-transparent px-2 text-body dark:bg-input/30";
 
 function FilterSelect({
   label,
@@ -113,7 +113,7 @@ function Filters({ search, set }: { search: ActivitySearch; set: (patch: SearchP
         options={projects.map((project) => ({ value: project.path, label: tildify(project.path) }))}
         onChange={(project) => set({ project })}
       />
-      <label className="flex h-8 items-center gap-2 px-1 text-sm">
+      <label className="flex h-8 items-center gap-2 px-1 text-body">
         <input
           type="checkbox"
           className="size-4 accent-primary"
@@ -122,7 +122,7 @@ function Filters({ search, set }: { search: ActivitySearch; set: (patch: SearchP
         />
         Failures only
       </label>
-      <label className="flex items-center gap-1.5 text-muted-foreground text-xs">
+      <label className="flex items-center gap-1.5 text-muted-foreground text-meta">
         From
         <input
           type="date"
@@ -132,7 +132,7 @@ function Filters({ search, set }: { search: ActivitySearch; set: (patch: SearchP
           onChange={(event) => set({ from: event.target.value || undefined })}
         />
       </label>
-      <label className="flex items-center gap-1.5 text-muted-foreground text-xs">
+      <label className="flex items-center gap-1.5 text-muted-foreground text-meta">
         To
         <input
           type="date"
@@ -188,8 +188,8 @@ function Activity() {
           <div className="flex size-10 items-center justify-center rounded-full bg-muted">
             <History className="size-5 text-muted-foreground" />
           </div>
-          <h2 className="font-semibold text-base">{filtered ? "Nothing matches" : "No Activity yet"}</h2>
-          <p className="max-w-sm text-muted-foreground text-sm">
+          <h2 className="font-semibold text-heading">{filtered ? "Nothing matches" : "No Activity yet"}</h2>
+          <p className="max-w-sm text-muted-foreground text-body">
             {filtered ? "Try fewer filters." : "Every change Dark Matter makes is recorded here."}
           </p>
         </section>

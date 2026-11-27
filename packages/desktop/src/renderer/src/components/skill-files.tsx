@@ -89,7 +89,7 @@ export function SkillFiles({ skill }: { skill: SkillDetail }) {
           row.kind === "folder" ? (
             <div
               key={`dir:${row.path}`}
-              className="flex items-center gap-1.5 px-3 py-1 text-muted-foreground text-xs"
+              className="flex items-center gap-1.5 px-3 py-1 text-muted-foreground text-meta"
               style={{ paddingLeft: `${0.75 + row.depth * 0.75}rem` }}
             >
               <Folder className="size-3.5 shrink-0" />
@@ -103,7 +103,7 @@ export function SkillFiles({ skill }: { skill: SkillDetail }) {
               aria-current={row.path === selected ? "true" : undefined}
               onClick={() => open(row.path)}
               className={cn(
-                "flex w-full items-center gap-1.5 px-3 py-1 text-left text-xs hover:bg-muted",
+                "flex w-full items-center gap-1.5 px-3 py-1 text-left text-meta hover:bg-muted",
                 row.path === selected && "bg-muted font-medium",
               )}
               style={{ paddingLeft: `${0.75 + row.depth * 0.75}rem` }}
@@ -123,8 +123,8 @@ export function SkillFiles({ skill }: { skill: SkillDetail }) {
       </nav>
       <section className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center gap-2 border-b px-3 py-1.5">
-          <span className="truncate font-mono text-muted-foreground text-xs">{selected}</span>
-          <span data-testid="save-state" className="ml-auto text-muted-foreground text-xs">
+          <span className="truncate font-mono text-muted-foreground text-meta">{selected}</span>
+          <span data-testid="save-state" className="ml-auto text-muted-foreground text-meta">
             {save.isPending ? "Saving…" : dirty ? "Unsaved changes" : save.isSuccess ? "Saved" : ""}
           </span>
           <Button size="sm" variant="outline" disabled={!dirty || save.isPending} onClick={onSave}>
@@ -134,7 +134,7 @@ export function SkillFiles({ skill }: { skill: SkillDetail }) {
         {(save.error || (warnings && warnings.length > 0)) && (
           <ul
             data-testid="save-warnings"
-            className="flex flex-col gap-1 border-warning-border border-b bg-warning-surface px-4 py-2 text-[13px]"
+            className="flex flex-col gap-1 border-warning-border border-b bg-warning-surface px-4 py-2 text-body"
           >
             {save.error && <li>{save.error.message}</li>}
             {warnings?.map((warning) => (
@@ -147,9 +147,9 @@ export function SkillFiles({ skill }: { skill: SkillDetail }) {
         )}
         <div className="min-h-0 flex-1">
           {file.error ? (
-            <p className="p-4 text-muted-foreground text-sm">{file.error.message}</p>
+            <p className="p-4 text-muted-foreground text-body">{file.error.message}</p>
           ) : file.data?.binary ? (
-            <p className="p-4 text-muted-foreground text-sm">A binary file can't be edited here.</p>
+            <p className="p-4 text-muted-foreground text-body">A binary file can't be edited here.</p>
           ) : loaded ? (
             <CodeEditor
               key={`${loaded.path}:${loaded.seed}`}

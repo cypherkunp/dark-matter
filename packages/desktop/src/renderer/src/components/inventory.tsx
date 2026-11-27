@@ -19,27 +19,27 @@ function Row({ item, owner }: { item: InventoryItem; owner: AgentId }) {
   return (
     <div data-testid="inventory-item" data-kind={item.kind} className="flex flex-col gap-1 px-4 py-2.5">
       <div className="flex items-center gap-2">
-        <span className="font-medium text-sm">{item.name}</span>
-        <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+        <span className="font-medium text-body">{item.name}</span>
+        <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
           {kindLabel[item.kind]}
         </span>
-        {item.off && <span className="text-muted-foreground text-xs">Off</span>}
+        {item.off && <span className="text-muted-foreground text-meta">Off</span>}
         {item.readOnlyReason && (
           <span
             data-testid="inventory-read-only"
-            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] text-muted-foreground"
+            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-micro text-muted-foreground"
           >
             <Lock className="size-3" />
             Read-only
           </span>
         )}
       </div>
-      {item.detail && <p className="truncate text-muted-foreground text-xs">{item.detail}</p>}
-      <p data-testid="inventory-agents" className="text-muted-foreground text-xs">
+      {item.detail && <p className="truncate text-muted-foreground text-meta">{item.detail}</p>}
+      <p data-testid="inventory-agents" className="text-muted-foreground text-meta">
         Seen by {agentList(item.agents)}
       </p>
       {item.readOnlyReason && (
-        <p data-testid="inventory-reason" className="text-muted-foreground text-xs">
+        <p data-testid="inventory-reason" className="text-muted-foreground text-meta">
           {readOnlyReasonText(item.readOnlyReason, owner)}
         </p>
       )}
@@ -51,8 +51,8 @@ function Group({ group }: { group: InventoryGroup }) {
   return (
     <section data-testid="inventory-group" data-folder={group.label} className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h3 className="font-mono font-semibold text-sm">{group.label}</h3>
-        <span className="text-muted-foreground text-xs">
+        <h3 className="font-mono font-semibold text-body">{group.label}</h3>
+        <span className="text-muted-foreground text-meta">
           {group.scope === "managed"
             ? `Managed by ${agentName(group.owningAgent)}`
             : `Owned by ${agentName(group.owningAgent)}`}{" "}
@@ -78,9 +78,9 @@ export function Inventory({ empty = "Nothing found outside the Library." }: { em
   const trpc = useTRPC();
   const inventory = useQuery(trpc.agents.inventory.queryOptions());
   if (inventory.isPending) return null;
-  if (inventory.error) return <p className="text-sm text-status-warning">{inventory.error.message}</p>;
+  if (inventory.error) return <p className="text-body text-status-warning">{inventory.error.message}</p>;
   const { groups } = inventory.data;
-  if (groups.length === 0) return <p className="text-muted-foreground text-sm">{empty}</p>;
+  if (groups.length === 0) return <p className="text-muted-foreground text-body">{empty}</p>;
   return (
     <div data-testid="inventory" className="flex flex-col gap-5">
       {groups.map((group) => (

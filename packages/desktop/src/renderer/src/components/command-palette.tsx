@@ -60,7 +60,7 @@ export function CommandPalette() {
               aria-expanded
               aria-controls="command-results"
               aria-activedescendant={selected ? `command-${selected.id}` : undefined}
-              className="h-11 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="h-11 flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground"
               placeholder="Jump to a Skill, Namespace, Collection or Project, or run an action…"
               value={query}
               onChange={(event) => {
@@ -77,11 +77,13 @@ export function CommandPalette() {
             />
           </div>
           <div ref={listRef} id="command-results" role="listbox" className="overflow-y-auto p-1.5">
-            {results.length === 0 && <p className="px-3 py-6 text-center text-muted-foreground text-sm">No matches</p>}
+            {results.length === 0 && (
+              <p className="px-3 py-6 text-center text-muted-foreground text-body">No matches</p>
+            )}
             {results.map((command, index) => (
               <div key={command.id}>
                 {command.group !== results[index - 1]?.group && (
-                  <div className="px-2.5 pt-2 pb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+                  <div className="px-2.5 pt-2 pb-1 font-medium text-micro text-muted-foreground uppercase tracking-wide">
                     {command.group}
                   </div>
                 )}
@@ -92,7 +94,7 @@ export function CommandPalette() {
                   tabIndex={-1}
                   aria-selected={command === selected}
                   className={cn(
-                    "flex h-8 cursor-default items-center gap-3 rounded-md px-2.5 text-[13px]",
+                    "flex h-8 cursor-default items-center gap-3 rounded-md px-2.5 text-body",
                     command === selected && "bg-muted",
                   )}
                   onMouseMove={() => setActive(index)}
@@ -101,7 +103,7 @@ export function CommandPalette() {
                 >
                   <span className="truncate">{command.label}</span>
                   {command.hint && (
-                    <span className="ml-auto truncate font-mono text-[11px] text-muted-foreground">{command.hint}</span>
+                    <span className="ml-auto truncate font-mono text-micro text-muted-foreground">{command.hint}</span>
                   )}
                 </div>
               </div>

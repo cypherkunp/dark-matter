@@ -24,7 +24,7 @@ function TrashView() {
         summary={plural(list.length, "deleted Skill")}
         status="Deleted Skills are purged by the daily run after the retention set in Settings."
       />
-      {restore.error && <p className="text-sm text-status-warning">{restore.error.message}</p>}
+      {restore.error && <p className="text-body text-status-warning">{restore.error.message}</p>}
       {trash.isPending ? null : list.length === 0 ? (
         <section
           data-testid="trash-empty"
@@ -33,7 +33,7 @@ function TrashView() {
           <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Trash2 className="size-5" />
           </div>
-          <h2 className="font-semibold text-base">The trash is empty</h2>
+          <h2 className="font-semibold text-heading">The trash is empty</h2>
         </section>
       ) : (
         <div className="divide-y rounded-xl border">
@@ -41,8 +41,8 @@ function TrashView() {
             <div key={skill.id} data-testid="trashed-skill" className="flex min-h-16 items-center gap-3 px-5 py-3">
               <StatusDot tone="off" />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="font-medium text-sm">{skill.name}</span>
-                <span className="truncate font-mono text-muted-foreground text-xs">
+                <span className="font-medium text-body">{skill.name}</span>
+                <span className="truncate font-mono text-muted-foreground text-meta">
                   {skill.key} · deleted {day(skill.deletedAt)} · purged {day(skill.purgeAt)}
                 </span>
               </div>
@@ -58,7 +58,7 @@ function TrashView() {
           ))}
         </div>
       )}
-      <p className="text-muted-foreground text-xs">
+      <p className="text-muted-foreground text-meta">
         Restore puts the Skill back in the Library. Add it to Projects again from its{" "}
         <Link to="/library" className="underline">
           Library

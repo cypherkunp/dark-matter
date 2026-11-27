@@ -6,7 +6,7 @@ import { ConfirmDialog } from "@/components/copy-actions";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
 
-const code = "font-mono text-xs";
+const code = "font-mono text-meta";
 
 /**
  * Remove a Project (review #5): shows the plan first. Dark Matter's own

@@ -15,12 +15,12 @@ export function ProjectGrant({ project }: { project: ProjectDetail }) {
   return (
     <section data-testid="project-grant" className="flex items-center gap-4 rounded-xl border px-5 py-4">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-medium text-sm">Let Agents make low-risk changes without asking</span>
-        <p className="text-muted-foreground text-xs">
+        <span className="font-medium text-body">Let Agents make low-risk changes without asking</span>
+        <p className="text-muted-foreground text-meta">
           Turning Skills and MCP Servers On or Off, and adding or removing a Link. A Copy, an MCP Server or an Import
           still asks you every time.
         </p>
-        {setGrant.error && <p className="text-status-warning text-xs">{setGrant.error.message}</p>}
+        {setGrant.error && <p className="text-status-warning text-meta">{setGrant.error.message}</p>}
       </div>
       <OnOffSwitch
         on={on}

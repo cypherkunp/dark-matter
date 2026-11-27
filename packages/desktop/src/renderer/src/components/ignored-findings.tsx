@@ -92,8 +92,8 @@ export function IgnoredFindings({ count }: { count: number }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <h2 className="font-semibold text-sm">Ignored</h2>
-        <span className="text-muted-foreground text-xs tabular-nums">{count}</span>
+        <h2 className="font-semibold text-body">Ignored</h2>
+        <span className="text-muted-foreground text-meta tabular-nums">{count}</span>
         <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setOpen(!open)}>
           {open ? "Hide" : "Show ignored"}
         </Button>
@@ -104,8 +104,8 @@ export function IgnoredFindings({ count }: { count: number }) {
             <div key={row.id} data-testid="ignored-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
               <StatusDot tone="off" />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="font-medium text-sm">{row.name}</span>
-                <span className="truncate font-mono text-muted-foreground text-xs">
+                <span className="font-medium text-body">{row.name}</span>
+                <span className="truncate font-mono text-muted-foreground text-meta">
                   {row.kind} · {row.where}
                 </span>
               </div>

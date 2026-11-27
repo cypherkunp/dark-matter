@@ -49,7 +49,7 @@ function CollectionsView() {
           Create
         </Button>
       </form>
-      {create.error && <p className="text-sm text-status-warning">{create.error.message}</p>}
+      {create.error && <p className="text-body text-status-warning">{create.error.message}</p>}
       {collections.isPending ? null : list.length === 0 ? (
         <section
           data-testid="collections-empty"
@@ -58,8 +58,8 @@ function CollectionsView() {
           <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Layers className="size-5" />
           </div>
-          <h2 className="font-semibold text-base">No Collections yet</h2>
-          <p className="max-w-sm text-muted-foreground text-sm">
+          <h2 className="font-semibold text-heading">No Collections yet</h2>
+          <p className="max-w-sm text-muted-foreground text-body">
             Group Library Skills you often use together, like a frontend kit, and add them to a Project in one go.
           </p>
         </section>
@@ -75,12 +75,12 @@ function CollectionsView() {
             >
               <Layers className="size-4 text-muted-foreground" />
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-sm">{collection.name}</div>
-                <div className="truncate text-muted-foreground text-xs">
+                <div className="font-medium text-body">{collection.name}</div>
+                <div className="truncate text-muted-foreground text-meta">
                   {collection.items.map((item) => item.name).join(", ") || "Empty"}
                 </div>
               </div>
-              <span className="text-muted-foreground text-xs tabular-nums">
+              <span className="text-muted-foreground text-meta tabular-nums">
                 {plural(collection.items.length, "Skill")}
               </span>
               <ChevronRight className="size-4 text-muted-foreground" />
