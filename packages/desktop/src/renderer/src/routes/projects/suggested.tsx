@@ -2,6 +2,7 @@ import type { SuggestedProject } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { FolderPlus, FolderSearch } from "lucide-react";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -79,7 +80,7 @@ function Suggested() {
   const dismissed = suggested.data?.dismissedCount ?? 0;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <div className="flex items-start justify-between gap-4">
         <PageHead
           title="Suggested"
@@ -112,6 +113,6 @@ function Suggested() {
           ))}
         </div>
       )}
-    </div>
+    </Page>
   );
 }

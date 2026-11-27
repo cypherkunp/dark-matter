@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Layers } from "lucide-react";
 import { useState } from "react";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { plural } from "@/components/skill-list";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ function CollectionsView() {
   const list = collections.data ?? [];
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <PageHead
         title="Collections"
         summary={`${plural(list.length, "Collection")} · templates: adding one creates ordinary Project Skills, and later edits don't touch those Projects`}
@@ -88,6 +89,6 @@ function CollectionsView() {
           ))}
         </div>
       )}
-    </div>
+    </Page>
   );
 }

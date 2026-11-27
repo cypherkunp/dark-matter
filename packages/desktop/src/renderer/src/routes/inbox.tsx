@@ -29,6 +29,7 @@ import { InboxDrift } from "@/components/inbox-drift";
 import { InboxMcpServers, InboxUntrackedMcpServers } from "@/components/inbox-mcp";
 import { InboxRequests } from "@/components/inbox-requests";
 import { ManagedMcpGroups } from "@/components/managed-mcp";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -313,7 +314,7 @@ function Inbox() {
   const ticked = useTicked(skillFindings.filter((finding) => finding.adoptable).map((finding) => finding.id));
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <PageHead
         title="Inbox"
         summary={`${plural(count, "finding")} waiting · ${plural(groups.length, "Agent folder")}${ignored ? ` · ${ignored} ignored` : ""}`}
@@ -423,6 +424,6 @@ function Inbox() {
           onClose={() => setGranting(null)}
         />
       )}
-    </div>
+    </Page>
   );
 }

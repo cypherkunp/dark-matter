@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { plural } from "@/components/skill-list";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ function UpdatesView() {
   const check = useCheckUpdates();
   const failed = view.data?.sources.filter((source) => source.error) ?? [];
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <div className="flex items-start gap-4">
         <div className="flex-1">
           <PageHead
@@ -58,6 +59,6 @@ function UpdatesView() {
         </ul>
       )}
       <UpdatesList />
-    </div>
+    </Page>
   );
 }

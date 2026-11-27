@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Trash2 } from "lucide-react";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { plural } from "@/components/skill-list";
 import { StatusDot } from "@/components/status-dot";
@@ -18,7 +19,7 @@ function TrashView() {
   const restore = useMutation(trpc.trash.restore.mutationOptions());
   const list = trash.data ?? [];
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <PageHead
         title="Trash"
         summary={plural(list.length, "deleted Skill")}
@@ -65,6 +66,6 @@ function TrashView() {
         </Link>{" "}
         page.
       </p>
-    </div>
+    </Page>
   );
 }

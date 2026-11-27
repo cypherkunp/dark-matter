@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { FolderOpen, TriangleAlert } from "lucide-react";
 import { FilteredActivity } from "@/components/activity-view";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { ProjectGrant } from "@/components/project-grant";
 import { ProjectMcpServers } from "@/components/project-mcp-servers";
@@ -179,16 +180,16 @@ function ProjectPage() {
 
   if (project.error) {
     return (
-      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+      <Page>
         <PageHead title="Project" summary={project.error.message} />
-      </div>
+      </Page>
     );
   }
   const data = project.data;
   if (!data) return null;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <div className="flex items-start justify-between gap-4">
         <PageHead
           title={data.name}
@@ -223,6 +224,6 @@ function ProjectPage() {
       {data.exists && <ProjectGrant project={data} />}
       <FoundSkills project={data} />
       <FilteredActivity search={{ project: data.path }} exportName={`activity-${data.name}`} />
-    </div>
+    </Page>
   );
 }

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight, Star } from "lucide-react";
 import { StarSourceButton } from "@/components/favourites";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { plural, SkillRows } from "@/components/skill-list";
 import { useTRPC } from "@/lib/trpc";
@@ -15,7 +16,7 @@ function FavouritesView() {
   const skills = view.data?.skills ?? [];
   const sources = view.data?.sources ?? [];
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <PageHead
         title="Favourites"
         summary={`${plural(skills.length, "Skill")} · ${plural(sources.length, "starred Source")}`}
@@ -82,6 +83,6 @@ function FavouritesView() {
           {skills.length > 0 && <SkillRows skills={skills} />}
         </>
       )}
-    </div>
+    </Page>
   );
 }
