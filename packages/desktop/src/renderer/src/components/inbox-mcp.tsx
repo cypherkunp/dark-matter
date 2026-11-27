@@ -8,6 +8,7 @@ import type {
 import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { adoptTickedLabel, ReadOnlyReason, TickBox, useTicked } from "@/components/adopt-consent";
+import { openList, openRow } from "@/components/list";
 import { McpAdoptDialog } from "@/components/mcp-adopt-dialog";
 import { RowText } from "@/components/row-text";
 import { StatusDot } from "@/components/status-dot";
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 /** A definition in one line: the command it runs or the URL it calls. */
 export const definitionSummary = (definition: McpDefinition) =>
@@ -82,7 +84,7 @@ function Finding({
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   const consent = useConsent(finding, ticked, onAdopt);
   return (
-    <div data-testid="inbox-mcp-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="inbox-mcp-finding" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       {consent.tick}
       <StatusDot tone={consent.tone} />
       <RowText
@@ -132,7 +134,7 @@ export function InboxMcpServers({ groups }: { groups: InboxMcpGroup[] }) {
               <Chip>{agentName(group.agent)}</Chip>
             </span>
           </h2>
-          <div className="divide-y rounded-xl border">
+          <div className={openList}>
             {group.findings.map((finding) => (
               <Finding key={finding.id} finding={finding} onAdopt={setAdopting} ticked={ticked} />
             ))}
@@ -157,7 +159,7 @@ function UntrackedFinding({
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   const consent = useConsent(finding, ticked, onAdopt);
   return (
-    <div data-testid="inbox-untracked-mcp-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="inbox-untracked-mcp-finding" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       {consent.tick}
       <StatusDot tone={consent.tone} />
       <RowText
@@ -203,7 +205,7 @@ export function InboxUntrackedMcpServers({ groups }: { groups: InboxProjectMcpGr
             {group.name}
             <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
           </h2>
-          <div className="divide-y rounded-xl border">
+          <div className={openList}>
             {group.findings.map((finding) => (
               <UntrackedFinding key={finding.id} finding={finding} onAdopt={setAdopting} ticked={ticked} />
             ))}

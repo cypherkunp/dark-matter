@@ -2,12 +2,14 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, Layers } from "lucide-react";
 import { useState } from "react";
+import { openList, openRow } from "@/components/list";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { plural } from "@/components/skill-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/library_/collections")({ component: CollectionsView });
 
@@ -54,7 +56,7 @@ function CollectionsView() {
       {collections.isPending ? null : list.length === 0 ? (
         <section
           data-testid="collections-empty"
-          className="flex flex-col items-center gap-3 rounded-xl border px-6 py-16 text-center"
+          className="flex flex-col items-center gap-3 rounded-2xl bg-foreground/[0.025] px-6 py-16 text-center"
         >
           <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Layers className="size-5" />
@@ -65,14 +67,14 @@ function CollectionsView() {
           </p>
         </section>
       ) : (
-        <div className="divide-y rounded-xl border">
+        <div className={openList}>
           {list.map((collection) => (
             <Link
               key={collection.name}
               to="/collection"
               search={{ name: collection.name }}
               data-testid="collection-row"
-              className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-muted/50"
+              className={cn("flex min-h-16 items-center gap-3 py-3", openRow)}
             >
               <Layers className="size-4 text-muted-foreground" />
               <div className="min-w-0 flex-1">

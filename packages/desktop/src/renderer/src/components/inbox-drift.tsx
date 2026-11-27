@@ -1,10 +1,12 @@
 import type { DriftFinding, InboxDriftGroup } from "@dark-matter/contracts";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { openList, openRow } from "@/components/list";
 import { RowText } from "@/components/row-text";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 /** What drifted, in a sentence (#42). */
 const describe = (finding: DriftFinding): string => {
@@ -40,7 +42,7 @@ function DriftRow({ finding }: { finding: DriftFinding }) {
   const busy = ignore.isPending || restore.isPending || accept.isPending;
   const error = restore.error ?? accept.error;
   return (
-    <div data-testid="inbox-drift-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="inbox-drift-finding" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       <StatusDot tone="warning" />
       <RowText
         title={finding.name ?? finding.project}
@@ -88,7 +90,7 @@ export function InboxDrift({ groups }: { groups: InboxDriftGroup[] }) {
             </Link>
             <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
           </h2>
-          <div className="divide-y rounded-xl border">
+          <div className={openList}>
             {group.findings.map((finding) => (
               <DriftRow key={finding.id} finding={finding} />
             ))}

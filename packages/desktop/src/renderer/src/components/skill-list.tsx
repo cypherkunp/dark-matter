@@ -1,7 +1,9 @@
 import type { LibrarySkill } from "@dark-matter/contracts";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
+import { openList, openRow } from "@/components/list";
 import { Chip } from "@/components/ui/chip";
+import { cn } from "@/lib/utils";
 import { StarSkillButton } from "./favourites";
 import { ModifiedBadge } from "./modified-badge";
 import { RowText } from "./row-text";
@@ -18,13 +20,13 @@ export const byNamespace = (skills: LibrarySkill[]) => {
 
 function SkillRow({ skill }: { skill: LibrarySkill }) {
   return (
-    <div className="flex items-center hover:bg-muted/50">
-      <StarSkillButton skillKey={skill.key} className="ml-3.5" />
+    <div className={cn("flex items-center", openRow)}>
+      <StarSkillButton skillKey={skill.key} />
       <Link
         to="/skill"
         search={{ key: skill.key, tab: "explorer" }}
         data-testid="library-skill"
-        className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2.5 pr-5 pl-2"
+        className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2.5 pr-0 pl-2"
       >
         <RowText
           title={skill.name}
@@ -55,7 +57,7 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
 /** A bordered card of Skill rows; each opens its Skill page in the Explorer. */
 export function SkillRows({ skills }: { skills: LibrarySkill[] }) {
   return (
-    <div className="divide-y overflow-hidden rounded-xl border">
+    <div className={openList}>
       {skills.map((skill) => (
         <SkillRow key={skill.key} skill={skill} />
       ))}

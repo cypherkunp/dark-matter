@@ -6,6 +6,7 @@ import { Download, Plus } from "lucide-react";
 import { useState } from "react";
 import { CopyActions, CopyStateBadge, useProjectSkillChanges, useResolveConflict } from "@/components/copy-actions";
 import { looksLikeGitHubSource } from "@/components/github-import";
+import { openList, openRow } from "@/components/list";
 import { RowText } from "@/components/row-text";
 import { SkillsShResults } from "@/components/skills-sh";
 import { StatusDot } from "@/components/status-dot";
@@ -66,7 +67,7 @@ function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill })
   const busy = changes.busy || resolve.busy;
   const error = changes.error ?? resolve.error;
   return (
-    <div data-testid="project-skill-row" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
+    <div data-testid="project-skill-row" className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}>
       <StatusDot tone={conflict ? "warning" : skill.on ? "on" : "off"} />
       <RowText
         title={skill.name}
@@ -244,7 +245,7 @@ export function ProjectSkills({ path }: { path: string }) {
       {list.length === 0 ? (
         <p className="text-muted-foreground text-body">No Project Skills yet. Add Skills from the Library.</p>
       ) : (
-        <div className="divide-y rounded-xl border">
+        <div className={openList}>
           {list.map((skill) => (
             <ProjectSkillRow key={skill.key} path={path} skill={skill} />
           ))}

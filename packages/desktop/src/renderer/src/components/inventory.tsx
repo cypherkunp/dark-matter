@@ -1,9 +1,11 @@
 import { type AgentId, type InventoryGroup, type InventoryItem, readOnlyReasonText } from "@dark-matter/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
+import { openList, openRow } from "@/components/list";
 import { Chip } from "@/components/ui/chip";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 const kindLabel: Record<InventoryItem["kind"], string> = {
   globalSkill: "Global Skill",
@@ -18,7 +20,7 @@ const agentList = (agents: readonly AgentId[]) => agents.map((agent) => agentNam
 
 function Row({ item, owner }: { item: InventoryItem; owner: AgentId }) {
   return (
-    <div data-testid="inventory-item" data-kind={item.kind} className="flex flex-col gap-1 px-4 py-2.5">
+    <div data-testid="inventory-item" data-kind={item.kind} className={cn("flex flex-col gap-1 py-2.5", openRow)}>
       <div className="flex items-center gap-2">
         <span className="font-medium text-body">{item.name}</span>
         <Chip mono>{kindLabel[item.kind]}</Chip>
@@ -55,7 +57,7 @@ function Group({ group }: { group: InventoryGroup }) {
           · read by {agentList(group.agents)}
         </span>
       </div>
-      <div className="divide-y rounded-xl border">
+      <div className={openList}>
         {group.items.map((item) => (
           <Row key={item.id} item={item} owner={group.owningAgent} />
         ))}

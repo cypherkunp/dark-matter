@@ -2,11 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight, Star } from "lucide-react";
 import { StarSourceButton } from "@/components/favourites";
+import { openList, openRow } from "@/components/list";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { plural, SkillRows } from "@/components/skill-list";
 import { chipClass } from "@/components/ui/chip";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/library_/favourites")({ component: FavouritesView });
 
@@ -26,7 +28,7 @@ function FavouritesView() {
       {view.isPending ? null : skills.length === 0 && sources.length === 0 ? (
         <section
           data-testid="favourites-empty"
-          className="flex flex-col items-center gap-3 rounded-xl border px-6 py-16 text-center"
+          className="flex flex-col items-center gap-3 rounded-2xl bg-foreground/[0.025] px-6 py-16 text-center"
         >
           <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Star className="size-5" />
@@ -44,12 +46,12 @@ function FavouritesView() {
                 Starred Sources
                 <span className="font-normal text-muted-foreground text-meta tabular-nums">{sources.length}</span>
               </h2>
-              <div className="divide-y rounded-xl border">
+              <div className={openList}>
                 {sources.map((source) => (
                   <div
                     key={source.source}
                     data-testid="favourite-source-row"
-                    className="flex min-h-14 items-center gap-3 px-5 py-2.5"
+                    className={cn("flex min-h-14 items-center gap-3 py-2.5", openRow)}
                   >
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <Link

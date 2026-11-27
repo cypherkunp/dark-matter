@@ -1,10 +1,12 @@
 import type { Inbox } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { openList, openRow } from "@/components/list";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { agentName } from "@/lib/agents";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 
 interface Row {
   id: string;
@@ -99,9 +101,13 @@ export function IgnoredFindings({ count }: { count: number }) {
         </Button>
       </div>
       {open && ignored.data && (
-        <div className="flex flex-col divide-y rounded-xl border">
+        <div className={openList}>
           {rows(ignored.data).map((row) => (
-            <div key={row.id} data-testid="ignored-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
+            <div
+              key={row.id}
+              data-testid="ignored-finding"
+              className={cn("flex min-h-16 items-center gap-3 py-3", openRow)}
+            >
               <StatusDot tone="off" />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="font-medium text-body">{row.name}</span>

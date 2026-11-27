@@ -3,10 +3,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { openList, openRow } from "@/components/list";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { useTRPC } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 import { ModifiedBadge } from "./modified-badge";
 
 /** Orphaned (#33): its Source is gone; the Library copy is kept as is. */
@@ -73,7 +75,7 @@ function UpdateRow({ update }: { update: SkillUpdate }) {
   const apply = useMutation(trpc.importer.applyUpdates.mutationOptions());
   const choose = (choice?: UpdateChoice) => apply.mutate({ updates: [{ key: update.key, ...(choice && { choice }) }] });
   return (
-    <div data-testid="update-row" className="flex flex-col gap-2 px-5 py-3">
+    <div data-testid="update-row" className={cn("flex flex-col gap-2 py-3", openRow)}>
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
@@ -130,7 +132,7 @@ function OrphanedRow({ skillKey, reason }: { skillKey: string; reason: string })
   const repoint = useMutation(trpc.importer.repoint.mutationOptions({ onSuccess: () => setInput("") }));
   const error = detach.error ?? repoint.error;
   return (
-    <div data-testid="orphaned-row" className="flex flex-col gap-2 px-5 py-3">
+    <div data-testid="orphaned-row" className={cn("flex flex-col gap-2 py-3", openRow)}>
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
@@ -204,7 +206,7 @@ export function UpdatesList() {
             Every Imported Skill matches its Source.
           </p>
         ) : (
-          <div className="divide-y overflow-hidden rounded-xl border">
+          <div className={openList}>
             {updates.map((update) => (
               <UpdateRow key={update.key} update={update} />
             ))}
@@ -217,7 +219,7 @@ export function UpdatesList() {
             Orphaned
             <span className="font-normal text-muted-foreground text-meta tabular-nums">{orphaned.length}</span>
           </h2>
-          <div className="divide-y overflow-hidden rounded-xl border">
+          <div className={openList}>
             {orphaned.map((skill) => (
               <OrphanedRow key={skill.key} skillKey={skill.key} reason={skill.reason} />
             ))}
