@@ -55,13 +55,13 @@ function CandidateRow({
         />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">{skill.name}</span>
+            <span className="font-medium text-body">{skill.name}</span>
             {skill.inLibrary && (
-              <span className="rounded-full border px-2 py-px text-[11px] text-muted-foreground">in Library</span>
+              <span className="rounded-full border px-2 py-px text-micro text-muted-foreground">in Library</span>
             )}
           </div>
-          <span className="truncate text-muted-foreground text-xs">{skill.description}</span>
-          <span className="truncate font-mono text-[11px] text-muted-foreground">{skill.path}</span>
+          <span className="truncate text-muted-foreground text-meta">{skill.description}</span>
+          <span className="truncate font-mono text-micro text-muted-foreground">{skill.path}</span>
         </div>
         <Button size="sm" variant="ghost" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
           {open ? <ChevronDown /> : <ChevronRight />}
@@ -69,7 +69,7 @@ function CandidateRow({
         </Button>
       </div>
       {open && (
-        <div data-testid="import-preview" className="border-t bg-muted/30 px-6 py-3 text-sm">
+        <div data-testid="import-preview" className="border-t bg-muted/30 px-6 py-3 text-body">
           <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {bodyOf(skill.skillMd)}
           </Markdown>
@@ -100,19 +100,19 @@ function Picker({ input, preview, project }: { input: string; preview: ImportPre
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="font-semibold text-sm">
+        <h2 className="font-semibold text-body">
           {plural(preview.skills.length, "Skill")} in{" "}
           <span className="font-mono">
             {preview.source}
             {preview.subpath ? `/${preview.subpath}` : ""}
           </span>
         </h2>
-        <span className="font-mono text-muted-foreground text-xs">
+        <span className="font-mono text-muted-foreground text-meta">
           {preview.ref} @ {preview.commit.slice(0, 7)} · {authLabel[preview.auth]}
         </span>
       </div>
       {preview.skills.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No Skills found here.</p>
+        <p className="text-muted-foreground text-body">No Skills found here.</p>
       ) : (
         <div className="divide-y rounded-xl border">
           {preview.skills.map((skill) => (
@@ -125,9 +125,9 @@ function Picker({ input, preview, project }: { input: string; preview: ImportPre
           ))}
         </div>
       )}
-      {run.error && <p className="text-sm text-status-warning">{run.error.message}</p>}
+      {run.error && <p className="text-body text-status-warning">{run.error.message}</p>}
       {run.data && (
-        <ul data-testid="import-result" className="flex flex-col gap-1 text-sm">
+        <ul data-testid="import-result" className="flex flex-col gap-1 text-body">
           {run.data.skills.map((skill) => (
             <li key={skill.key}>
               <span className="font-mono">{skill.key}</span>{" "}
@@ -190,7 +190,7 @@ export function GitHubImport({ initialUrl, project }: { initialUrl: string; proj
           {preview.isFetching ? "Looking…" : "Find Skills"}
         </Button>
       </form>
-      {preview.error && <p className="text-sm text-status-warning">{preview.error.message}</p>}
+      {preview.error && <p className="text-body text-status-warning">{preview.error.message}</p>}
       {preview.data && (
         <Picker key={`${input}@${preview.data.commit}`} input={input} preview={preview.data} project={project} />
       )}

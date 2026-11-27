@@ -11,7 +11,7 @@ import { StatusDot } from "./status-dot";
 import { useScan } from "./use-scan";
 
 const rowClass =
-  "no-drag flex h-9 items-center gap-3 rounded-[10px] px-2.5 font-medium text-[13px] text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
+  "no-drag flex h-9 items-center gap-3 rounded-[10px] px-2.5 font-medium text-body text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
 /** The active row is a soft pill and its icon takes the coral accent. */
 const activeRowClass =
   "bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent [&>svg:first-child]:text-primary";
@@ -52,7 +52,7 @@ const localClockTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 const Count = ({ value }: { value: number | undefined }) => (
-  <span className="ml-auto text-muted-foreground text-xs tabular-nums">{value ?? "–"}</span>
+  <span className="ml-auto text-muted-foreground text-meta tabular-nums">{value ?? "–"}</span>
 );
 
 /** One sidebar row per Namespace, `local` last, with its Skill count. */
@@ -99,7 +99,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
   return (
     <aside className="dark flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground" data-testid="sidebar">
       <div className="drag-region flex h-[52px] shrink-0 items-center pr-4 pl-[84px]">
-        <span className="font-semibold text-[14px] tracking-[-0.01em]">Dark Matter</span>
+        <span className="font-semibold text-lead tracking-[-0.01em]">Dark Matter</span>
       </div>
 
       <nav className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-2.5 pt-2 pb-4">
@@ -107,7 +107,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
           <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-3.5 text-muted-foreground" />
           <Input
             aria-label="Filter"
-            className="no-drag h-8 rounded-full border-transparent bg-sidebar-accent pl-8 text-[13px] dark:bg-sidebar-accent"
+            className="no-drag h-8 rounded-full border-transparent bg-sidebar-accent pl-8 text-body dark:bg-sidebar-accent"
             placeholder="Filter"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
@@ -141,7 +141,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
           return (
             <div key={section.title ?? "top"} className="flex flex-col gap-px">
               {section.title && (
-                <div className="flex h-7 items-center px-2.5 font-medium text-[12px] text-muted-foreground">
+                <div className="flex h-7 items-center px-2.5 font-medium text-meta text-muted-foreground">
                   {section.title}
                   {section.title in sectionCounts && <Count value={sectionCounts[section.title]} />}
                 </div>
@@ -153,7 +153,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
                   {(badges[item.path] ?? 0) > 0 ? (
                     <span
                       data-testid={badgeIds[item.path]}
-                      className="ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center font-semibold text-[11px] text-primary-foreground leading-[18px] tabular-nums"
+                      className="ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center font-semibold text-micro text-primary-foreground leading-[18px] tabular-nums"
                     >
                       {badges[item.path]}
                     </span>
@@ -187,7 +187,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
                   activeOptions={{ exact: true, includeSearch: true }}
                 >
                   <Boxes className="size-4 text-muted-foreground" />
-                  <span className="truncate font-mono text-[12px]">{namespace.label}</span>
+                  <span className="truncate font-mono text-meta">{namespace.label}</span>
                   <Count value={namespace.count} />
                 </Link>
               ))}
@@ -211,13 +211,13 @@ export function Sidebar({ connected }: { connected: boolean }) {
                 </Link>
               ))}
               {group && (
-                <NavLink path={group.path} className={cn(rowClass, "text-[12px] text-muted-foreground")}>
+                <NavLink path={group.path} className={cn(rowClass, "text-meta text-muted-foreground")}>
                   {group.label}
                   <span className="ml-auto flex items-center gap-1 tabular-nums">
                     {(groupCounts[group.path] ?? 0) > 0 ? (
                       <span
                         data-testid="suggested-badge"
-                        className="min-w-5 rounded-full bg-primary px-1.5 text-center font-semibold text-[11px] text-primary-foreground leading-[18px]"
+                        className="min-w-5 rounded-full bg-primary px-1.5 text-center font-semibold text-micro text-primary-foreground leading-[18px]"
                       >
                         {groupCounts[group.path]}
                       </span>
@@ -233,7 +233,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
         })}
       </nav>
 
-      <footer className="flex h-11 shrink-0 items-center gap-2 px-4 text-muted-foreground text-xs">
+      <footer className="flex h-11 shrink-0 items-center gap-2 px-4 text-muted-foreground text-meta">
         {/* Grey until the first Scan: green means up to date (visual reference). */}
         <StatusDot tone={connected && lastScanAt ? "healthy" : "off"} />
         <span data-testid="core-status">

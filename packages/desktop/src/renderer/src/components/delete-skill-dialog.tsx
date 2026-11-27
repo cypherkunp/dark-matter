@@ -44,15 +44,15 @@ export function DeleteSkillDialog({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(32rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">Delete Skill</Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">
+          <Dialog.Title className="font-semibold text-heading">Delete Skill</Dialog.Title>
+          <Dialog.Description className="text-muted-foreground text-body">
             <span className="font-mono">{skillKey}</span> moves to <span className="font-mono">trash/</span> and is
             purged after {plan.data?.retentionDays ?? "…"} days.
           </Dialog.Description>
           {projects.length > 0 && (
             <ul
               data-testid="delete-warnings"
-              className="flex flex-col gap-1.5 rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-[13px]"
+              className="flex flex-col gap-1.5 rounded-lg border border-warning-border bg-warning-surface px-4 py-3 text-body"
             >
               {links.length > 0 && (
                 <li className="flex items-start gap-2">
@@ -72,7 +72,7 @@ export function DeleteSkillDialog({
             </ul>
           )}
           {(plan.error || remove.error) && (
-            <p className="text-sm text-status-warning">{(plan.error ?? remove.error)?.message}</p>
+            <p className="text-body text-status-warning">{(plan.error ?? remove.error)?.message}</p>
           )}
           <div className="flex justify-end gap-2">
             <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>

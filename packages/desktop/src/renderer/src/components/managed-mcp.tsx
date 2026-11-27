@@ -35,24 +35,24 @@ export function ManagedMcpRow({ server, inInbox = false }: { server: ManagedMcpS
       <StatusDot tone={server.off ? "off" : "on"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{server.name}</span>
-          <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+          <span className="font-medium text-body">{server.name}</span>
+          <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
             {server.plugin ?? kindLabel[server.kind]}
           </span>
-          {server.off && <span className="text-muted-foreground text-xs">Off</span>}
+          {server.off && <span className="text-muted-foreground text-meta">Off</span>}
         </div>
         {(server.definition || server.source) && (
-          <div className="truncate font-mono text-muted-foreground text-xs">
+          <div className="truncate font-mono text-muted-foreground text-meta">
             {server.definition ? definitionSummary(server.definition) : server.source}
           </div>
         )}
-        {server.readOnly && <p className="text-muted-foreground text-xs">{server.readOnly}</p>}
+        {server.readOnly && <p className="text-muted-foreground text-meta">{server.readOnly}</p>}
         {guarded && !server.off && server.offSwitches.length > 0 && (
-          <p data-testid="guarded-reason" className="text-muted-foreground text-xs">
+          <p data-testid="guarded-reason" className="text-muted-foreground text-meta">
             {guardedOffSwitchText}
           </p>
         )}
-        <ConsentError error={turnOff.error} className="text-status-warning text-xs" />
+        <ConsentError error={turnOff.error} className="text-status-warning text-meta" />
       </div>
       {!server.off &&
         server.offSwitches.map((offSwitch) => (
@@ -82,17 +82,17 @@ export function ManagedMcpGroups({ groups, inInbox = false }: { groups: InboxMan
   return (
     <>
       <div className="flex flex-col gap-1 pt-2">
-        <h2 className="font-semibold text-base">Agent-managed MCP Servers</h2>
-        <p className="text-muted-foreground text-sm">
+        <h2 className="font-semibold text-heading">Agent-managed MCP Servers</h2>
+        <p className="text-muted-foreground text-body">
           Plugins, connectors, built-ins and admin layers each Agent adds itself. Dark Matter only lists them, and turns
           them off through the Agent's own settings where it documents one.
         </p>
       </div>
       {groups.map((group) => (
         <section key={group.agent} data-testid="managed-mcp-group" className="flex flex-col gap-3">
-          <h3 className="flex items-center gap-2 font-semibold text-sm">
+          <h3 className="flex items-center gap-2 font-semibold text-body">
             <span>{agentName(group.agent)}</span>
-            <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+            <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
           </h3>
           <div className="divide-y rounded-xl border">
             {group.findings.map((server) => (

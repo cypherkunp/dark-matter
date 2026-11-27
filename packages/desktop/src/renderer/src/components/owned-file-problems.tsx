@@ -25,11 +25,11 @@ export function OwnedFileProblems() {
         >
           <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <p className="text-sm">
+            <p className="text-body">
               <span className="font-mono font-semibold">{problem.file}</span> has a hand edit that isn't valid
             </p>
-            <p className="break-words font-mono text-muted-foreground text-xs">{problem.message}</p>
-            <p className="text-muted-foreground text-xs">
+            <p className="break-words font-mono text-muted-foreground text-meta">{problem.message}</p>
+            <p className="text-muted-foreground text-meta">
               Dark Matter keeps using the last good state and won't overwrite your edit until you fix it or discard it.
             </p>
           </div>

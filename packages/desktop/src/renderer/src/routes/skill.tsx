@@ -35,21 +35,21 @@ function SkillHeader({ skill }: { skill: SkillDetail }) {
   return (
     <div className="flex items-start gap-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <h1 className="flex items-center gap-2 font-semibold text-2xl tracking-tight">
+        <h1 className="flex items-center gap-2 font-bold text-display">
           <StarSkillButton skillKey={skill.key} />
           {skill.name}
           {skill.modified && <ModifiedBadge />}
           {skill.entry.orphaned && <OrphanedBadge reason={skill.entry.orphaned} />}
         </h1>
-        <p data-testid="skill-provenance-line" className="flex flex-wrap items-center gap-2 text-sm">
+        <p data-testid="skill-provenance-line" className="flex flex-wrap items-center gap-2 text-body">
           <Link
             to="/namespace"
             search={{ name: skill.namespace }}
-            className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-foreground"
+            className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground hover:text-foreground"
           >
             {skill.namespace}
           </Link>
-          <span className="truncate font-mono text-muted-foreground text-xs">{provenanceLine(skill)}</span>
+          <span className="truncate font-mono text-muted-foreground text-meta">{provenanceLine(skill)}</span>
         </p>
       </div>
       <CheckUpstreamButton skill={skill} />
@@ -86,7 +86,7 @@ function SkillPage() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 px-10 py-9">
       {skill.error ? (
-        <p className="text-muted-foreground text-sm">{skill.error.message}</p>
+        <p className="text-muted-foreground text-body">{skill.error.message}</p>
       ) : skill.data && current ? (
         <>
           <SkillHeader skill={skill.data} />
@@ -100,7 +100,7 @@ function SkillPage() {
                 <Tabs.Tab
                   key={item.id}
                   value={item.id}
-                  className="-mb-px border-transparent border-b-2 px-3 py-2 text-muted-foreground text-sm data-[active]:border-foreground data-[active]:font-medium data-[active]:text-foreground"
+                  className="-mb-px border-transparent border-b-2 px-3 py-2 text-muted-foreground text-body data-[active]:border-foreground data-[active]:font-medium data-[active]:text-foreground"
                 >
                   {item.label}
                 </Tabs.Tab>

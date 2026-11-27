@@ -6,7 +6,7 @@ import { modeLabels, OnOffSwitch } from "@/components/project-skills";
 import { StatusDot } from "@/components/status-dot";
 import { useTRPC } from "@/lib/trpc";
 
-const pill = "rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground";
+const pill = "rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground";
 
 function ProjectUseRow({ use }: { use: SkillProjectUse }) {
   const changes = useProjectSkillChanges(use.path, use);
@@ -17,18 +17,18 @@ function ProjectUseRow({ use }: { use: SkillProjectUse }) {
       <StatusDot tone={conflict ? "warning" : use.on ? "on" : "off"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex flex-wrap items-center gap-2">
-          <Link to="/project" search={{ path: use.path }} className="font-medium text-sm hover:underline">
+          <Link to="/project" search={{ path: use.path }} className="font-medium text-body hover:underline">
             {use.projectName}
           </Link>
           <span data-testid="delivery-mode" className={pill}>
             {modeLabels[use.mode]}
           </span>
-          <span className="text-muted-foreground text-xs">{conflict ? "Name Conflict" : use.on ? "On" : "Off"}</span>
+          <span className="text-muted-foreground text-meta">{conflict ? "Name Conflict" : use.on ? "On" : "Off"}</span>
           <CopyStateBadge skill={use} />
         </div>
-        <div className="truncate font-mono text-muted-foreground text-xs">{use.path}</div>
+        <div className="truncate font-mono text-muted-foreground text-meta">{use.path}</div>
         {(changes.error ?? resolve.error) && (
-          <p className="text-status-warning text-xs">{(changes.error ?? resolve.error)?.message}</p>
+          <p className="text-status-warning text-meta">{(changes.error ?? resolve.error)?.message}</p>
         )}
       </div>
       <CopyActions path={use.path} skill={use} />
@@ -51,7 +51,9 @@ export function SkillProjects({ skill }: { skill: SkillDetail }) {
   const list = uses.data ?? [];
   if (uses.isPending) return null;
   if (list.length === 0)
-    return <p className="text-muted-foreground text-sm">No Project uses this Skill yet. Add it from a Project page.</p>;
+    return (
+      <p className="text-muted-foreground text-body">No Project uses this Skill yet. Add it from a Project page.</p>
+    );
   return (
     <div className="divide-y rounded-xl border">
       {list.map((use) => (

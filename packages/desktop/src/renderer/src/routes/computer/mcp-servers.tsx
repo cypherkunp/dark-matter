@@ -37,7 +37,7 @@ function SecretField({ name, missing }: { name: string; missing: boolean }) {
     }),
   );
   return (
-    <div data-testid="mcp-secret" className="flex items-center gap-2 text-muted-foreground text-xs">
+    <div data-testid="mcp-secret" className="flex items-center gap-2 text-muted-foreground text-meta">
       <KeyRound className="size-3" />
       <span className="font-mono">{name}</span>
       {missing && <span className="text-status-warning">not in the keychain</span>}
@@ -53,7 +53,7 @@ function SecretField({ name, missing }: { name: string; missing: boolean }) {
             type="password"
             aria-label={`Value of ${name}`}
             autoComplete="off"
-            className="h-6 w-48 rounded-md border bg-background px-2 font-mono text-foreground text-xs"
+            className="h-6 w-48 rounded-md border bg-background px-2 font-mono text-foreground text-meta"
             value={value}
             onChange={(event) => setValue(event.target.value)}
           />
@@ -130,8 +130,8 @@ function EditDefinitionDialog({ server, onClose }: { server: LibraryMcpServer; o
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(42rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">Edit {server.name}</Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">
+          <Dialog.Title className="font-semibold text-heading">Edit {server.name}</Dialog.Title>
+          <Dialog.Description className="text-muted-foreground text-body">
             Refer to Secrets as <span className="font-mono">{"${secret:NAME}"}</span> and to env vars as{" "}
             <span className="font-mono">{"${env:VAR}"}</span>. Saving rewrites Personal deliveries now; Shared ones show
             as outdated until you update each Project.
@@ -140,7 +140,7 @@ function EditDefinitionDialog({ server, onClose }: { server: LibraryMcpServer; o
             <CodeEditor path={`${server.name}.json`} initial={initial} onChange={setText} onSave={submit} />
           </div>
           {(problem ?? save.error?.message) && (
-            <p className="text-sm text-status-warning">{problem ?? save.error?.message}</p>
+            <p className="text-body text-status-warning">{problem ?? save.error?.message}</p>
           )}
           <div className="flex justify-end gap-2">
             <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>
@@ -163,21 +163,21 @@ function ServerRow({ server }: { server: LibraryMcpServer }) {
     <div data-testid="library-mcp-server" className="flex min-h-16 items-center gap-3 px-5 py-3">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{server.name}</span>
+          <span className="font-medium text-body">{server.name}</span>
           {server.definition && (
-            <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+            <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
               {server.definition.transport}
             </span>
           )}
         </div>
-        <div className="truncate font-mono text-muted-foreground text-xs">
+        <div className="truncate font-mono text-muted-foreground text-meta">
           {server.definition ? definitionSummary(server.definition) : server.file}
         </div>
         {server.secrets.map((secret) => (
           <SecretField key={secret} name={secret} missing={server.missingSecrets.includes(secret)} />
         ))}
-        {server.problem && <p className="text-status-warning text-xs">{server.problem}</p>}
-        {undo.error && <p className="text-status-warning text-xs">{undo.error.message}</p>}
+        {server.problem && <p className="text-status-warning text-meta">{server.problem}</p>}
+        {undo.error && <p className="text-status-warning text-meta">{undo.error.message}</p>}
       </div>
       {server.definition && (
         <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
@@ -223,8 +223,8 @@ function McpServers() {
           <div className="flex size-10 items-center justify-center rounded-full bg-muted">
             <Server className="size-5 text-muted-foreground" />
           </div>
-          <h2 className="font-semibold text-base">No MCP Servers in the Library</h2>
-          <p className="max-w-sm text-muted-foreground text-sm">
+          <h2 className="font-semibold text-heading">No MCP Servers in the Library</h2>
+          <p className="max-w-sm text-muted-foreground text-body">
             A Scan lists the MCP Servers in each Agent's global config in the Inbox. Adopt them to define each one once
             here.
           </p>

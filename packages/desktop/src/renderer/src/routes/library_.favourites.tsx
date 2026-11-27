@@ -29,8 +29,8 @@ function FavouritesView() {
           <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Star className="size-5" />
           </div>
-          <h2 className="font-semibold text-base">Nothing starred yet</h2>
-          <p className="max-w-sm text-muted-foreground text-sm">
+          <h2 className="font-semibold text-heading">Nothing starred yet</h2>
+          <p className="max-w-sm text-muted-foreground text-body">
             Star a Skill from its row or page, or a Source from its Namespace or the GitHub import screen.
           </p>
         </section>
@@ -38,9 +38,9 @@ function FavouritesView() {
         <>
           {sources.length > 0 && (
             <section className="flex flex-col gap-3">
-              <h2 className="flex items-center gap-2 font-semibold text-sm">
+              <h2 className="flex items-center gap-2 font-semibold text-body">
                 Starred Sources
-                <span className="font-normal text-muted-foreground text-xs tabular-nums">{sources.length}</span>
+                <span className="font-normal text-muted-foreground text-meta tabular-nums">{sources.length}</span>
               </h2>
               <div className="divide-y rounded-xl border">
                 {sources.map((source) => (
@@ -53,11 +53,11 @@ function FavouritesView() {
                       <Link
                         to="/namespace"
                         search={{ name: source.source }}
-                        className="font-medium font-mono text-sm hover:underline"
+                        className="font-medium font-mono text-body hover:underline"
                       >
                         {source.source}
                       </Link>
-                      <span className="text-muted-foreground text-xs">
+                      <span className="text-muted-foreground text-meta">
                         {plural(source.skills, "Library Skill")}
                         {source.checkedAt
                           ? ` · checked ${new Date(source.checkedAt).toLocaleString()}`
@@ -67,7 +67,7 @@ function FavouritesView() {
                     {source.newSkills > 0 && (
                       <Link
                         to="/inbox"
-                        className="flex items-center gap-1 rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-[11px] text-status-warning"
+                        className="flex items-center gap-1 rounded-full border border-warning-border bg-warning-surface px-2 py-0.5 text-micro text-status-warning"
                       >
                         {plural(source.newSkills, "new Skill")}
                         <ChevronRight className="size-3" />

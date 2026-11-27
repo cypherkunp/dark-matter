@@ -53,8 +53,8 @@ export function RenameNamespaceDialog({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(36rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">Rename Namespace</Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">
+          <Dialog.Title className="font-semibold text-heading">Rename Namespace</Dialog.Title>
+          <Dialog.Description className="text-muted-foreground text-body">
             Moves every Skill in <span className="font-mono">{from}</span> to the new Namespace and re-creates any Links
             to them.
           </Dialog.Description>
@@ -66,16 +66,16 @@ export function RenameNamespaceDialog({
             onChange={(event) => setTo(event.target.value.trim())}
           />
           {to !== "" && !valid && (
-            <p className="text-muted-foreground text-xs">A Namespace is local or owner/repo, and must differ.</p>
+            <p className="text-muted-foreground text-meta">A Namespace is local or owner/repo, and must differ.</p>
           )}
           {valid && plan.data && (
-            <ol className="flex flex-col gap-1 overflow-y-auto font-mono text-[11px] text-muted-foreground">
+            <ol className="flex flex-col gap-1 overflow-y-auto font-mono text-micro text-muted-foreground">
               {plan.data.steps.map((step) => (
                 <li key={stepText(step)}>{stepText(step)}</li>
               ))}
             </ol>
           )}
-          {error && <p className="text-sm text-status-warning">{error.message}</p>}
+          {error && <p className="text-body text-status-warning">{error.message}</p>}
           <div className="flex justify-end gap-2">
             <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>
             <Button

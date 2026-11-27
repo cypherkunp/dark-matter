@@ -42,7 +42,7 @@ function NamespaceView() {
         </Button>
       </div>
       {library.isPending ? null : skills.length === 0 ? (
-        <p data-testid="namespace-empty" className="text-muted-foreground text-sm">
+        <p data-testid="namespace-empty" className="text-muted-foreground text-body">
           No Library Skills in this Namespace.
         </p>
       ) : (

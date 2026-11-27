@@ -28,11 +28,11 @@ function Row({ suggestion }: { suggestion: SuggestedProject }) {
     <div data-testid="suggested-project" className="flex min-h-16 items-center gap-3 px-5 py-3">
       <StatusDot tone="warning" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-medium text-sm">{suggestion.name}</span>
-        <div className="truncate font-mono text-muted-foreground text-xs">
+        <span className="font-medium text-body">{suggestion.name}</span>
+        <div className="truncate font-mono text-muted-foreground text-meta">
           {[tildify(suggestion.path), suggestion.git ? "git" : "no git"].join(" · ")}
         </div>
-        <div className="text-muted-foreground text-xs">
+        <div className="text-muted-foreground text-meta">
           Seen in {suggestion.agents.map((agent) => agentName(agent)).join(", ")}
         </div>
       </div>
@@ -96,8 +96,8 @@ function Suggested() {
           <div className="flex size-10 items-center justify-center rounded-full bg-muted">
             <FolderSearch className="size-5 text-muted-foreground" />
           </div>
-          <h2 className="font-semibold text-base">{lastScanAt ? "No Suggested Projects" : "No Scan yet"}</h2>
-          <p className="max-w-sm text-muted-foreground text-sm">
+          <h2 className="font-semibold text-heading">{lastScanAt ? "No Suggested Projects" : "No Scan yet"}</h2>
+          <p className="max-w-sm text-muted-foreground text-body">
             A Scan reads where Claude Code, Cursor, OpenCode and Codex were used and suggests those folders. Nothing on
             your disk is crawled.
           </p>

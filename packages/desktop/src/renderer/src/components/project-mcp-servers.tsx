@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-const pill = "rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground";
+const pill = "rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground";
 
 const modeLabels: Record<McpDeliveryMode, string> = { personal: "Personal", shared: "Shared" };
 
@@ -36,7 +36,7 @@ const approvalText = ({ agent, approval }: Delivery) =>
       : null;
 
 const Warning = ({ children }: { children: ReactNode }) => (
-  <div className="flex gap-2.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-sm">
+  <div className="flex gap-2.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-body">
     <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
     <div className="flex flex-col gap-1">{children}</div>
   </div>
@@ -44,9 +44,10 @@ const Warning = ({ children }: { children: ReactNode }) => (
 
 /** The env vars each teammate must set for a Shared server. */
 function EnvVars({ vars }: { vars: string[] }) {
-  if (vars.length === 0) return <p className="text-muted-foreground text-xs">Teammates don't need to set anything.</p>;
+  if (vars.length === 0)
+    return <p className="text-muted-foreground text-meta">Teammates don't need to set anything.</p>;
   return (
-    <p data-testid="mcp-env-vars" className="text-muted-foreground text-xs">
+    <p data-testid="mcp-env-vars" className="text-muted-foreground text-meta">
       Each teammate sets <span className="font-mono text-foreground">{vars.join(", ")}</span> in their environment.
     </p>
   );
@@ -56,7 +57,7 @@ function EnvVars({ vars }: { vars: string[] }) {
 function PlanSummary({ input }: { input: McpChangeInput }) {
   const trpc = useTRPC();
   const plan = useQuery({ ...trpc.project.mcpPlan.queryOptions(input), staleTime: 0, gcTime: 0 });
-  if (plan.error) return <p className="text-status-warning text-xs">{plan.error.message}</p>;
+  if (plan.error) return <p className="text-status-warning text-meta">{plan.error.message}</p>;
   if (!plan.data) return null;
   return (
     <div data-testid="mcp-plan" className="flex flex-col gap-2">
@@ -69,7 +70,7 @@ function PlanSummary({ input }: { input: McpChangeInput }) {
         </Warning>
       )}
       {(input.mode ?? "") === "shared" && <EnvVars vars={plan.data.envVars} />}
-      <ul className="flex flex-col gap-0.5 font-mono text-muted-foreground text-xs">
+      <ul className="flex flex-col gap-0.5 font-mono text-muted-foreground text-meta">
         {plan.data.edits.map((edit) => (
           <li key={`${edit.file} ${edit.change}`} data-testid="mcp-plan-edit">
             {edit.file}: {edit.change}
@@ -122,41 +123,41 @@ function ProjectMcpServerRow({ path, server }: { path: string; server: ProjectMc
       <StatusDot tone={server.on ? "on" : "off"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-sm">{name}</span>
+          <span className="font-medium text-body">{name}</span>
           <span data-testid="project-mcp-mode" className={pill}>
             {modeLabels[server.mode]}
           </span>
           {server.secrets.length > 0 && (
-            <span className="flex items-center gap-1 text-muted-foreground text-xs">
+            <span className="flex items-center gap-1 text-muted-foreground text-meta">
               <KeyRound className="size-3" />
               {plural(server.secrets.length, "Secret")}
             </span>
           )}
           {outdated && (
-            <span data-testid="mcp-outdated" className="text-status-warning text-xs">
+            <span data-testid="mcp-outdated" className="text-status-warning text-meta">
               outdated
             </span>
           )}
           {modified.length > 0 && (
-            <span data-testid="mcp-modified" className="text-status-warning text-xs">
+            <span data-testid="mcp-modified" className="text-status-warning text-meta">
               modified in repo
             </span>
           )}
           {handEdited.length > 0 && (
-            <span data-testid="mcp-hand-edited" className="text-status-warning text-xs">
+            <span data-testid="mcp-hand-edited" className="text-status-warning text-meta">
               edited by hand
             </span>
           )}
         </div>
         {shared && server.envVars && <EnvVars vars={server.envVars} />}
         {server.deliveries.length === 0 ? (
-          <p className="text-muted-foreground text-xs">None of this Project's Agents read MCP Servers.</p>
+          <p className="text-muted-foreground text-meta">None of this Project's Agents read MCP Servers.</p>
         ) : (
           server.deliveries.map((delivery) => (
             <div
               key={delivery.agent}
               data-testid="project-mcp-delivery"
-              className="truncate font-mono text-muted-foreground text-xs"
+              className="truncate font-mono text-muted-foreground text-meta"
             >
               {deliveryText(delivery)}
               {approvalText(delivery) && (
@@ -167,7 +168,7 @@ function ProjectMcpServerRow({ path, server }: { path: string; server: ProjectMc
             </div>
           ))
         )}
-        {error && <p className="text-status-warning text-xs">{error.message}</p>}
+        {error && <p className="text-status-warning text-meta">{error.message}</p>}
         <div className="flex flex-wrap gap-1">
           {handEdited.length > 0 && (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setPending({ kind: "take" })}>
@@ -334,15 +335,15 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(36rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">Add MCP Servers</Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">
+          <Dialog.Title className="font-semibold text-heading">Add MCP Servers</Dialog.Title>
+          <Dialog.Description className="text-muted-foreground text-body">
             {mode === "personal"
               ? "Personal: written only where you see it, with its Secrets filled in, and never committed."
               : "Shared: written into the Project's committed config, with env-var references only, so teammates get it without Dark Matter."}
           </Dialog.Description>
           <div role="radiogroup" aria-label="Delivery" className="flex gap-2">
             {(["personal", "shared"] as const).map((option) => (
-              <label key={option} className="flex cursor-pointer items-center gap-1.5 text-sm">
+              <label key={option} className="flex cursor-pointer items-center gap-1.5 text-body">
                 <input
                   type="radio"
                   name="mcp-mode"
@@ -358,7 +359,7 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
             ))}
           </div>
           {(targets.data ?? []).length > 0 && (
-            <ul className="flex flex-col gap-1 text-xs">
+            <ul className="flex flex-col gap-1 text-meta">
               {(targets.data ?? []).map((target) => (
                 <li key={target.agent} data-testid="mcp-target" className="font-mono text-muted-foreground">
                   {agentName(target.agent)} → {mode === "shared" ? target.shared : target.file}
@@ -386,13 +387,13 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
             <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
               {picked.map((name) => (
                 <div key={name} className="flex flex-col gap-1.5">
-                  <span className="font-medium text-sm">{name}</span>
+                  <span className="font-medium text-body">{name}</span>
                   <PlanSummary input={{ path, name, mode }} />
                 </div>
               ))}
             </div>
           ) : candidates.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Every Library MCP Server is already in this Project.</p>
+            <p className="text-muted-foreground text-body">Every Library MCP Server is already in this Project.</p>
           ) : (
             <div className="min-h-0 divide-y overflow-y-auto rounded-xl border">
               {candidates.map((server) => (
@@ -413,9 +414,9 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
                       )
                     }
                   />
-                  <span className="text-sm">{server.name}</span>
+                  <span className="text-body">{server.name}</span>
                   {mode === "personal" && server.missingSecrets.length > 0 && (
-                    <span className="text-status-warning text-xs">
+                    <span className="text-status-warning text-meta">
                       {plural(server.missingSecrets.length, "Secret")} to enter first
                     </span>
                   )}
@@ -424,7 +425,7 @@ function AddMcpServersDialog({ path, added, onClose }: { path: string; added: st
               ))}
             </div>
           )}
-          {add.error && <p className="text-sm text-status-warning">{add.error.message}</p>}
+          {add.error && <p className="text-body text-status-warning">{add.error.message}</p>}
           <div className="flex justify-end gap-2">
             <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>
             {mode === "shared" && !reviewing ? (
@@ -461,7 +462,7 @@ function RepoMcpServers({ path }: { path: string }) {
       {untracked.length > 0 && (
         <div className="flex flex-col gap-1.5 rounded-xl border px-5 py-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm">
+            <span className="text-body">
               {plural(untracked.length, "MCP Server")} in this Project's own config, not from the Library
             </span>
             <Button
@@ -484,7 +485,7 @@ function RepoMcpServers({ path }: { path: string }) {
                 />
               </span>
               <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="truncate font-mono text-muted-foreground text-xs">
+                <span className="truncate font-mono text-muted-foreground text-meta">
                   {entry.name} · {agentName(entry.agent)} {entry.file} · {definitionSummary(entry.definition)}
                 </span>
                 {entry.notAdoptableReason && (
@@ -497,7 +498,7 @@ function RepoMcpServers({ path }: { path: string }) {
       )}
       {vendored.length > 0 && (
         <div className="flex flex-col gap-1.5 rounded-xl border px-5 py-3">
-          <span className="flex items-center gap-2 text-sm">
+          <span className="flex items-center gap-2 text-body">
             <Users className="size-3.5 text-muted-foreground" />
             Vendored: committed by the team, left alone
           </span>
@@ -505,7 +506,7 @@ function RepoMcpServers({ path }: { path: string }) {
             <div
               key={entry.id}
               data-testid="repo-mcp-vendored"
-              className="truncate font-mono text-muted-foreground text-xs"
+              className="truncate font-mono text-muted-foreground text-meta"
             >
               {entry.name} · {agentName(entry.agent)} {entry.file} · {definitionSummary(entry.definition)}
             </div>
@@ -526,18 +527,18 @@ export function ProjectMcpServers({ path }: { path: string }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 font-semibold text-sm">
+        <h2 className="flex items-center gap-2 font-semibold text-body">
           MCP Servers
-          <span className="font-normal text-muted-foreground text-xs tabular-nums">{list.length}</span>
+          <span className="font-normal text-muted-foreground text-meta tabular-nums">{list.length}</span>
         </h2>
         <Button size="sm" onClick={() => setAdding(true)}>
           <Plus />
           Add MCP Servers
         </Button>
       </div>
-      {servers.error && <p className="text-status-warning text-xs">{servers.error.message}</p>}
+      {servers.error && <p className="text-status-warning text-meta">{servers.error.message}</p>}
       {list.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No Project MCP Servers yet. Add them from the Library.</p>
+        <p className="text-muted-foreground text-body">No Project MCP Servers yet. Add them from the Library.</p>
       ) : (
         <div className="divide-y rounded-xl border">
           {list.map((server) => (

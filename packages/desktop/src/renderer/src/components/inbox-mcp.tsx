@@ -59,7 +59,7 @@ function Actions({
 }) {
   return (
     <div data-testid={testId} className="flex items-start gap-4">
-      <p className="flex-1 text-muted-foreground text-sm">{children}</p>
+      <p className="flex-1 text-muted-foreground text-body">{children}</p>
       <Button size="sm" disabled={ticked.ids.length === 0} onClick={() => onAdopt(ticked.ids)}>
         {adoptTickedLabel(ticked.ids.length)}
       </Button>
@@ -85,14 +85,16 @@ function Finding({
       <StatusDot tone={consent.tone} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{finding.name}</span>
+          <span className="font-medium text-body">{finding.name}</span>
           {finding.inlineSecrets.length > 0 && (
-            <span className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px] text-status-warning">
+            <span className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro text-status-warning">
               {finding.inlineSecrets.length} inline secret{finding.inlineSecrets.length === 1 ? "" : "s"}
             </span>
           )}
         </div>
-        <div className="truncate font-mono text-muted-foreground text-xs">{definitionSummary(finding.definition)}</div>
+        <div className="truncate font-mono text-muted-foreground text-meta">
+          {definitionSummary(finding.definition)}
+        </div>
         {consent.reason}
       </div>
       <div className="flex gap-1.5">
@@ -114,7 +116,7 @@ export function InboxMcpServers({ groups }: { groups: InboxMcpGroup[] }) {
   return (
     <>
       <div className="flex flex-col gap-1 pt-2">
-        <h2 className="font-semibold text-base">Global MCP Servers</h2>
+        <h2 className="font-semibold text-heading">Global MCP Servers</h2>
         <Actions testId="inbox-mcp-actions" ticked={ticked} onAdopt={setAdopting}>
           These load their tools into every Project. Tick the ones to Adopt into the Library so each Project asks for
           only what it needs; inline secrets move into the keychain.
@@ -122,11 +124,11 @@ export function InboxMcpServers({ groups }: { groups: InboxMcpGroup[] }) {
       </div>
       {groups.map((group) => (
         <section key={group.file} data-testid="inbox-mcp-group" className="flex flex-col gap-3">
-          <h2 className="flex flex-wrap items-center gap-2 font-semibold text-sm">
+          <h2 className="flex flex-wrap items-center gap-2 font-semibold text-body">
             <span className="font-mono">{group.file}</span>
-            <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+            <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
             <span className="ml-auto flex items-center gap-1">
-              <span className="rounded-md border px-1.5 py-0.5 font-normal text-[11px] text-muted-foreground">
+              <span className="rounded-md border px-1.5 py-0.5 font-normal text-micro text-muted-foreground">
                 {agentName(group.agent)}
               </span>
             </span>
@@ -161,12 +163,12 @@ function UntrackedFinding({
       <StatusDot tone={consent.tone} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{finding.name}</span>
-          <span className="rounded-md border px-1.5 py-0.5 text-[11px] text-muted-foreground">
+          <span className="font-medium text-body">{finding.name}</span>
+          <span className="rounded-md border px-1.5 py-0.5 text-micro text-muted-foreground">
             {agentName(finding.agent)}
           </span>
         </div>
-        <div className="truncate font-mono text-muted-foreground text-xs">
+        <div className="truncate font-mono text-muted-foreground text-meta">
           {finding.file} · {definitionSummary(finding.definition)}
         </div>
         {consent.reason}
@@ -194,7 +196,7 @@ export function InboxUntrackedMcpServers({ groups }: { groups: InboxProjectMcpGr
   return (
     <>
       <div className="flex flex-col gap-1 pt-2">
-        <h2 className="font-semibold text-base">Untracked Project MCP Servers</h2>
+        <h2 className="font-semibold text-heading">Untracked Project MCP Servers</h2>
         <Actions testId="inbox-untracked-mcp-actions" ticked={ticked} onAdopt={setAdopting}>
           MCP Servers in a Project's own config that Dark Matter didn't write and git doesn't track. Tick the ones to
           Adopt: each moves into the Library and stays in the Project as Personal; inline secrets move into the
@@ -203,9 +205,9 @@ export function InboxUntrackedMcpServers({ groups }: { groups: InboxProjectMcpGr
       </div>
       {groups.map((group) => (
         <section key={group.project} data-testid="inbox-untracked-mcp-group" className="flex flex-col gap-3">
-          <h2 className="flex items-center gap-2 font-semibold text-sm">
+          <h2 className="flex items-center gap-2 font-semibold text-body">
             {group.name}
-            <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+            <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
           </h2>
           <div className="divide-y rounded-xl border">
             {group.findings.map((finding) => (

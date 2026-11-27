@@ -200,16 +200,16 @@ export function AddToProjectsDialog({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(56rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">{title}</Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">{description}</Dialog.Description>
+          <Dialog.Title className="font-semibold text-heading">{title}</Dialog.Title>
+          <Dialog.Description className="text-muted-foreground text-body">{description}</Dialog.Description>
           {result && (result.length > 0 || mcpResult.length > 0) ? (
-            <div data-testid="collection-apply-result" className="flex flex-col gap-2 text-sm">
+            <div data-testid="collection-apply-result" className="flex flex-col gap-2 text-body">
               <p>{plural(added, "item")} added. Some need a look:</p>
               <ul className="divide-y rounded-xl border">
                 {result.map((found) => (
                   <li key={cell(found.path, found.key)} className="flex items-center gap-2 px-4 py-2">
                     <TriangleAlert className="size-3.5 shrink-0 text-status-warning" />
-                    <span className="font-mono text-[12px]">{found.key}</span>
+                    <span className="font-mono text-meta">{found.key}</span>
                     <span className="text-muted-foreground">in {projectName(found.path)}:</span>
                     <span>{outcomeText[found.outcome]}</span>
                   </li>
@@ -217,7 +217,7 @@ export function AddToProjectsDialog({
                 {mcpResult.map((found) => (
                   <li key={cell(found.path, serverRow(found.name))} className="flex items-center gap-2 px-4 py-2">
                     <TriangleAlert className="size-3.5 shrink-0 text-status-warning" />
-                    <span className="font-mono text-[12px]">{found.name}</span>
+                    <span className="font-mono text-meta">{found.name}</span>
                     <span className="text-muted-foreground">in {projectName(found.path)}:</span>
                     <span>{mcpOutcomeText(found)}</span>
                   </li>
@@ -225,22 +225,22 @@ export function AddToProjectsDialog({
               </ul>
             </div>
           ) : projects.isPending ? null : columns.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-body">
               No Projects yet. Confirm a Suggested Project or add a folder, then add Skills from its page.
             </p>
           ) : (
             <div className="min-h-0 overflow-auto rounded-xl border">
-              <table data-testid="add-to-projects-grid" className="w-full border-collapse text-sm">
+              <table data-testid="add-to-projects-grid" className="w-full border-collapse text-body">
                 <thead>
                   <tr className="border-b">
-                    <th className="sticky left-0 bg-background px-4 py-2.5 text-left font-medium text-muted-foreground text-xs">
+                    <th className="sticky left-0 bg-background px-4 py-2.5 text-left font-medium text-muted-foreground text-meta">
                       {servers.length === 0
                         ? plural(keys.length, "Skill")
                         : `${plural(keys.length, "Skill")}, ${plural(servers.length, "MCP Server")}`}
                     </th>
-                    <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs">Deliver as</th>
+                    <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-meta">Deliver as</th>
                     {columns.map((project) => (
-                      <th key={project.path} className="px-3 py-2.5 font-medium text-xs" title={project.path}>
+                      <th key={project.path} className="px-3 py-2.5 font-medium text-meta" title={project.path}>
                         <button
                           type="button"
                           className="hover:underline"
@@ -264,7 +264,7 @@ export function AddToProjectsDialog({
                           onClick={() => toggle(columns.map((project) => cell(project.path, key)))}
                         >
                           <span>{nameOf(key)}</span>
-                          <span className="font-mono text-[11px] text-muted-foreground">{key}</span>
+                          <span className="font-mono text-micro text-muted-foreground">{key}</span>
                         </button>
                       </th>
                       <td className="px-3 py-2.5">
@@ -277,7 +277,7 @@ export function AddToProjectsDialog({
                             <label
                               key={option}
                               className={cn(
-                                "cursor-pointer rounded px-2 py-0.5 text-xs has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                                "cursor-pointer rounded px-2 py-0.5 text-meta has-focus-visible:ring-2 has-focus-visible:ring-ring",
                                 modeOf(key) === option ? "bg-muted font-medium" : "text-muted-foreground",
                               )}
                             >
@@ -331,7 +331,7 @@ export function AddToProjectsDialog({
                           onClick={() => toggle(columns.map((project) => cell(project.path, serverRow(name))))}
                         >
                           <span>{name}</span>
-                          <span className="text-[11px] text-muted-foreground">MCP Server</span>
+                          <span className="text-micro text-muted-foreground">MCP Server</span>
                         </button>
                       </th>
                       <td className="px-3 py-2.5">
@@ -344,7 +344,7 @@ export function AddToProjectsDialog({
                             <label
                               key={option}
                               className={cn(
-                                "cursor-pointer rounded px-2 py-0.5 text-xs has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                                "cursor-pointer rounded px-2 py-0.5 text-meta has-focus-visible:ring-2 has-focus-visible:ring-ring",
                                 mcpModeOf(name) === option ? "bg-muted font-medium" : "text-muted-foreground",
                               )}
                             >
@@ -392,7 +392,7 @@ export function AddToProjectsDialog({
               </table>
             </div>
           )}
-          {error && <p className="text-sm text-status-warning">{error.message}</p>}
+          {error && <p className="text-body text-status-warning">{error.message}</p>}
           <div className="flex justify-end gap-2">
             {result && (result.length > 0 || mcpResult.length > 0) ? (
               <Button onClick={onClose}>Done</Button>

@@ -36,7 +36,9 @@ function SkillsShSearchPage({ initial, project }: { initial: string; project: st
         value={text}
         onChange={(event) => setText(event.target.value)}
       />
-      {text.trim().length < 2 && <p className="text-muted-foreground text-sm">Type at least 2 characters to search.</p>}
+      {text.trim().length < 2 && (
+        <p className="text-muted-foreground text-body">Type at least 2 characters to search.</p>
+      )}
       <SkillsShResults text={text} onGot={setAdding} />
       {adding && adding.length > 0 && (
         <AddToProjectsDialog

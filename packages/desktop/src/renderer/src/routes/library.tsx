@@ -32,8 +32,8 @@ function AllSkills() {
           <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Library className="size-5" />
           </div>
-          <h2 className="font-semibold text-base">Your Library is empty</h2>
-          <p className="max-w-sm text-muted-foreground text-sm">
+          <h2 className="font-semibold text-heading">Your Library is empty</h2>
+          <p className="max-w-sm text-muted-foreground text-body">
             A Scan finds the Skills your Agents can see. Adopt them to bring them into the Library, or import Skills
             from GitHub.
           </p>
@@ -41,11 +41,11 @@ function AllSkills() {
       ) : (
         byNamespace(skills).map(([namespace, members]) => (
           <section key={namespace} data-testid="library-namespace" className="flex flex-col gap-3">
-            <h2 className="flex items-center gap-2 font-semibold text-sm">
+            <h2 className="flex items-center gap-2 font-semibold text-body">
               <Link to="/namespace" search={{ name: namespace }} className="font-mono hover:underline">
                 {namespace}
               </Link>
-              <span className="font-normal text-muted-foreground text-xs tabular-nums">{members.length}</span>
+              <span className="font-normal text-muted-foreground text-meta tabular-nums">{members.length}</span>
             </h2>
             <SkillRows skills={members} />
           </section>

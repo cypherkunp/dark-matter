@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-const pill = "rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground";
+const pill = "rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground";
 
 export const modeLabels: Record<DeliveryMode, string> = { link: "Link", copy: "Copy" };
 
@@ -70,22 +70,22 @@ function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill })
       <StatusDot tone={conflict ? "warning" : skill.on ? "on" : "off"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-sm">{skill.name}</span>
+          <span className="font-medium text-body">{skill.name}</span>
           <span className={pill}>{skill.namespace}</span>
           <span data-testid="delivery-mode" className={pill}>
             {modeLabels[skill.mode]}
           </span>
           <CopyStateBadge skill={skill} />
           {conflict && (
-            <span className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px]">
+            <span className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro">
               Name Conflict
             </span>
           )}
         </div>
-        <div className="truncate font-mono text-muted-foreground text-xs">
+        <div className="truncate font-mono text-muted-foreground text-meta">
           {conflict ? `also wanted: ${skill.conflictsWith.join(", ")}` : skill.paths.join(" · ")}
         </div>
-        {error && <p className="text-status-warning text-xs">{error.message}</p>}
+        {error && <p className="text-status-warning text-meta">{error.message}</p>}
       </div>
       {conflict && (
         <Button
@@ -130,13 +130,13 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(36rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">Add Skills</Dialog.Title>
-          <Dialog.Description className="text-muted-foreground text-sm">{modeHelp[mode]}</Dialog.Description>
+          <Dialog.Title className="font-semibold text-heading">Add Skills</Dialog.Title>
+          <Dialog.Description className="text-muted-foreground text-body">{modeHelp[mode]}</Dialog.Description>
           <div role="radiogroup" aria-label="Deliver as" className="flex gap-2">
             {(["link", "copy"] as const).map((option) => (
               <label
                 key={option}
-                className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm"
+                className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-body"
               >
                 <input
                   type="radio"
@@ -169,7 +169,7 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
             </Button>
           )}
           {candidates.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-body">
               {words.length > 0 ? "No Library Skill matches." : "Every Library Skill is already in this Project."}
             </p>
           ) : (
@@ -192,7 +192,7 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
                       )
                     }
                   />
-                  <span className="text-sm">{skill.name}</span>
+                  <span className="text-body">{skill.name}</span>
                   <span className={cn(pill, "ml-auto")}>{skill.key}</span>
                 </label>
               ))}
@@ -201,14 +201,14 @@ function AddSkillsDialog({ path, added, onClose }: { path: string; added: string
           {/* skills.sh (#31): Get Imports the Skill, then adds it to this Project as chosen above. */}
           {!importable && query.trim().length >= 2 && (
             <section aria-label="From skills.sh" className="flex min-h-0 flex-col gap-2">
-              <h3 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">From skills.sh</h3>
+              <h3 className="font-medium text-muted-foreground text-meta uppercase tracking-wide">From skills.sh</h3>
               <SkillsShResults
                 text={query}
                 onGot={(keys) => add.mutate({ skills: keys.map((key) => ({ path, key, mode })) })}
               />
             </section>
           )}
-          {add.error && <p className="text-sm text-status-warning">{add.error.message}</p>}
+          {add.error && <p className="text-body text-status-warning">{add.error.message}</p>}
           <div className="flex justify-end gap-2">
             <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>
             <Button
@@ -233,9 +233,9 @@ export function ProjectSkills({ path }: { path: string }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 font-semibold text-sm">
+        <h2 className="flex items-center gap-2 font-semibold text-body">
           Project Skills
-          <span className="font-normal text-muted-foreground text-xs tabular-nums">{list.length}</span>
+          <span className="font-normal text-muted-foreground text-meta tabular-nums">{list.length}</span>
         </h2>
         <Button size="sm" onClick={() => setAdding(true)}>
           <Plus />
@@ -243,7 +243,7 @@ export function ProjectSkills({ path }: { path: string }) {
         </Button>
       </div>
       {list.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No Project Skills yet. Add Skills from the Library.</p>
+        <p className="text-muted-foreground text-body">No Project Skills yet. Add Skills from the Library.</p>
       ) : (
         <div className="divide-y rounded-xl border">
           {list.map((skill) => (

@@ -42,12 +42,12 @@ function DriftRow({ finding }: { finding: DriftFinding }) {
     <div data-testid="inbox-drift-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
       <StatusDot tone="warning" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-medium text-sm">{finding.name ?? finding.project}</span>
-        <p className="text-muted-foreground text-xs">{describe(finding)}</p>
+        <span className="font-medium text-body">{finding.name ?? finding.project}</span>
+        <p className="text-muted-foreground text-meta">{describe(finding)}</p>
         {finding.paths.length > 0 && (
-          <div className="truncate font-mono text-muted-foreground text-xs">{finding.paths.join(" · ")}</div>
+          <div className="truncate font-mono text-muted-foreground text-meta">{finding.paths.join(" · ")}</div>
         )}
-        {error && <p className="text-status-warning text-xs">{error.message}</p>}
+        {error && <p className="text-status-warning text-meta">{error.message}</p>}
       </div>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => ignore.mutate({ id: finding.id })}>
@@ -74,19 +74,19 @@ export function InboxDrift({ groups }: { groups: InboxDriftGroup[] }) {
   return (
     <>
       <div className="flex flex-col gap-1 pt-2">
-        <h2 className="font-semibold text-base">Drift</h2>
-        <p className="text-muted-foreground text-sm">
+        <h2 className="font-semibold text-heading">Drift</h2>
+        <p className="text-muted-foreground text-body">
           A Project's files no longer match what Dark Matter delivered. Restore puts them back; Accept updates the
           Project to match the disk.
         </p>
       </div>
       {groups.map((group) => (
         <section key={group.project} data-testid="inbox-drift-group" className="flex flex-col gap-3">
-          <h2 className="flex items-center gap-2 font-semibold text-sm">
+          <h2 className="flex items-center gap-2 font-semibold text-body">
             <Link to="/project" search={{ path: group.project }} className="hover:underline">
               {group.name}
             </Link>
-            <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+            <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
           </h2>
           <div className="divide-y rounded-xl border">
             {group.findings.map((finding) => (

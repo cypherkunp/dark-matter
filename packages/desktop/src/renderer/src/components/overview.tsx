@@ -42,12 +42,12 @@ function Card({ label, caption, card, tone }: { label: string; caption: string; 
       data-testid="stat-card"
       className="flex flex-col gap-2 px-5 py-4 transition-colors hover:bg-foreground/[0.03] focus-visible:bg-foreground/[0.03] focus-visible:outline-none"
     >
-      <span className="text-muted-foreground text-sm">{label}</span>
-      <span className="flex items-center gap-2 font-semibold text-[26px] leading-none tracking-[-0.02em] tabular-nums">
+      <span className="text-muted-foreground text-body">{label}</span>
+      <span className="flex items-center gap-2 font-semibold text-stat tabular-nums">
         {card.count !== null && <StatusDot tone={tone} />}
         <span data-testid="stat-count">{card.count ?? "–"}</span>
       </span>
-      <span className="text-muted-foreground text-xs">{card.count === null ? "after the first Scan" : caption}</span>
+      <span className="text-muted-foreground text-meta">{card.count === null ? "after the first Scan" : caption}</span>
     </a>
   );
 }
@@ -81,9 +81,9 @@ export function Overview() {
       </section>
       {alerts.length > 0 && (
         <section className="flex flex-col gap-3">
-          <h2 className="flex items-center gap-2 font-semibold text-sm">
+          <h2 className="flex items-center gap-2 font-semibold text-body">
             Active alerts{" "}
-            <span className="font-normal text-muted-foreground text-xs tabular-nums">{alerts.length}</span>
+            <span className="font-normal text-muted-foreground text-meta tabular-nums">{alerts.length}</span>
           </h2>
           <div className="flex flex-col divide-y divide-warning-border overflow-hidden rounded-2xl border border-warning-border bg-warning-surface">
             {alerts.map((alert) => (
@@ -95,11 +95,11 @@ export function Overview() {
               >
                 <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <p className="text-sm">
+                  <p className="text-body">
                     <span className="font-semibold">{alert.subject}</span> {alert.issue}
                   </p>
-                  <p className="truncate text-muted-foreground text-sm">{alert.detail}</p>
-                  <p className="text-muted-foreground text-xs">
+                  <p className="truncate text-muted-foreground text-body">{alert.detail}</p>
+                  <p className="text-muted-foreground text-meta">
                     First observed {relativeTime(Date.parse(alert.firstSeenAt), now)}
                   </p>
                 </div>

@@ -4,7 +4,7 @@ export function ModifiedBadge() {
     <span
       data-testid="modified-badge"
       title="Changed since it was last Imported: it no longer matches its Library Lock hash"
-      className="rounded-full bg-warning-surface px-2 py-0.5 font-medium text-[11px] text-status-warning"
+      className="rounded-full bg-warning-surface px-2 py-0.5 font-medium text-micro text-status-warning"
     >
       Modified
     </span>

@@ -14,7 +14,7 @@ export function OrphanedBadge({ reason }: { reason?: string }) {
     <span
       data-testid="orphaned-badge"
       title={reason ?? "Its Source can't be found any more: kept as is until you Detach or re-point it"}
-      className="rounded-full bg-warning-surface px-2 py-0.5 font-medium text-[11px] text-status-warning"
+      className="rounded-full bg-warning-surface px-2 py-0.5 font-medium text-micro text-status-warning"
     >
       Orphaned
     </span>
@@ -37,7 +37,7 @@ export function CheckUpstreamButton({ skill }: { skill: SkillDetail }) {
   return (
     <div className="flex items-center gap-2">
       {check.isSuccess && (
-        <span data-testid="check-upstream-result" className="text-muted-foreground text-xs">
+        <span data-testid="check-upstream-result" className="text-muted-foreground text-meta">
           {orphaned ? (
             "Source gone"
           ) : found ? (
@@ -51,7 +51,7 @@ export function CheckUpstreamButton({ skill }: { skill: SkillDetail }) {
           )}
         </span>
       )}
-      {check.isError && <span className="text-status-warning text-xs">{check.error.message}</span>}
+      {check.isError && <span className="text-status-warning text-meta">{check.error.message}</span>}
       <Button
         size="sm"
         variant="outline"
@@ -76,12 +76,12 @@ function UpdateRow({ update }: { update: SkillUpdate }) {
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <Link to="/skill" search={{ key: update.key }} className="font-medium text-sm hover:underline">
+            <Link to="/skill" search={{ key: update.key }} className="font-medium text-body hover:underline">
               {update.key}
             </Link>
             {update.modified && <ModifiedBadge />}
           </div>
-          <div className="truncate font-mono text-muted-foreground text-xs">
+          <div className="truncate font-mono text-muted-foreground text-meta">
             {update.source}@{update.ref} · {update.commit?.slice(0, 7) ?? "?"} → {update.head.slice(0, 7)}
           </div>
         </div>
@@ -107,14 +107,14 @@ function UpdateRow({ update }: { update: SkillUpdate }) {
         )}
       </div>
       {update.modified && (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-muted-foreground text-meta">
           You changed this Skill. Take upstream puts your version in trash, Keep mine skips this version, Detach makes
           it a local Skill that never updates.
         </p>
       )}
-      {apply.isError && <p className="text-status-warning text-xs">{apply.error.message}</p>}
+      {apply.isError && <p className="text-status-warning text-meta">{apply.error.message}</p>}
       {showDiff && (
-        <pre data-testid="update-diff" className="max-h-96 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs">
+        <pre data-testid="update-diff" className="max-h-96 overflow-auto rounded-lg bg-muted p-3 font-mono text-meta">
           {diff.isPending ? "Loading…" : diff.isError ? diff.error.message : diff.data.patch || "No changes"}
         </pre>
       )}
@@ -133,12 +133,12 @@ function OrphanedRow({ skillKey, reason }: { skillKey: string; reason: string })
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <Link to="/skill" search={{ key: skillKey }} className="font-medium text-sm hover:underline">
+            <Link to="/skill" search={{ key: skillKey }} className="font-medium text-body hover:underline">
               {skillKey}
             </Link>
             <OrphanedBadge reason={reason} />
           </div>
-          <div className="truncate text-muted-foreground text-xs">{reason}</div>
+          <div className="truncate text-muted-foreground text-meta">{reason}</div>
         </div>
         <Button
           size="sm"
@@ -161,13 +161,13 @@ function OrphanedRow({ skillKey, reason }: { skillKey: string; reason: string })
           placeholder="owner/repo or a GitHub tree URL"
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          className="h-7 font-mono text-xs"
+          className="h-7 font-mono text-meta"
         />
         <Button size="sm" variant="outline" type="submit" disabled={repoint.isPending || !input.trim()}>
           Re-point
         </Button>
       </form>
-      {error && <p className="text-status-warning text-xs">{error.message}</p>}
+      {error && <p className="text-status-warning text-meta">{error.message}</p>}
     </div>
   );
 }
@@ -183,9 +183,9 @@ export function UpdatesList() {
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-3">
-        <h2 className="flex items-center gap-2 font-semibold text-sm">
+        <h2 className="flex items-center gap-2 font-semibold text-body">
           Updates
-          <span className="font-normal text-muted-foreground text-xs tabular-nums">{updates.length}</span>
+          <span className="font-normal text-muted-foreground text-meta tabular-nums">{updates.length}</span>
           {plain.length > 0 && (
             <Button
               size="sm"
@@ -197,9 +197,9 @@ export function UpdatesList() {
             </Button>
           )}
         </h2>
-        {apply.isError && <p className="text-status-warning text-xs">{apply.error.message}</p>}
+        {apply.isError && <p className="text-status-warning text-meta">{apply.error.message}</p>}
         {updates.length === 0 ? (
-          <p data-testid="updates-empty" className="rounded-xl border px-5 py-6 text-muted-foreground text-sm">
+          <p data-testid="updates-empty" className="rounded-xl border px-5 py-6 text-muted-foreground text-body">
             Every Imported Skill matches its Source.
           </p>
         ) : (
@@ -212,9 +212,9 @@ export function UpdatesList() {
       </section>
       {orphaned.length > 0 && (
         <section className="flex flex-col gap-3">
-          <h2 className="flex items-center gap-2 font-semibold text-sm">
+          <h2 className="flex items-center gap-2 font-semibold text-body">
             Orphaned
-            <span className="font-normal text-muted-foreground text-xs tabular-nums">{orphaned.length}</span>
+            <span className="font-normal text-muted-foreground text-meta tabular-nums">{orphaned.length}</span>
           </h2>
           <div className="divide-y overflow-hidden rounded-xl border">
             {orphaned.map((skill) => (

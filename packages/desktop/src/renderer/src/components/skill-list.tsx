@@ -26,9 +26,9 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
       >
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">{skill.name}</span>
+            <span className="font-medium text-body">{skill.name}</span>
             {skill.localSource && (
-              <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+              <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
                 Local Source
               </span>
             )}
@@ -37,18 +37,18 @@ function SkillRow({ skill }: { skill: LibrarySkill }) {
             {skill.nameConflict && (
               <span
                 data-testid="name-conflict"
-                className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px]"
+                className="rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro"
               >
                 Name Conflict
               </span>
             )}
           </div>
-          {skill.description && <p className="truncate text-muted-foreground text-xs">{skill.description}</p>}
-          <div className="truncate font-mono text-muted-foreground text-xs">
+          {skill.description && <p className="truncate text-muted-foreground text-meta">{skill.description}</p>}
+          <div className="truncate font-mono text-muted-foreground text-meta">
             {[skill.key, skill.localSource].filter(Boolean).join(" · ")}
           </div>
         </div>
-        <span data-testid="project-count" className="shrink-0 text-muted-foreground text-xs tabular-nums">
+        <span data-testid="project-count" className="shrink-0 text-muted-foreground text-meta tabular-nums">
           {plural(skill.projects, "Project")}
         </span>
         <ChevronRight className="size-4 text-muted-foreground" />

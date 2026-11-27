@@ -55,11 +55,11 @@ function Frame({
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col gap-6 px-10 py-12">
       <div className="flex flex-col gap-2">
-        <p className="font-mono text-muted-foreground text-xs">
+        <p className="font-mono text-muted-foreground text-meta">
           First run · {steps.indexOf(step) + 1} of {steps.length}
         </p>
-        <h1 className="font-semibold text-2xl tracking-tight">{title}</h1>
-        {lead && <div className="text-muted-foreground text-sm leading-relaxed">{lead}</div>}
+        <h1 className="font-bold text-display">{title}</h1>
+        {lead && <div className="text-muted-foreground text-body leading-relaxed">{lead}</div>}
       </div>
       <div className="flex min-h-0 flex-col gap-5 overflow-y-auto">{children}</div>
       <div className="mt-auto flex items-center justify-end gap-2 border-t pt-4">
@@ -99,7 +99,7 @@ function Welcome() {
         </Button>
       }
     >
-      {scan.error && <p className="text-sm text-status-warning">{scan.error.message}</p>}
+      {scan.error && <p className="text-body text-status-warning">{scan.error.message}</p>}
     </Frame>
   );
 }
@@ -144,15 +144,15 @@ function AdoptPermissionsPanel({ owners }: { owners: AgentId[] }) {
   return (
     <section data-testid="first-run-adopt-permissions" className="flex flex-col gap-2 rounded-xl border px-4 py-3">
       <div className="flex flex-col gap-0.5">
-        <span className="font-medium text-sm">Adopt Permissions</span>
-        <span className="text-muted-foreground text-xs">
+        <span className="font-medium text-body">Adopt Permissions</span>
+        <span className="text-muted-foreground text-meta">
           Dark Matter only moves Skills out of an Agent's own folder when you allow it. You can change this later in
           Settings › Agents.
         </span>
       </div>
       {owners.map((agent) => (
         <div key={agent} className="flex items-center gap-3">
-          <span className="flex-1 text-sm">Skills in {agentName(agent)}'s folder</span>
+          <span className="flex-1 text-body">Skills in {agentName(agent)}'s folder</span>
           <AdoptPermissionSwitch agent={agent} kind="skills" />
         </div>
       ))}
@@ -225,8 +225,8 @@ function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
                   />
                 </span>
                 <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="font-medium text-sm">{finding.name}</span>
-                  <span className="truncate font-mono text-muted-foreground text-xs">{finding.folder}</span>
+                  <span className="font-medium text-body">{finding.name}</span>
+                  <span className="truncate font-mono text-muted-foreground text-meta">{finding.folder}</span>
                   {finding.notAdoptableReason && (
                     <ReadOnlyReason reason={finding.notAdoptableReason} owner={finding.owningAgent} />
                   )}
@@ -238,7 +238,7 @@ function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
         {shown?.warnings.map((warning) => (
           <div
             key={warning}
-            className="flex gap-2.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-sm"
+            className="flex gap-2.5 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-body"
           >
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
             <span>{warning}</span>
@@ -249,17 +249,17 @@ function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
             <div className="divide-y rounded-xl border">
               {shown.skills.map((skill) => (
                 <div key={skill.finding} className="flex items-center gap-2 px-4 py-2.5">
-                  <span className="font-medium text-sm">{skill.name}</span>
-                  <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  <span className="font-medium text-body">{skill.name}</span>
+                  <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
                     {skill.key}
                   </span>
-                  <span className="ml-auto text-muted-foreground text-xs">{outcomeLabels[skill.outcome]}</span>
+                  <span className="ml-auto text-muted-foreground text-meta">{outcomeLabels[skill.outcome]}</span>
                 </div>
               ))}
             </div>
-            <details open className="text-xs">
+            <details open className="text-meta">
               <summary className="cursor-default text-muted-foreground">Dry-run plan</summary>
-              <ol className="mt-2 flex flex-col gap-1 font-mono text-[11px] text-muted-foreground">
+              <ol className="mt-2 flex flex-col gap-1 font-mono text-micro text-muted-foreground">
                 {shown.steps.map((step) => (
                   <li key={stepText(step)}>{stepText(step)}</li>
                 ))}
@@ -267,7 +267,7 @@ function Adopt({ onAdopted }: { onAdopted: (plan: AdoptPlan) => void }) {
             </details>
           </>
         )}
-        {execute.isPending && <p className="text-sm">Moving {plural(findings.length, "Skill")}…</p>}
+        {execute.isPending && <p className="text-body">Moving {plural(findings.length, "Skill")}…</p>}
         <ConsentError error={error} />
       </div>
     </Frame>
@@ -289,7 +289,7 @@ function Summary({ applied }: { applied: AdoptPlan | null }) {
       lead="Agents see them again once a Project adds them. That's next."
       actions={<Button onClick={() => go("projects")}>Continue</Button>}
     >
-      <ul data-testid="first-run-summary" className="divide-y rounded-xl border text-sm">
+      <ul data-testid="first-run-summary" className="divide-y rounded-xl border text-body">
         {(applied ? lines : ["Nothing was moved"]).map((line) => (
           <li key={line} className="px-4 py-2.5">
             {line}
@@ -331,7 +331,7 @@ function Projects() {
       }
     >
       {suggested.data && list.length === 0 && (
-        <p className="text-muted-foreground text-sm">No Suggested Projects. Add folders later from the sidebar.</p>
+        <p className="text-muted-foreground text-body">No Suggested Projects. Add folders later from the sidebar.</p>
       )}
       {list.length > 0 && (
         <div className="divide-y rounded-xl border">
@@ -355,8 +355,8 @@ function Projects() {
                 }
               />
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="font-medium text-sm">{suggestion.name}</span>
-                <span className="truncate font-mono text-muted-foreground text-xs">
+                <span className="font-medium text-body">{suggestion.name}</span>
+                <span className="truncate font-mono text-muted-foreground text-meta">
                   {tildify(suggestion.path)} · seen in {suggestion.agents.map((agent) => agentName(agent)).join(", ")}
                 </span>
               </div>
@@ -364,7 +364,7 @@ function Projects() {
           ))}
         </div>
       )}
-      {add.error && <p className="text-sm text-status-warning">{add.error.message}</p>}
+      {add.error && <p className="text-body text-status-warning">{add.error.message}</p>}
     </Frame>
   );
 }
@@ -401,7 +401,7 @@ function Setup({ at }: { at: number }) {
         <Button onClick={() => (last ? go("done") : go("setup", at + 1))}>{last ? "Finish" : "Next Project"}</Button>
       }
     >
-      <ul data-testid="first-run-modes" className="flex flex-col gap-1.5 rounded-xl border px-4 py-3 text-sm">
+      <ul data-testid="first-run-modes" className="flex flex-col gap-1.5 rounded-xl border px-4 py-3 text-body">
         <li>
           <span className="font-medium">Link</span>: a personal symlink to the Library, excluded from git. Only you get
           it.
@@ -432,9 +432,11 @@ function Setup({ at }: { at: number }) {
         ))}
       </div>
       {keys.length === 0 && (
-        <p className="text-muted-foreground text-sm">The Library is empty, so there's nothing to add yet.</p>
+        <p className="text-muted-foreground text-body">The Library is empty, so there's nothing to add yet.</p>
       )}
-      <p className="text-muted-foreground text-xs">Skills already in this repo and not committed wait in the Inbox.</p>
+      <p className="text-muted-foreground text-meta">
+        Skills already in this repo and not committed wait in the Inbox.
+      </p>
       {open && (
         <AddToProjectsDialog
           keys={open.keys}
@@ -489,14 +491,14 @@ function Done() {
           aria-label="Start at login"
         />
         <div className="flex flex-col gap-0.5">
-          <span className="font-medium text-sm">Start at login</span>
-          <span className="text-muted-foreground text-xs">
+          <span className="font-medium text-body">Start at login</span>
+          <span className="text-muted-foreground text-meta">
             Keeps Dark Matter in the menu bar so the daily Scheduled Scan runs.
           </span>
         </div>
       </label>
       {(save.error ?? complete.error) && (
-        <p className="text-sm text-status-warning">{(save.error ?? complete.error)?.message}</p>
+        <p className="text-body text-status-warning">{(save.error ?? complete.error)?.message}</p>
       )}
     </Frame>
   );

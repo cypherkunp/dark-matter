@@ -5,7 +5,7 @@ import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
 
-const warningPill = "rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-[11px]";
+const warningPill = "rounded-md border border-warning-border bg-warning-surface px-1.5 py-0.5 text-micro";
 
 /** "outdated" or "modified in repo" for a Copy. ("Modified" is kept for a Library Skill.) */
 export function CopyStateBadge({ skill }: { skill: ProjectSkill }) {
@@ -47,11 +47,11 @@ export function ConfirmDialog({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex w-[min(30rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">{title}</Dialog.Title>
-          <Dialog.Description render={<div />} className="flex flex-col gap-2 text-muted-foreground text-sm">
+          <Dialog.Title className="font-semibold text-heading">{title}</Dialog.Title>
+          <Dialog.Description render={<div />} className="flex flex-col gap-2 text-muted-foreground text-body">
             {children}
           </Dialog.Description>
-          {error && <p className="text-sm text-status-warning">{error}</p>}
+          {error && <p className="text-body text-status-warning">{error}</p>}
           <div className="flex justify-end gap-2">
             <Dialog.Close render={<Button variant="outline" />}>Cancel</Dialog.Close>
             <Button disabled={busy} onClick={onConfirm}>
@@ -72,10 +72,10 @@ function DiffDialog({ path, skill, onClose }: { path: string; skill: ProjectSkil
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/30" />
         <Dialog.Popup className="-translate-x-1/2 -translate-y-1/2 fixed top-1/2 left-1/2 flex max-h-[85vh] w-[min(48rem,calc(100vw-4rem))] flex-col gap-4 rounded-xl border bg-background p-6">
-          <Dialog.Title className="font-semibold text-lg">{skill.name}: repo vs Library</Dialog.Title>
+          <Dialog.Title className="font-semibold text-heading">{skill.name}: repo vs Library</Dialog.Title>
           <pre
             data-testid="copy-diff"
-            className="min-h-0 overflow-auto rounded-lg bg-muted p-3 font-mono text-[11px] leading-relaxed"
+            className="min-h-0 overflow-auto rounded-lg bg-muted p-3 font-mono text-micro leading-relaxed"
           >
             {diff.data ? diff.data.patch || "No differences." : diff.error ? diff.error.message : "Loading…"}
           </pre>
@@ -114,7 +114,7 @@ export function CopyActions({ path, skill }: { path: string; skill: ProjectSkill
       <Button size="sm" variant="ghost" disabled={busy} onClick={() => setAsking(true)}>
         Take Library version
       </Button>
-      {pull.error && <p className="text-status-warning text-xs">{pull.error.message}</p>}
+      {pull.error && <p className="text-status-warning text-meta">{pull.error.message}</p>}
       {diffing && <DiffDialog path={path} skill={skill} onClose={() => setDiffing(false)} />}
       {asking && (
         <ConfirmDialog
@@ -163,9 +163,9 @@ export function useProjectSkillChanges(path: string, skill: ProjectSkill) {
       onClose={() => setAsking(null)}
     >
       <p>
-        This deletes the committed files at <code className="font-mono text-xs">{skill.paths.join(", ")}</code> and its{" "}
-        <code className="font-mono text-xs">skills-lock.json</code> entry. git will show the deletion for you to commit,
-        and teammates lose it when they pull.
+        This deletes the committed files at <code className="font-mono text-meta">{skill.paths.join(", ")}</code> and
+        its <code className="font-mono text-meta">skills-lock.json</code> entry. git will show the deletion for you to
+        commit, and teammates lose it when they pull.
       </p>
       {discardEdits && (
         <p className="text-status-warning">Its files were modified in repo: those edits will be lost.</p>

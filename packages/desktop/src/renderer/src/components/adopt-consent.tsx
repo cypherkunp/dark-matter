@@ -57,7 +57,7 @@ export function TickBox({
 /** Why a finding is read-only, in words, with a lock. */
 export function ReadOnlyReason({ reason, owner }: { reason: NotAdoptableReason; owner: AgentId }) {
   return (
-    <p data-testid="read-only-reason" className="flex items-center gap-1 text-muted-foreground text-xs">
+    <p data-testid="read-only-reason" className="flex items-center gap-1 text-muted-foreground text-meta">
       <Lock className="size-3 shrink-0" />
       {readOnlyReasonText(reason, owner)}
     </p>
@@ -91,7 +91,7 @@ export function ConsentError({
   if (!error) return null;
   const tag = (error.data as { tag?: string } | undefined)?.tag;
   return (
-    <p data-testid="consent-error" className={className ?? "text-sm text-status-warning"}>
+    <p data-testid="consent-error" className={className ?? "text-body text-status-warning"}>
       {error.message}
       {tag && consentTags.has(tag) && (
         <>

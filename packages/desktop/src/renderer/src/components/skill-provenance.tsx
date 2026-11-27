@@ -42,7 +42,7 @@ export function SkillProvenance({ skill }: { skill: SkillDetail }) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold text-sm">
+        <h2 className="font-semibold text-body">
           Library Lock entry <span className="font-mono font-normal text-muted-foreground">"{skill.key}"</span>
         </h2>
         <dl
@@ -51,18 +51,18 @@ export function SkillProvenance({ skill }: { skill: SkillDetail }) {
         >
           {rows.map(([label, value]) => (
             <div key={label} className="contents">
-              <dt className="font-mono text-muted-foreground text-xs">{label}</dt>
-              <dd className="break-all font-mono text-xs">{value}</dd>
+              <dt className="font-mono text-muted-foreground text-meta">{label}</dt>
+              <dd className="break-all font-mono text-meta">{value}</dd>
             </div>
           ))}
         </dl>
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold text-sm">Adopted from</h2>
+        <h2 className="font-semibold text-body">Adopted from</h2>
         {entry.adoptedFrom ? (
           <div className="flex items-center gap-3 rounded-xl border px-4 py-3">
-            <div className="flex min-w-0 flex-1 flex-col gap-1 font-mono text-xs">
+            <div className="flex min-w-0 flex-1 flex-col gap-1 font-mono text-meta">
               <span data-testid="adopted-from">{entry.adoptedFrom}</span>
               {(entry.adoptedLinks ?? []).map((link) => (
                 <span key={link.path} className="text-muted-foreground">
@@ -94,7 +94,7 @@ export function SkillProvenance({ skill }: { skill: SkillDetail }) {
                 onClose={() => setAsking(false)}
               >
                 <p>
-                  It moves back to <code className="font-mono text-xs">{entry.adoptedFrom}</code> and leaves the
+                  It moves back to <code className="font-mono text-meta">{entry.adoptedFrom}</code> and leaves the
                   Library.
                 </p>
                 {links.length > 0 && (
@@ -109,9 +109,9 @@ export function SkillProvenance({ skill }: { skill: SkillDetail }) {
             )}
           </div>
         ) : (
-          <p className="text-muted-foreground text-sm">Not Adopted: it came into the Library another way.</p>
+          <p className="text-muted-foreground text-body">Not Adopted: it came into the Library another way.</p>
         )}
-        {undo.error && <p className="text-status-warning text-xs">{undo.error.message}</p>}
+        {undo.error && <p className="text-status-warning text-meta">{undo.error.message}</p>}
       </section>
 
       <FilteredActivity search={{ skill: skill.key }} exportName={`activity-${skill.name}`} />

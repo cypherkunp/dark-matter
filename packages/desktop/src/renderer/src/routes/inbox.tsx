@@ -62,15 +62,15 @@ function Finding({ finding, onAdopt, ticked }: { finding: GlobalSkill; onAdopt: 
       <StatusDot tone={finding.adoptable ? "warning" : "off"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{finding.name}</span>
+          <span className="font-medium text-body">{finding.name}</span>
           {finding.localSource && (
-            <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+            <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
               Local Source
             </span>
           )}
         </div>
-        {finding.description && <p className="truncate text-muted-foreground text-xs">{finding.description}</p>}
-        <div className="truncate font-mono text-muted-foreground text-xs">
+        {finding.description && <p className="truncate text-muted-foreground text-meta">{finding.description}</p>}
+        <div className="truncate font-mono text-muted-foreground text-meta">
           {[finding.source, finding.realPath, ...reachedFrom.map((location) => `↖ ${location.path}`)]
             .filter(Boolean)
             .join(" · ")}
@@ -96,12 +96,12 @@ function Finding({ finding, onAdopt, ticked }: { finding: GlobalSkill; onAdopt: 
 function FolderGroup({ group, onAdopt, ticked }: { group: InboxFolderGroup; onAdopt: Adopt; ticked: Ticked }) {
   return (
     <section data-testid="inbox-group" className="flex flex-col gap-3">
-      <h2 className="flex flex-wrap items-center gap-2 font-semibold text-sm">
+      <h2 className="flex flex-wrap items-center gap-2 font-semibold text-body">
         <span className="font-mono">{group.folder}</span>
-        <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+        <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
         <span className="ml-auto flex flex-wrap items-center gap-1">
           {group.agents.map((agent) => (
-            <span key={agent} className="rounded-md border px-1.5 py-0.5 font-normal text-[11px] text-muted-foreground">
+            <span key={agent} className="rounded-md border px-1.5 py-0.5 font-normal text-micro text-muted-foreground">
               {agentName(agent)}
             </span>
           ))}
@@ -130,15 +130,15 @@ function UntrackedFinding({ finding, onAdopt, ticked }: { finding: UntrackedSkil
       <StatusDot tone={finding.adoptable ? "warning" : "off"} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{finding.name}</span>
+          <span className="font-medium text-body">{finding.name}</span>
           {finding.localSource && (
-            <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+            <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
               Local Source
             </span>
           )}
         </div>
-        {finding.description && <p className="truncate text-muted-foreground text-xs">{finding.description}</p>}
-        <div className="truncate font-mono text-muted-foreground text-xs">
+        {finding.description && <p className="truncate text-muted-foreground text-meta">{finding.description}</p>}
+        <div className="truncate font-mono text-muted-foreground text-meta">
           {finding.locations.map((location) => location.path).join(" · ")}
         </div>
         {finding.notAdoptableReason && (
@@ -165,9 +165,9 @@ function NewSkillsGroup({ group }: { group: InboxNewSkillsGroup }) {
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   return (
     <section data-testid="inbox-new-skills" className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 font-semibold text-sm">
+      <h2 className="flex items-center gap-2 font-semibold text-body">
         New Skills in ⭐ <span className="font-mono">{group.source}</span>
-        <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+        <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
         <Link
           to="/get/github"
           search={{ url: group.source }}
@@ -181,8 +181,8 @@ function NewSkillsGroup({ group }: { group: InboxNewSkillsGroup }) {
           <div key={finding.id} data-testid="inbox-new-skill" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
             <StatusDot tone="warning" />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="font-medium text-sm">{finding.name}</span>
-              <span className="truncate font-mono text-muted-foreground text-xs">
+              <span className="font-medium text-body">{finding.name}</span>
+              <span className="truncate font-mono text-muted-foreground text-meta">
                 {group.source}/{finding.path}
               </span>
             </div>
@@ -204,11 +204,11 @@ function NewSkillsGroup({ group }: { group: InboxNewSkillsGroup }) {
 function ProjectGroup({ group, onAdopt, ticked }: { group: InboxProjectGroup; onAdopt: Adopt; ticked: Ticked }) {
   return (
     <section data-testid="inbox-untracked-group" className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 font-semibold text-sm">
+      <h2 className="flex items-center gap-2 font-semibold text-body">
         <Link to="/project" search={{ path: group.project }} className="hover:underline">
           {group.name}
         </Link>
-        <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+        <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
       </h2>
       <div className="divide-y rounded-xl border">
         {group.findings.map((finding) => (
@@ -236,24 +236,24 @@ function ManagedFinding({ finding }: { finding: ManagedSkill }) {
       <StatusDot tone="on" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{finding.name}</span>
-          <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+          <span className="font-medium text-body">{finding.name}</span>
+          <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
             {finding.plugin ?? finding.kind}
           </span>
         </div>
-        {finding.description && <p className="truncate text-muted-foreground text-xs">{finding.description}</p>}
-        <div className="truncate font-mono text-muted-foreground text-xs">{finding.path}</div>
+        {finding.description && <p className="truncate text-muted-foreground text-meta">{finding.description}</p>}
+        <div className="truncate font-mono text-muted-foreground text-meta">{finding.path}</div>
         {finding.offSwitches.length === 0 && (
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-meta">
             {agentName(finding.agent)} has no off switch for its own Skills, so Dark Matter only lists it.
           </p>
         )}
         {guarded && finding.offSwitches.length > 0 && (
-          <p data-testid="guarded-reason" className="text-muted-foreground text-xs">
+          <p data-testid="guarded-reason" className="text-muted-foreground text-meta">
             {guardedOffSwitchText}
           </p>
         )}
-        <ConsentError error={turnOff.error} className="text-status-warning text-xs" />
+        <ConsentError error={turnOff.error} className="text-status-warning text-meta" />
       </div>
       {finding.offSwitches.map((offSwitch) => (
         <Button
@@ -277,9 +277,9 @@ function ManagedFinding({ finding }: { finding: ManagedSkill }) {
 function ManagedGroup({ group }: { group: InboxManagedGroup }) {
   return (
     <section data-testid="inbox-managed-group" className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 font-semibold text-sm">
+      <h2 className="flex items-center gap-2 font-semibold text-body">
         <span>{agentName(group.agent)}</span>
-        <span className="font-normal text-muted-foreground text-xs tabular-nums">{group.findings.length}</span>
+        <span className="font-normal text-muted-foreground text-meta tabular-nums">{group.findings.length}</span>
       </h2>
       <div className="divide-y rounded-xl border">
         {group.findings.map((finding) => (
@@ -327,8 +327,8 @@ function Inbox() {
           <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <InboxIcon className="size-5" />
           </div>
-          <h2 className="font-semibold text-base">{lastScanAt ? "Nothing waiting on you" : "No Scan yet"}</h2>
-          <p className="max-w-sm text-muted-foreground text-sm">
+          <h2 className="font-semibold text-heading">{lastScanAt ? "Nothing waiting on you" : "No Scan yet"}</h2>
+          <p className="max-w-sm text-muted-foreground text-body">
             A Scan reads every Agent's global skill folders and lists the Global Skills it finds here. It never changes
             anything.
           </p>
@@ -346,10 +346,10 @@ function Inbox() {
             >
               <StatusDot tone="warning" />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="font-medium text-sm">
+                <span className="font-medium text-body">
                   {plural(inbox.data?.suggestedProjects ?? 0, "Suggested Project")}
                 </span>
-                <span className="text-muted-foreground text-xs">Confirm the folders Dark Matter should manage</span>
+                <span className="text-muted-foreground text-meta">Confirm the folders Dark Matter should manage</span>
               </div>
               <ChevronRight className="size-4 text-muted-foreground" />
             </Link>
@@ -358,7 +358,7 @@ function Inbox() {
           <InboxDrift groups={inbox.data?.drift ?? []} />
           {skillFindings.length > 0 && (
             <div data-testid="inbox-skills-actions" className="flex items-start gap-4">
-              <p className="flex-1 text-muted-foreground text-sm">
+              <p className="flex-1 text-muted-foreground text-body">
                 {groups.length > 0
                   ? "Global Skills load in every Project. Tick the ones to Adopt into the Library so each Project asks for only what it needs."
                   : "Tick the Skills to Adopt into the Library."}
@@ -374,8 +374,8 @@ function Inbox() {
           {untracked.length > 0 && (
             <>
               <div className="flex flex-col gap-1 pt-2">
-                <h2 className="font-semibold text-base">Untracked Project Skills</h2>
-                <p className="text-muted-foreground text-sm">
+                <h2 className="font-semibold text-heading">Untracked Project Skills</h2>
+                <p className="text-muted-foreground text-body">
                   Skills in a Project's skill folders that git doesn't track. Adopt & keep Link moves each into the
                   Library and puts a Link back, On, so the Project sees no change.
                 </p>
@@ -388,8 +388,8 @@ function Inbox() {
           {managed.length > 0 && (
             <>
               <div className="flex flex-col gap-1 pt-2">
-                <h2 className="font-semibold text-base">Agent-managed Skills</h2>
-                <p className="text-muted-foreground text-sm">
+                <h2 className="font-semibold text-heading">Agent-managed Skills</h2>
+                <p className="text-muted-foreground text-body">
                   Plugins, built-ins and bundled Skills each Agent installs itself. Dark Matter can't move them, but can
                   turn them off through the Agent's own settings.
                 </p>

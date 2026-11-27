@@ -48,7 +48,7 @@ function RateLimitNotice({ until }: { until: string }) {
   const now = useNow(1000);
   const seconds = Math.max(0, Math.ceil((Date.parse(until) - now) / 1000));
   return (
-    <p data-testid="skills-sh-rate-limited" className="text-muted-foreground text-sm">
+    <p data-testid="skills-sh-rate-limited" className="text-muted-foreground text-body">
       skills.sh allows 30 searches a minute, so Dark Matter is pausing for a moment.
       {seconds > 0 ? ` Search again in ${seconds} s.` : " Search again now."}
     </p>
@@ -66,7 +66,7 @@ function ListingPreview({ listing }: { listing: SkillsShListing }) {
   });
   const skill = preview.data?.skills.find((candidate) => candidate.selected);
   return (
-    <div data-testid="skills-sh-preview" className="border-t bg-muted/30 px-6 py-3 text-sm">
+    <div data-testid="skills-sh-preview" className="border-t bg-muted/30 px-6 py-3 text-body">
       {preview.isPending && <p className="text-muted-foreground">Loading…</p>}
       {preview.error && <p className="text-status-warning">{preview.error.message}</p>}
       {preview.data && !skill && <p className="text-muted-foreground">This Skill isn't in its repo any more.</p>}
@@ -91,8 +91,8 @@ function ListingRow({ listing, onGot }: { listing: SkillsShListing; onGot: (keys
     <div data-testid="skills-sh-result" className="flex flex-col">
       <div className="flex items-center gap-3 px-4 py-2.5">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate font-medium text-sm">{listing.name}</span>
-          <span className="truncate font-mono text-[11px] text-muted-foreground">
+          <span className="truncate font-medium text-body">{listing.name}</span>
+          <span className="truncate font-mono text-micro text-muted-foreground">
             {isSourceStarred(listing.source) && (
               <span data-testid="favourite-source" title="Favourite Source" className="text-status-warning">
                 ★{" "}
@@ -100,7 +100,7 @@ function ListingRow({ listing, onGot }: { listing: SkillsShListing; onGot: (keys
             )}
             {listing.source} · {installs(listing.installs)}
           </span>
-          {get.error && <span className="text-status-warning text-xs">{get.error.message}</span>}
+          {get.error && <span className="text-status-warning text-meta">{get.error.message}</span>}
         </div>
         <Button size="sm" variant="ghost" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
           {open ? <ChevronDown /> : <ChevronRight />}
@@ -110,7 +110,7 @@ function ListingRow({ listing, onGot }: { listing: SkillsShListing; onGot: (keys
           <Link
             to="/skill"
             search={{ key: listing.key }}
-            className="rounded-full border px-2 py-px text-[11px] text-muted-foreground hover:bg-muted"
+            className="rounded-full border px-2 py-px text-micro text-muted-foreground hover:bg-muted"
           >
             in Library
           </Link>
@@ -143,11 +143,11 @@ export function SkillsShResults({ text, onGot }: { text: string; onGot: (keys: s
   const data = search.data;
   return (
     <div className="flex min-h-0 flex-col gap-2">
-      {search.error && <p className="text-sm text-status-warning">{search.error.message}</p>}
+      {search.error && <p className="text-body text-status-warning">{search.error.message}</p>}
       {data?.rateLimitedUntil && <RateLimitNotice until={data.rateLimitedUntil} />}
-      {search.isPending && !data && <p className="text-muted-foreground text-sm">Searching skills.sh…</p>}
+      {search.isPending && !data && <p className="text-muted-foreground text-body">Searching skills.sh…</p>}
       {data && !data.rateLimitedUntil && data.skills.length === 0 && (
-        <p className="text-muted-foreground text-sm">Nothing on skills.sh matches “{data.query}”.</p>
+        <p className="text-muted-foreground text-body">Nothing on skills.sh matches “{data.query}”.</p>
       )}
       {data && data.skills.length > 0 && (
         <div className="min-h-0 divide-y overflow-y-auto rounded-xl border">

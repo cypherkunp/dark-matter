@@ -56,7 +56,7 @@ function Detail({ entry }: { entry: ActivityEntry }) {
     ["action", entry.action],
   ];
   return (
-    <div data-testid="activity-detail" className="flex flex-col gap-3 pt-2 pb-1 text-xs">
+    <div data-testid="activity-detail" className="flex flex-col gap-3 pt-2 pb-1 text-meta">
       <dl className="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-1">
         {rows.map(([label, value]) => (
           <div key={label} className="contents">
@@ -108,23 +108,23 @@ function Entry({ entry, expanded, onToggle }: { entry: ActivityEntry; expanded: 
       <StatusDot tone={failed ? "warning" : "healthy"} className="mt-1.5" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <button type="button" onClick={onToggle} className="text-left font-medium text-sm">
+          <button type="button" onClick={onToggle} className="text-left font-medium text-body">
             {actionLabel(entry.action)}
           </button>
           {failed && (
-            <span className="rounded-md bg-warning-surface px-1.5 py-0.5 text-[11px] text-status-warning">failed</span>
+            <span className="rounded-md bg-warning-surface px-1.5 py-0.5 text-micro text-status-warning">failed</span>
           )}
         </div>
-        <div className="truncate font-mono text-muted-foreground text-xs">
+        <div className="truncate font-mono text-muted-foreground text-meta">
           {entry.subjects.length > 0 ? <SubjectLinks subjects={entry.subjects} /> : entry.action}
         </div>
         {!expanded && entry.error && (
-          <div className="truncate text-muted-foreground text-xs">{entry.error.message}</div>
+          <div className="truncate text-muted-foreground text-meta">{entry.error.message}</div>
         )}
         {expanded && <Detail entry={entry} />}
       </div>
-      <div className="flex shrink-0 items-center gap-3 text-muted-foreground text-xs">
-        <span className="rounded-md border px-1.5 py-0.5 font-mono text-[11px]">{requesterLabel(entry)}</span>
+      <div className="flex shrink-0 items-center gap-3 text-muted-foreground text-meta">
+        <span className="rounded-md border px-1.5 py-0.5 font-mono text-micro">{requesterLabel(entry)}</span>
         <time dateTime={entry.time} className="w-12 text-right tabular-nums">
           {new Date(entry.time).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
         </time>
@@ -190,7 +190,7 @@ export function ActivityTimeline({ entries, className }: { entries: ActivityEntr
               {item.type === "day" ? (
                 <h2
                   data-testid="activity-day"
-                  className="flex items-baseline gap-2 bg-muted/40 px-5 py-2 font-semibold text-xs"
+                  className="flex items-baseline gap-2 bg-muted/40 px-5 py-2 font-semibold text-meta"
                 >
                   {item.label}
                   <span className="font-normal text-muted-foreground tabular-nums">{item.count}</span>
@@ -250,13 +250,13 @@ export function FilteredActivity({ search, exportName }: { search: ActivitySearc
   return (
     <section data-testid="filtered-activity" className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <h2 className="font-semibold text-sm">Activity</h2>
-        <span className="text-muted-foreground text-xs tabular-nums">{entries.length}</span>
+        <h2 className="font-semibold text-body">Activity</h2>
+        <span className="text-muted-foreground text-meta tabular-nums">{entries.length}</span>
         <div className="ml-auto flex items-center gap-2">
           <Link
             to="/computer/activity"
             search={search}
-            className="text-muted-foreground text-xs hover:text-foreground hover:underline"
+            className="text-muted-foreground text-meta hover:text-foreground hover:underline"
           >
             Open in Activity
           </Link>
@@ -264,7 +264,7 @@ export function FilteredActivity({ search, exportName }: { search: ActivitySearc
         </div>
       </div>
       {activity.isPending ? null : entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">Nothing recorded yet.</p>
+        <p className="text-muted-foreground text-body">Nothing recorded yet.</p>
       ) : (
         <ActivityTimeline entries={entries} className="max-h-[28rem]" />
       )}

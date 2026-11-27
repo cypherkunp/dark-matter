@@ -26,13 +26,13 @@ export function GitHubSettings() {
   };
   return (
     <section data-testid="github-settings" className="flex flex-col gap-3">
-      <h2 className="font-semibold text-sm">GitHub</h2>
+      <h2 className="font-semibold text-body">GitHub</h2>
       <div className="flex flex-col gap-3 rounded-xl border px-5 py-4">
-        <p data-testid="github-auth" className="text-sm">
+        <p data-testid="github-auth" className="text-body">
           {auth.data ? methodText[auth.data.method] : "…"}
         </p>
         <form className="flex items-center gap-2" onSubmit={submit}>
-          <label htmlFor="github-pat" className="shrink-0 font-medium text-sm">
+          <label htmlFor="github-pat" className="shrink-0 font-medium text-body">
             Personal access token
           </label>
           <Input
@@ -58,10 +58,10 @@ export function GitHubSettings() {
             </Button>
           )}
         </form>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-muted-foreground text-meta">
           Used for private repos when the gh CLI isn't logged in. Kept in the OS keychain.
         </p>
-        {save.error && <p className="text-sm text-status-warning">{save.error.message}</p>}
+        {save.error && <p className="text-body text-status-warning">{save.error.message}</p>}
       </div>
     </section>
   );
