@@ -6,6 +6,7 @@ import { Download, Plus } from "lucide-react";
 import { useState } from "react";
 import { CopyActions, CopyStateBadge, useProjectSkillChanges, useResolveConflict } from "@/components/copy-actions";
 import { looksLikeGitHubSource } from "@/components/github-import";
+import { RowText } from "@/components/row-text";
 import { SkillsShResults } from "@/components/skills-sh";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -65,23 +66,24 @@ function ProjectSkillRow({ path, skill }: { path: string; skill: ProjectSkill })
   const busy = changes.busy || resolve.busy;
   const error = changes.error ?? resolve.error;
   return (
-    <div data-testid="project-skill-row" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="project-skill-row" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
       <StatusDot tone={conflict ? "warning" : skill.on ? "on" : "off"} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-body">{skill.name}</span>
-          <Chip mono>{skill.namespace}</Chip>
-          <Chip mono data-testid="delivery-mode">
-            {modeLabels[skill.mode]}
-          </Chip>
-          <CopyStateBadge skill={skill} />
-          {conflict && <Chip tone="warning">Name Conflict</Chip>}
-        </div>
-        <div className="truncate font-mono text-muted-foreground text-meta">
-          {conflict ? `also wanted: ${skill.conflictsWith.join(", ")}` : skill.paths.join(" · ")}
-        </div>
+      <RowText
+        title={skill.name}
+        chips={
+          <>
+            <Chip mono>{skill.namespace}</Chip>
+            <Chip mono data-testid="delivery-mode">
+              {modeLabels[skill.mode]}
+            </Chip>
+            <CopyStateBadge skill={skill} />
+            {conflict && <Chip tone="warning">Name Conflict</Chip>}
+          </>
+        }
+        detail={conflict ? `also wanted: ${skill.conflictsWith.join(", ")}` : skill.paths.join(" · ")}
+      >
         {error && <p className="text-status-warning text-meta">{error.message}</p>}
-      </div>
+      </RowText>
       {conflict && (
         <Button
           size="sm"

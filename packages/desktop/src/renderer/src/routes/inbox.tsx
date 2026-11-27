@@ -31,6 +31,7 @@ import { InboxRequests } from "@/components/inbox-requests";
 import { ManagedMcpGroups } from "@/components/managed-mcp";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
+import { RowText } from "@/components/row-text";
 import { StatusDot } from "@/components/status-dot";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -54,7 +55,7 @@ function Finding({ finding, onAdopt, ticked }: { finding: GlobalSkill; onAdopt: 
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   const reachedFrom = finding.locations.filter((location) => location.path !== finding.realPath);
   return (
-    <div data-testid="inbox-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="inbox-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
       <TickBox
         name={finding.name}
         adoptable={finding.adoptable}
@@ -62,21 +63,18 @@ function Finding({ finding, onAdopt, ticked }: { finding: GlobalSkill; onAdopt: 
         onChange={(on) => ticked.toggle(finding.id, on)}
       />
       <StatusDot tone={finding.adoptable ? "warning" : "off"} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-body">{finding.name}</span>
-          {finding.localSource && <Chip mono>Local Source</Chip>}
-        </div>
-        {finding.description && <p className="truncate text-muted-foreground text-meta">{finding.description}</p>}
-        <div className="truncate font-mono text-muted-foreground text-meta">
-          {[finding.source, finding.realPath, ...reachedFrom.map((location) => `↖ ${location.path}`)]
-            .filter(Boolean)
-            .join(" · ")}
-        </div>
+      <RowText
+        title={finding.name}
+        chips={finding.localSource && <Chip mono>Local Source</Chip>}
+        description={finding.description}
+        detail={[finding.source, finding.realPath, ...reachedFrom.map((location) => `↖ ${location.path}`)]
+          .filter(Boolean)
+          .join(" · ")}
+      >
         {finding.notAdoptableReason && (
           <ReadOnlyReason reason={finding.notAdoptableReason} owner={finding.owningAgent} />
         )}
-      </div>
+      </RowText>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={ignore.isPending} onClick={() => ignore.mutate({ id: finding.id })}>
           Ignore
@@ -116,7 +114,7 @@ function UntrackedFinding({ finding, onAdopt, ticked }: { finding: UntrackedSkil
   const trpc = useTRPC();
   const ignore = useMutation(trpc.inbox.ignore.mutationOptions());
   return (
-    <div data-testid="inbox-untracked-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="inbox-untracked-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
       <TickBox
         name={finding.name}
         adoptable={finding.adoptable}
@@ -124,19 +122,16 @@ function UntrackedFinding({ finding, onAdopt, ticked }: { finding: UntrackedSkil
         onChange={(on) => ticked.toggle(finding.id, on)}
       />
       <StatusDot tone={finding.adoptable ? "warning" : "off"} />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-body">{finding.name}</span>
-          {finding.localSource && <Chip mono>Local Source</Chip>}
-        </div>
-        {finding.description && <p className="truncate text-muted-foreground text-meta">{finding.description}</p>}
-        <div className="truncate font-mono text-muted-foreground text-meta">
-          {finding.locations.map((location) => location.path).join(" · ")}
-        </div>
+      <RowText
+        title={finding.name}
+        chips={finding.localSource && <Chip mono>Local Source</Chip>}
+        description={finding.description}
+        detail={finding.locations.map((location) => location.path).join(" · ")}
+      >
         {finding.notAdoptableReason && (
           <ReadOnlyReason reason={finding.notAdoptableReason} owner={finding.owningAgent} />
         )}
-      </div>
+      </RowText>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={ignore.isPending} onClick={() => ignore.mutate({ id: finding.id })}>
           Ignore
@@ -172,12 +167,7 @@ function NewSkillsGroup({ group }: { group: InboxNewSkillsGroup }) {
         {group.findings.map((finding) => (
           <div key={finding.id} data-testid="inbox-new-skill" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
             <StatusDot tone="warning" />
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="font-medium text-body">{finding.name}</span>
-              <span className="truncate font-mono text-muted-foreground text-meta">
-                {group.source}/{finding.path}
-              </span>
-            </div>
+            <RowText title={finding.name} detail={`${group.source}/${finding.path}`} />
             <Button
               size="sm"
               variant="ghost"
@@ -224,15 +214,14 @@ function ManagedFinding({ finding }: { finding: ManagedSkill }) {
   const guarded = useAgentConfigGuard();
   const busy = ignore.isPending || turnOff.isPending;
   return (
-    <div data-testid="inbox-managed-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="inbox-managed-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
       <StatusDot tone="on" />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-body">{finding.name}</span>
-          <Chip mono>{finding.plugin ?? finding.kind}</Chip>
-        </div>
-        {finding.description && <p className="truncate text-muted-foreground text-meta">{finding.description}</p>}
-        <div className="truncate font-mono text-muted-foreground text-meta">{finding.path}</div>
+      <RowText
+        title={finding.name}
+        chips={<Chip mono>{finding.plugin ?? finding.kind}</Chip>}
+        description={finding.description}
+        detail={finding.path}
+      >
         {finding.offSwitches.length === 0 && (
           <p className="text-muted-foreground text-meta">
             {agentName(finding.agent)} has no off switch for its own Skills, so Dark Matter only lists it.
@@ -244,7 +233,7 @@ function ManagedFinding({ finding }: { finding: ManagedSkill }) {
           </p>
         )}
         <ConsentError error={turnOff.error} className="text-status-warning text-meta" />
-      </div>
+      </RowText>
       {finding.offSwitches.map((offSwitch) => (
         <Button
           key={offSwitch.scope}

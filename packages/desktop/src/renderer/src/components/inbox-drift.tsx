@@ -1,6 +1,7 @@
 import type { DriftFinding, InboxDriftGroup } from "@dark-matter/contracts";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { RowText } from "@/components/row-text";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/lib/trpc";
@@ -39,16 +40,15 @@ function DriftRow({ finding }: { finding: DriftFinding }) {
   const busy = ignore.isPending || restore.isPending || accept.isPending;
   const error = restore.error ?? accept.error;
   return (
-    <div data-testid="inbox-drift-finding" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="inbox-drift-finding" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
       <StatusDot tone="warning" />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-medium text-body">{finding.name ?? finding.project}</span>
-        <p className="text-muted-foreground text-meta">{describe(finding)}</p>
-        {finding.paths.length > 0 && (
-          <div className="truncate font-mono text-muted-foreground text-meta">{finding.paths.join(" · ")}</div>
-        )}
+      <RowText
+        title={finding.name ?? finding.project}
+        description={describe(finding)}
+        detail={finding.paths.length > 0 ? finding.paths.join(" · ") : undefined}
+      >
         {error && <p className="text-status-warning text-meta">{error.message}</p>}
-      </div>
+      </RowText>
       <div className="flex gap-1.5">
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => ignore.mutate({ id: finding.id })}>
           Ignore

@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Trash2 } from "lucide-react";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
+import { RowText } from "@/components/row-text";
 import { plural } from "@/components/skill-list";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -39,14 +40,12 @@ function TrashView() {
       ) : (
         <div className="divide-y rounded-xl border">
           {list.map((skill) => (
-            <div key={skill.id} data-testid="trashed-skill" className="flex min-h-16 items-center gap-3 px-5 py-3">
+            <div key={skill.id} data-testid="trashed-skill" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
               <StatusDot tone="off" />
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="font-medium text-body">{skill.name}</span>
-                <span className="truncate font-mono text-muted-foreground text-meta">
-                  {skill.key} · deleted {day(skill.deletedAt)} · purged {day(skill.purgeAt)}
-                </span>
-              </div>
+              <RowText
+                title={skill.name}
+                detail={`${skill.key} · deleted ${day(skill.deletedAt)} · purged ${day(skill.purgeAt)}`}
+              />
               <Button
                 size="sm"
                 variant="outline"

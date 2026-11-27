@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { FolderPlus, FolderSearch } from "lucide-react";
 import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
+import { RowText } from "@/components/row-text";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { useScan } from "@/components/use-scan";
@@ -26,17 +27,16 @@ function Row({ suggestion }: { suggestion: SuggestedProject }) {
   const dismiss = useMutation(trpc.project.dismiss.mutationOptions());
   const busy = manage.isPending || dismiss.isPending;
   return (
-    <div data-testid="suggested-project" className="flex min-h-16 items-center gap-3 px-5 py-3">
+    <div data-testid="suggested-project" className="flex min-h-14 items-center gap-3 px-5 py-2.5">
       <StatusDot tone="warning" />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="font-medium text-body">{suggestion.name}</span>
-        <div className="truncate font-mono text-muted-foreground text-meta">
-          {[tildify(suggestion.path), suggestion.git ? "git" : "no git"].join(" · ")}
-        </div>
+      <RowText
+        title={suggestion.name}
+        detail={[tildify(suggestion.path), suggestion.git ? "git" : "no git"].join(" · ")}
+      >
         <div className="text-muted-foreground text-meta">
           Seen in {suggestion.agents.map((agent) => agentName(agent)).join(", ")}
         </div>
-      </div>
+      </RowText>
       <Button size="sm" variant="outline" disabled={busy} onClick={() => dismiss.mutate({ path: suggestion.path })}>
         Dismiss
       </Button>
