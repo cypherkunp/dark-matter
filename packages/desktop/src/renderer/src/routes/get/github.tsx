@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { GitHubImport } from "@/components/github-import";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { tildify } from "@/lib/paths";
 
@@ -14,13 +15,13 @@ export const Route = createFileRoute("/get/github")({
 function GitHubImportPage() {
   const { url = "", project } = Route.useSearch();
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <Page className="gap-6">
       <PageHead
         title="GitHub import"
         summary="Import Skills from a GitHub repo into the Library, pinned to a commit and following its branch or tag."
         {...(project ? { status: `Adding to ${tildify(project)} after the Import.` } : {})}
       />
       <GitHubImport key={`${url}\n${project ?? ""}`} initialUrl={url} project={project ?? null} />
-    </div>
+    </Page>
   );
 }

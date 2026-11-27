@@ -9,6 +9,7 @@ import { CodeEditor } from "@/components/code-editor";
 import { ConfirmDialog } from "@/components/copy-actions";
 import { definitionSummary } from "@/components/inbox-mcp";
 import { byAgent, ManagedMcpGroups } from "@/components/managed-mcp";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { Button } from "@/components/ui/button";
 import { agentName } from "@/lib/agents";
@@ -209,7 +210,7 @@ function McpServers() {
   const secrets = new Set(servers.flatMap((server) => server.secrets)).size;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <PageHead
         title="MCP Servers"
         summary={`${plural(servers.length, "MCP Server")} · ${plural(secrets, "Secret")}`}
@@ -237,6 +238,6 @@ function McpServers() {
         </div>
       )}
       <ManagedMcpGroups groups={byAgent(managed.data ?? [])} />
-    </div>
+    </Page>
   );
 }

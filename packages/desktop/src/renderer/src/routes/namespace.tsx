@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { StarSourceButton, sourceOfNamespace } from "@/components/favourites";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { RenameNamespaceDialog } from "@/components/rename-namespace-dialog";
 import { plural, SkillRows } from "@/components/skill-list";
@@ -27,7 +28,7 @@ function NamespaceView() {
   const skills = (library.data?.skills ?? []).filter((skill) => skill.namespace === name);
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           <PageHead
@@ -57,6 +58,6 @@ function NamespaceView() {
           void navigate({ to: "/namespace", search: { name: to }, replace: true });
         }}
       />
-    </div>
+    </Page>
   );
 }

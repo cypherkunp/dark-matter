@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { History } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityTimeline, ExportActivityButton, useActivity } from "@/components/activity-view";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,7 +171,7 @@ function Activity() {
   );
 
   return (
-    <div className="mx-auto flex h-full max-w-5xl flex-col gap-6 px-10 py-9">
+    <Page className="h-full gap-6">
       <div className="flex items-start justify-between gap-4">
         <PageHead
           title="Activity"
@@ -196,6 +197,6 @@ function Activity() {
       ) : (
         <ActivityTimeline entries={entries} className="flex-1" />
       )}
-    </div>
+    </Page>
   );
 }

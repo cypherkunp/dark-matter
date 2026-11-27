@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { Inventory } from "@/components/inventory";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { StatusDot } from "@/components/status-dot";
 import { useTRPC } from "@/lib/trpc";
@@ -81,7 +82,7 @@ function Agents() {
   const detected = list.filter((agent) => agent.detected).length;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <PageHead
         title="Agents"
         summary={`${list.length} Agents · ${detected} detected`}
@@ -108,6 +109,6 @@ function Agents() {
           }
         />
       </section>
-    </div>
+    </Page>
   );
 }

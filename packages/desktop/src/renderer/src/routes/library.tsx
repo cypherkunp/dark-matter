@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Library } from "lucide-react";
 import { Overview } from "@/components/overview";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { byNamespace, plural, SkillRows } from "@/components/skill-list";
 import { tildify } from "@/lib/paths";
@@ -17,7 +18,7 @@ function AllSkills() {
   const namespaces = new Set(skills.map((skill) => skill.namespace)).size;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <PageHead
         title="All Skills"
         summary={`${plural(skills.length, "Skill")} · ${plural(namespaces, "Namespace")}`}
@@ -51,6 +52,6 @@ function AllSkills() {
           </section>
         ))
       )}
-    </div>
+    </Page>
   );
 }

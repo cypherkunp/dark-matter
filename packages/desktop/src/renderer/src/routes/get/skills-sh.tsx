@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { SkillsShResults } from "@/components/skills-sh";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,7 @@ function SkillsShSearchPage({ initial, project }: { initial: string; project: st
   const [text, setText] = useState(initial);
   const [adding, setAdding] = useState<string[] | null>(null);
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <Page className="gap-6">
       <PageHead
         title="skills.sh"
         summary="Search the skills.sh directory. Get Imports a Skill from its GitHub repo into the Library, pinned to a commit."
@@ -48,6 +49,6 @@ function SkillsShSearchPage({ initial, project }: { initial: string; project: st
           onClose={() => setAdding(null)}
         />
       )}
-    </div>
+    </Page>
   );
 }

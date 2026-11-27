@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AgentsSettings } from "@/components/agents-settings";
 import { GitHubSettings } from "@/components/github-settings";
 import { OwnedFileProblems } from "@/components/owned-file-problems";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,7 +76,7 @@ function Settings() {
   const update = (patch: PreferencesPatch) => setDraft((current) => current && { ...current, ...patch });
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <PageHead
         title="Settings"
         summary="Preferences for this computer"
@@ -152,6 +153,6 @@ function Settings() {
       )}
       <AgentsSettings />
       <GitHubSettings />
-    </div>
+    </Page>
   );
 }

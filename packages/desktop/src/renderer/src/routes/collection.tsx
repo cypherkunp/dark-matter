@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { ConfirmDialog } from "@/components/copy-actions";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { plural } from "@/components/skill-list";
 import { Button } from "@/components/ui/button";
@@ -58,16 +59,16 @@ function CollectionView() {
   if (collections.isPending) return null;
   if (!collection)
     return (
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-10 py-9">
+      <Page className="gap-4">
         <PageHead title={name} summary="No Collection has this name." />
         <Link to="/library/collections" className="text-body hover:underline">
           All Collections
         </Link>
-      </div>
+      </Page>
     );
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           <PageHead
@@ -228,7 +229,7 @@ function CollectionView() {
           onClose={() => setDialog(null)}
         />
       )}
-    </div>
+    </Page>
   );
 }
 

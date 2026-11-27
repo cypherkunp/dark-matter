@@ -8,6 +8,7 @@ import { AddToProjectsDialog } from "@/components/add-to-projects";
 import { DeleteSkillDialog } from "@/components/delete-skill-dialog";
 import { StarSkillButton } from "@/components/favourites";
 import { ModifiedBadge } from "@/components/modified-badge";
+import { Page } from "@/components/page";
 import { skillTabs } from "@/components/skill-tabs";
 import { Button } from "@/components/ui/button";
 import { CheckUpstreamButton, OrphanedBadge } from "@/components/updates";
@@ -84,7 +85,7 @@ function SkillPage() {
   const current = skillTabs.find((candidate) => candidate.id === tab) ?? skillTabs[0];
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-10 py-9">
+    <Page className="gap-6">
       {skill.error ? (
         <p className="text-muted-foreground text-body">{skill.error.message}</p>
       ) : skill.data && current ? (
@@ -112,6 +113,6 @@ function SkillPage() {
           </Tabs.Root>
         </>
       ) : null}
-    </div>
+    </Page>
   );
 }

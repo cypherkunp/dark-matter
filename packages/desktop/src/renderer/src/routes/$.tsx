@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { breadcrumbFor } from "@/nav";
 
@@ -9,8 +10,8 @@ function NotBuiltYet() {
   const { _splat } = Route.useParams();
   const title = breadcrumbFor(`/${_splat ?? ""}`).at(-1) ?? "Dark Matter";
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-10 py-9">
+    <Page>
       <PageHead title={title} summary="This screen isn't built yet." />
-    </div>
+    </Page>
   );
 }
