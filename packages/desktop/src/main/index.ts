@@ -13,6 +13,9 @@ const coreEntry = () =>
     ? join(process.resourcesPath, "core", "main.mjs")
     : (process.env.DARK_MATTER_CORE_ENTRY ?? resolve(app.getAppPath(), "../core/dist/main.mjs"));
 
+// Before anything reads it: the menu bar and About panel use this name (development runs under stock Electron).
+app.setName("Dark Matter");
+
 const supervisor = new CoreSupervisor({
   coreFilePath: corePaths(resolveLibraryHome(process.env)).coreFile,
   coreEntry: coreEntry(),
