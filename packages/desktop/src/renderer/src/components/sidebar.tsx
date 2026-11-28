@@ -98,9 +98,7 @@ export function Sidebar({ connected }: { connected: boolean }) {
 
   return (
     <aside className="dark flex w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground" data-testid="sidebar">
-      <div className="drag-region flex h-[52px] shrink-0 items-center pr-4 pl-[84px]">
-        <span className="font-semibold text-lead tracking-[-0.01em]">Dark Matter</span>
-      </div>
+      <div className="drag-region h-[52px] shrink-0" />
 
       <nav className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-2.5 pt-2 pb-4">
         <div className="relative px-0.5">
