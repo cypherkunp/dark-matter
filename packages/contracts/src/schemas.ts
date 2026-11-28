@@ -141,6 +141,10 @@ export const ActivityRetention = z.union([
 ]);
 export type ActivityRetention = z.infer<typeof ActivityRetention>;
 
+/** The app's appearance: a fixed theme, or whatever the system is set to. */
+export const Theme = z.enum(["dark", "light", "system"]);
+export type Theme = z.infer<typeof Theme>;
+
 /** A v1 Agent, as Dark Matter's adapters know it. */
 export const AgentId = z.enum(["claude-code", "cursor", "opencode", "codex", "agents"]);
 export type AgentId = z.infer<typeof AgentId>;
@@ -201,6 +205,7 @@ const preferenceFields = {
   /** Days a deleted Library Skill stays in `trash/`. */
   trashRetentionDays: z.int().positive(),
   activityRetention: ActivityRetention,
+  theme: Theme,
 };
 
 export const Preferences = z.strictObject({
@@ -208,6 +213,7 @@ export const Preferences = z.strictObject({
   startAtLogin: preferenceFields.startAtLogin.default(true),
   trashRetentionDays: preferenceFields.trashRetentionDays.default(30),
   activityRetention: preferenceFields.activityRetention.default(30),
+  theme: preferenceFields.theme.default("system"),
   /** Per-Agent Adopt Permissions (ADR-0007). Changed only through `settings.setAdoptPermission`. */
   adoptPermissions: AdoptPermissions.prefault({}),
   /**

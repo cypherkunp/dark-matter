@@ -3,12 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createHashHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { followSystemTheme } from "./lib/theme";
+import { applyRememberedTheme } from "./lib/theme";
 import { TRPCProvider } from "./lib/trpc";
 import { routeTree } from "./routeTree.gen";
 import "./styles.css";
 
-followSystemTheme();
+applyRememberedTheme();
 
 // One connection to the core for the window's lifetime. It asks main where the
 // core is on every (re)connect, so it follows a core that main restarted.
