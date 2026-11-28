@@ -1,5 +1,5 @@
 import type { HighlighterTypes, ThemesType } from "@pierre/diffs";
-import { useEffect, useState } from "react";
+import { useResolvedTheme } from "@/lib/theme";
 
 /**
  * Read-only code is rendered by Pierre's `@pierre/diffs`, the same viewer T3 Code uses.
@@ -9,19 +9,8 @@ import { useEffect, useState } from "react";
  */
 export const PREFERRED_HIGHLIGHTER: HighlighterTypes = "highlights";
 
-/** Both palettes, so the viewer follows the system appearance without a new highlighter. */
+/** Both palettes, so the viewer follows the app's theme without a new highlighter. */
 export const CODE_THEMES: ThemesType = { light: "pierre-light", dark: "pierre-dark" };
 
-const darkQuery = () => window.matchMedia("(prefers-color-scheme: dark)");
-
-/** The system appearance, as `followSystemTheme` applies it to the app's tokens. */
-export function useColorScheme(): "light" | "dark" {
-  const [scheme, setScheme] = useState<"light" | "dark">(() => (darkQuery().matches ? "dark" : "light"));
-  useEffect(() => {
-    const media = darkQuery();
-    const apply = () => setScheme(media.matches ? "dark" : "light");
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, []);
-  return scheme;
-}
+/** The theme in effect (Settings › Appearance), as `applyTheme` paints the app's tokens. */
+export const useColorScheme = useResolvedTheme;

@@ -1,4 +1,4 @@
-import type { ActivityRetention, Preferences, PreferencesPatch } from "@dark-matter/contracts";
+import type { ActivityRetention, Preferences, PreferencesPatch, Theme } from "@dark-matter/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -10,6 +10,7 @@ import { PageHead } from "@/components/page-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { tildify } from "@/lib/paths";
+import { applyTheme } from "@/lib/theme";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createFileRoute("/settings")({ component: Settings });
@@ -22,8 +23,14 @@ const retentionOptions: { value: ActivityRetention; label: string }[] = [
   { value: "forever", label: "Forever" },
 ];
 
-/** The preferences this form edits; Adopt Permissions and the Guard save on their own (Settings › Agents). */
-type FormPreferences = Required<PreferencesPatch>;
+const themeOptions: { value: Theme; label: string }[] = [
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+  { value: "system", label: "System" },
+];
+
+/** The preferences this form edits; the theme, Adopt Permissions and the Guard save on their own. */
+type FormPreferences = Required<Omit<PreferencesPatch, "theme">>;
 
 const formPreferences = ({
   scheduledScanTime,
@@ -56,6 +63,62 @@ function Row({
   );
 }
 
+/** Dark, Light or System as one segmented control: applied on click, saved straight away. */
+function ThemeRow() {
+  const trpc = useTRPC();
+  const saved = useQuery(trpc.settings.get.queryOptions()).data?.preferences.theme;
+  const save = useMutation(trpc.settings.updatePreferences.mutationOptions());
+  const [chosen, setChosen] = useState<Theme | undefined>();
+  const theme = chosen ?? saved;
+  if (!theme) return null;
+  const choose = (next: Theme) => {
+    setChosen(next);
+    applyTheme(next);
+    save.mutate(
+      { theme: next },
+      {
+        onSettled: () => setChosen(undefined),
+        // Back to what's saved, so the window never shows a theme that wasn't kept.
+        onError: () => saved && applyTheme(saved),
+      },
+    );
+  };
+  return (
+    <div className="flex min-h-16 items-center gap-6 px-5 py-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span id="theme-label" className="font-medium text-body">
+          Appearance
+        </span>
+        <p className="text-muted-foreground text-meta">
+          {save.error ? save.error.message : "System follows the computer's light or dark setting."}
+        </p>
+      </div>
+      <div
+        role="radiogroup"
+        aria-labelledby="theme-label"
+        className="flex h-8 shrink-0 items-center rounded-full bg-muted p-0.5"
+      >
+        {themeOptions.map((option) => (
+          <label
+            key={option.value}
+            className="flex h-7 cursor-default items-center rounded-full px-3 font-medium text-body text-muted-foreground transition-colors hover:text-foreground has-checked:bg-background has-checked:text-foreground has-focus-visible:ring-3 has-focus-visible:ring-ring/50 dark:has-checked:bg-accent"
+          >
+            <input
+              type="radio"
+              name="theme"
+              value={option.value}
+              className="sr-only"
+              checked={theme === option.value}
+              onChange={() => choose(option.value)}
+            />
+            {option.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Settings() {
   const trpc = useTRPC();
   const settings = useQuery(trpc.settings.get.queryOptions());
@@ -83,6 +146,9 @@ function Settings() {
         {...(info.data && { status: `Saved in ${tildify(info.data.libraryHome)}/settings.json` })}
       />
       <OwnedFileProblems />
+      <section className="rounded-xl border">
+        <ThemeRow />
+      </section>
       {draft && (
         <form
           className="flex flex-col gap-4"

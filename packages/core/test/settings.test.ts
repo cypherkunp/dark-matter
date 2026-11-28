@@ -22,6 +22,7 @@ describe("settings.json", () => {
       agentConfigGuard: true,
       scheduledScanTime: "09:00",
       startAtLogin: true,
+      theme: "system",
       trashRetentionDays: 30,
     });
     expect(await readdir(libraryHome)).not.toContain("settings.json");
@@ -66,6 +67,7 @@ describe("settings.json", () => {
     "agentConfigGuard": true,
     "scheduledScanTime": "07:30",
     "startAtLogin": true,
+    "theme": "system",
     "trashRetentionDays": 30
   }
 }

@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { createRootRoute, Navigate, Outlet, useLocation } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { CommandPalette } from "@/components/command-palette";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
 import { useCoreEvents } from "@/components/use-core-events";
 import { useNativeNavigation } from "@/components/use-native-navigation";
+import { applyTheme } from "@/lib/theme";
 import { useTRPC } from "@/lib/trpc";
 
 export const Route = createRootRoute({ component: AppShell });
@@ -15,6 +17,10 @@ function AppShell() {
   useNativeNavigation();
   const trpc = useTRPC();
   const settings = useQuery(trpc.settings.get.queryOptions());
+  const theme = settings.data?.preferences.theme;
+  useEffect(() => {
+    if (theme) applyTheme(theme);
+  }, [theme]);
   const firstRunRoute = useLocation({ select: (location) => location.pathname === "/first-run" });
   // The First run (#46) comes before the Library, once: nothing renders until settings.json says whether it's done.
   if (!settings.data) return <div className="h-full bg-background" />;
