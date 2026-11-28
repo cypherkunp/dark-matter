@@ -9,6 +9,7 @@ import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { tildify } from "@/lib/paths";
 import { applyTheme } from "@/lib/theme";
 import { useTRPC } from "@/lib/trpc";
@@ -189,9 +190,9 @@ function Settings() {
               />
             </Row>
             <Row label="Keep Activity for" htmlFor="activity-retention" hint="Older Activity Log days are deleted.">
-              <select
+              <Select
                 id="activity-retention"
-                className="h-8 w-32 rounded-lg border border-input bg-transparent px-2 text-body dark:bg-input/30"
+                className="w-32"
                 value={String(draft.activityRetention)}
                 onChange={(event) =>
                   update({
@@ -206,7 +207,7 @@ function Settings() {
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Row>
           </section>
           <div className="flex items-center justify-end gap-3">

@@ -7,6 +7,7 @@ import { Page } from "@/components/page";
 import { PageHead } from "@/components/page-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   type ActivitySearch,
   actionLabel,
@@ -29,8 +30,6 @@ type SearchPatch = { [K in keyof ActivitySearch]?: ActivitySearch[K] | undefined
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-const selectClass = "h-8 rounded-lg border border-input bg-transparent px-2 text-body dark:bg-input/30";
-
 function FilterSelect({
   label,
   value,
@@ -43,12 +42,7 @@ function FilterSelect({
   onChange: (value: string | undefined) => void;
 }) {
   return (
-    <select
-      aria-label={label}
-      className={selectClass}
-      value={value ?? ""}
-      onChange={(event) => onChange(event.target.value || undefined)}
-    >
+    <Select aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value || undefined)}>
       <option value="">{`Any ${label.toLowerCase()}`}</option>
       {/* A value from a link that isn't in the list still shows as chosen. */}
       {value && !options.some((option) => option.value === value) && <option value={value}>{value}</option>}
@@ -57,7 +51,7 @@ function FilterSelect({
           {option.label}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 
@@ -123,22 +117,24 @@ function Filters({ search, set }: { search: ActivitySearch; set: (patch: SearchP
         />
         Failures only
       </label>
-      <label className="flex items-center gap-1.5 text-muted-foreground text-meta">
+      <label htmlFor="activity-from" className="flex items-center gap-1.5 text-muted-foreground text-meta">
         From
-        <input
+        <Input
+          id="activity-from"
           type="date"
           aria-label="From"
-          className={selectClass}
+          className="w-auto"
           value={search.from ?? ""}
           onChange={(event) => set({ from: event.target.value || undefined })}
         />
       </label>
-      <label className="flex items-center gap-1.5 text-muted-foreground text-meta">
+      <label htmlFor="activity-to" className="flex items-center gap-1.5 text-muted-foreground text-meta">
         To
-        <input
+        <Input
+          id="activity-to"
           type="date"
           aria-label="To"
-          className={selectClass}
+          className="w-auto"
           value={search.to ?? ""}
           onChange={(event) => set({ to: event.target.value || undefined })}
         />
